@@ -69,12 +69,17 @@
   }
 
   /* ---------- 渲染 ---------- */
-  function render() {
-    const list = rows.slice().sort((a, b) => {
+  /* 排序：卡片表格与「放大查看」弹窗共用同一顺序 */
+  function sortedRows() {
+    return rows.slice().sort((a, b) => {
       const k = S.sort;
       if (k === 'name') return a.name.localeCompare(b.name, 'zh') * S.dir;
       return (a[k] - b[k]) * S.dir || a.name.localeCompare(b.name, 'zh');
     });
+  }
+
+  function render() {
+    const list = sortedRows();
 
     body.innerHTML = list.map(r => `<tr data-town="${esc(r.key)}">
       <td class="${r.v >= 400 ? 'strong' : ''}">${esc(r.name)}</td>
@@ -187,6 +192,50 @@
     });
   }
 
+  /* ---------- 放大查看：镇街对比完整表格 ---------- */
+  const SORT_LABEL = { name: '镇街名', v: '在册人数', h: '高风险及以上', dual: '双在册', multi: '多标人数', m: '见面率' };
+  function sortLabel() {
+    return (SORT_LABEL[S.sort] || '在册人数') + (S.dir === 1 ? ' ↑' : ' ↓');
+  }
+
+  function openTownExpand() {
+    const list = sortedRows();
+    const avgM = rows.reduce((a, r) => a + r.m * r.v, 0) / SUM.v;
+    UI.modal({
+      title: '镇街对比 · 完整表格',
+      sub: `${list.length} 个镇街 + 全区合计 · 与驾驶舱地图、人员台账、盲区人群同源`,
+      width: 880,
+      okText: null,
+      cancelText: '关闭',
+      body: `<div class="exp-lead">
+          <span>在册合计 <b>${SUM.v.toLocaleString()}</b> 人</span>
+          <span class="dim">·</span>
+          <span>高风险及以上 <b style="color:var(--red)">${SUM.h}</b> 人</span>
+          <span class="dim">·</span>
+          <span>双在册 <b>${SUM.dual}</b> 人 · 多标 <b>${SUM.multi}</b> 人</span>
+          <span class="spacer"></span>
+          <span class="tiny dim">当前排序：${sortLabel()}</span>
+        </div>
+        <div class="exp-box">
+          <table class="tb compact exp-tb exp-town">
+            <thead><tr><th>镇街</th><th class="r">在册</th><th class="r">高风险</th><th class="r">双在册</th>
+              <th class="r">多标</th><th class="r">见面率</th><th class="c">趋势</th></tr></thead>
+            <tbody>${list.map(r => `<tr>
+              <td class="${r.v >= 400 ? 'strong' : ''}">${esc(r.name)}</td>
+              <td class="r num">${r.v.toLocaleString()}</td>
+              <td class="r num"${r.h >= 30 ? ' style="color:var(--red)"' : ''}>${r.h}</td>
+              <td class="r num">${r.dual}</td>
+              <td class="r num">${r.multi}</td>
+              <td class="r num"${r.m < 80 ? ' style="color:var(--red)"' : ''}>${r.m.toFixed(1)}%</td>
+              <td>${spark(r.name, r.m)}</td></tr>`).join('')}</tbody>
+            <tfoot><tr class="tot"><td>全区合计</td><td class="r num">${SUM.v.toLocaleString()}</td>
+              <td class="r num" style="color:var(--red)">${SUM.h}</td><td class="r num">${SUM.dual}</td>
+              <td class="r num">${SUM.multi}</td><td class="r num">${avgM.toFixed(1)}%</td><td></td></tr></tfoot>
+          </table>
+        </div>`
+    });
+  }
+
   /* ---------- 事件绑定 ---------- */
   const btnSort = document.getElementById('btnSortRisk');
   if (btnSort) btnSort.onclick = () => {
@@ -199,6 +248,9 @@
   if (btnExp) btnExp.onclick = exportReport;
   const btnMon = document.getElementById('btnMonthly');
   if (btnMon) btnMon.onclick = monthly;
+  /* 放大查看：卡片 → 弹窗完整表格 */
+  const btnTownExp = document.getElementById('btnTownExpand');
+  if (btnTownExp) btnTownExp.onclick = openTownExpand;
 
   render();
 
@@ -448,6 +500,57 @@
       foot.textContent = `前三位组合共 ${top3} 人，占多标人员 ${(top3 / st.multi * 100).toFixed(1)}%，均已纳入「重点关注」并在驾驶舱标识；点击任一组合可查看具体人员。`;
     }
   }
+  /* ---------- 放大查看：标签组合完整表格 ---------- */
+  function openComboExpand() {
+    const st = comboStats();
+    /* 每个组合涉及的镇街分布（用于「主要镇街」列） */
+    const townOf = {};
+    D.persons.forEach(p => {
+      const t = p.tags || [];
+      if (t.length < 2) return;
+      const k = t.slice().sort().join('+');
+      const m = townOf[k] || (townOf[k] = {});
+      m[p.town] = (m[p.town] || 0) + 1;
+    });
+    const base = st.multi || 1;
+    const top10 = st.list.slice(0, 10).map(x => x.key);
+    const topSum = st.list.slice(0, 10).reduce((a, x) => a + x.n, 0);
+    UI.modal({
+      title: '标签组合 · 完整表格',
+      sub: `${st.list.length} 种组合 · 逐人多标聚合（标签数 ≥ 2 才计入）`,
+      width: 860,
+      okText: null,
+      cancelText: '关闭',
+      body: `<div class="exp-lead">
+          <span>多标人员 <b>${st.multi}</b> 人（占台账人员 ${(st.multi / D.persons.length * 100).toFixed(1)}%）</span>
+          <span class="dim">·</span>
+          <span>组合 <b>${st.list.length}</b> 种 · 其中 3 标及以上 <b>${st.triple}</b> 人</span>
+          <span class="spacer"></span>
+          <span class="tiny dim">前 10 组合共 ${topSum} 人，占 ${(topSum / base * 100).toFixed(1)}%</span>
+        </div>
+        <div class="exp-box">
+          <table class="tb compact exp-tb exp-combo">
+            <thead><tr><th class="r">#</th><th>标签组合</th><th class="r">人数</th>
+              <th class="r">占多标人员</th><th>主要镇街（人数前 3）</th></tr></thead>
+            <tbody>${st.list.map((x, i) => {
+              const towns = Object.keys(townOf[x.key] || {})
+                .sort((a, b) => townOf[x.key][b] - townOf[x.key][a]).slice(0, 3)
+                .map(t => `${esc(t)} ${townOf[x.key][t]}`).join(' · ');
+              const inTop = top10.indexOf(x.key) > -1;
+              return `<tr>
+                <td class="r num ${inTop ? 'strong' : 'dim'}">${i + 1}</td>
+                <td><span class="cell-main">${x.tags.map(t => esc(t)).join(' / ')}</span></td>
+                <td class="r num strong">${x.n}</td>
+                <td class="r num">${(x.n / base * 100).toFixed(1)}%</td>
+                <td class="tiny dim">${towns || '—'}</td></tr>`;
+            }).join('')}</tbody>
+            <tfoot><tr class="tot"><td></td><td>多标人员合计</td><td class="r num">${st.multi}</td>
+              <td class="r num">100.0%</td><td></td></tr></tfoot>
+          </table>
+        </div>`
+    });
+  }
+
   function openCombo(key, top) {
     const st = comboStats();
     let list, title, note;
@@ -565,6 +668,10 @@
 
   const bd = document.getElementById('btnDiffReport');
   if (bd) bd.onclick = diffReport;
+
+  /* 放大查看：标签组合 → 弹窗完整表格 */
+  const btnComboExp = document.getElementById('btnComboExpand');
+  if (btnComboExp) btnComboExp.onclick = openComboExpand;
 
   /* 订阅：回填 / 审批改级后，卡片数值随之更新 */
   if (S.on) {

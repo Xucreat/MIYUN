@@ -12,3 +12,7 @@ docs/prototype-v2/tools/_*.txt
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 调试/运行产物
+docs/prototype-v2/.probe/
+deploy/zdr-prototype/logs/

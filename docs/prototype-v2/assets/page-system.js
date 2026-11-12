@@ -668,6 +668,41 @@
       });
     }
     $('#btnRespAdd').onclick = add;
+    /* 放大查看：卡片 → 弹窗完整名录（姓名/单位/职务/类别/电话/备注全量） */
+    $('#btnRespExpand').onclick = () => {
+      const list = S.responders();
+      const byKind = { '区级': 0, '部门': 0, '属地': 0 };
+      list.forEach(r => { byKind[r.kind] = (byKind[r.kind] || 0) + 1; });
+      U.modal({
+        title: '处置责任人名录 · 完整表格',
+        sub: '预警转派 / 盲区指派 / 审批链接收人 共用 · 此页维护的变更写入审计日志',
+        width: 1000,
+        okText: null,
+        cancelText: '关闭',
+        body: `<div class="exp-lead">
+            <span>共 <b>${list.length}</b> 人</span>
+            <span class="dim">·</span>
+            <span>区级 <b>${byKind['区级'] || 0}</b> · 部门 <b>${byKind['部门'] || 0}</b> · 属地 <b>${byKind['属地'] || 0}</b></span>
+            <span class="spacer"></span>
+            <span class="tiny dim">按类别排序：区级统筹 → 部门主管 → 属地包联</span>
+          </div>
+          <div class="exp-box">
+            <table class="tb compact exp-tb exp-resp">
+              <thead><tr><th>姓名</th><th>单位</th><th>职务</th><th>类别</th><th>联系电话</th><th>备注</th></tr></thead>
+              <tbody>${list.slice().sort((a, b) => {
+                const o = { '区级': 0, '部门': 1, '属地': 2 };
+                return (o[a.kind] === undefined ? 3 : o[a.kind]) - (o[b.kind] === undefined ? 3 : o[b.kind]);
+              }).map(r => `<tr>
+                <td><span class="cell-main">${esc(r.name)}</span></td>
+                <td>${esc(r.unit)}</td>
+                <td class="tiny">${esc(r.title)}</td>
+                <td><span class="tag ${KIND[r.kind] || 'tag-line'}" style="height:17px">${esc(r.kind || '属地')}</span></td>
+                <td class="mono tiny">${esc(r.phone || '—')}</td>
+                <td class="tiny dim">${esc(r.note || '')}</td></tr>`).join('')}</tbody>
+            </table>
+          </div>`
+      });
+    };
     $('#btnRespExport').onclick = () => {
       const rows = [['编号', '姓名', '单位', '职务', '类别', '联系电话', '备注']]
         .concat(S.responders().map(r => [r.id, r.name, r.unit, r.title, r.kind, r.phone, r.note]));

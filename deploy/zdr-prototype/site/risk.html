@@ -66,14 +66,23 @@
   body.fit .appr-sub { flex: 0 0 auto; }
   body.fit [data-panel] > .split-37 > .stack { display: grid; grid-template-rows: minmax(0,1fr) minmax(0,auto); gap: var(--gap); min-height: 0; }
   body.fit [data-panel] > .split-37 > .stack > .card:first-child > .card-bd { display: flex; flex-direction: column; justify-content: space-between; }
-  /* ===== 明文导出页签：条目定高 + 详情卡按内容高度 ===== */
+  /* ===== 明文导出页签：条目定高 + 两栏撑满视窗 ===== */
+  /* 视窗过小会摘掉 .fit 退回整页滚动，此时也保持两栏底边对齐 */
+  [data-panel="export"] > .split-37 { align-items: stretch; }
   body.fit [data-panel="export"] .appr-item { flex: 0 0 92px; height: 92px; }
-  /* 左卡定高（约 4 条半可视），与右栏两卡底部大致齐平；条目增多时卡内滚动 */
-  body.fit [data-panel="export"] > .split-37 { align-items: start; }
-  body.fit [data-panel="export"] > .split-37 > .card:first-child { flex: 0 0 auto; height: 500px; max-height: 500px; }
-  body.fit [data-panel="export"] > .split-37 > .stack { display: flex; flex-direction: column; justify-content: flex-start; }
+  /* 两栏都拉到视窗底：内容少时不留卡外空白，条目真的超出时才卡内滚动 */
+  body.fit [data-panel="export"] > .split-37 > .card:first-child { height: auto; max-height: none; }
+  body.fit [data-panel="export"] > .split-37 > .stack {
+    display: flex; flex-direction: column; justify-content: flex-start;
+    flex: 1 1 0; min-height: 0;
+  }
+  /* 申请详情按内容高度（不留卡内空白），「我的申请」吃满右栏剩余高度 */
   body.fit [data-panel="export"] > .split-37 > .stack > .card { flex: 0 0 auto; }
   body.fit [data-panel="export"] > .split-37 > .stack > .card:first-child > .card-bd { justify-content: flex-start; flex: 0 0 auto; }
+  body.fit [data-panel="export"] > .split-37 > .stack > .card:last-child { flex: 1 1 0; min-height: 0; }
+  body.fit [data-panel="export"] > .split-37 > .stack > .card:last-child > .card-bd {
+    flex: 1 1 0; min-height: 0; display: block; overflow: auto;
+  }
   body.fit [data-panel="export"] #plDetail > .card-bd > .pl-chain { margin-top: 8px; }
   body.fit [data-panel] > .split-37 > .stack > .card { min-height: 0; }
   body.fit [data-panel] > .split-37 > .stack > .card > .card-bd { padding: 10px 14px; }

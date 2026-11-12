@@ -254,24 +254,7 @@
   /* 脱敏卡行距略放宽：三卡同行时它最矮，靠行距吃掉底部余白，避免出现悬空留白 */
   body.fit [data-panel="config"] .c-desens .card-bd table.tb.compact td { padding-top: 5px; padding-bottom: 5px; }
 
-  /* ===== 放大查看弹窗（预警规则 / 数据质量规则）：完整表格 ===== */
-  .exp-lead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    font-size: 11.5px; color: var(--t3); margin: 0 0 9px; }
-  .exp-lead b { color: var(--t1); font-variant-numeric: tabular-nums; }
-  .exp-lead .spacer { flex: 1 1 auto; }
-  .exp-box { border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: calc(86vh - 190px); }
-  .exp-box table.tb { width: 100%; }
-  /* 弹窗内不做 fit 压缩，行高回到舒适值；表头沿用 app.css 的 sticky + 底色 */
-  .ui-dlg .exp-box table.tb.compact td { padding: 7px 10px; }
-  .ui-dlg .exp-box table.tb.compact th { padding: 7px 10px; }
-  .ui-dlg .exp-box table.tb td:first-child { padding-left: 12px; }
-  .ui-dlg .exp-box table.tb th:first-child { padding-left: 12px; }
-  .exp-box .rule-tb td { font-size: 11.5px; }
-  .exp-box .exp-empty { padding: 22px 0; text-align: center; color: var(--t4); font-size: 12px; }
-  /* 编号列统一等宽字体且不折行（卡片里只有 .rule-tb 带这条规则，弹窗内两表都要） */
-  .exp-box table.tb .rid { white-space: nowrap; font-family: var(--mono); font-size: 10.5px; color: var(--t3); }
-  /* 列宽：编号列留足不被折行，富余宽度全给长文本列（触发条件 / 校验说明） */
-  .exp-box .exp-tb th:nth-child(1) { width: 72px; }
+  /* 放大查看弹窗骨架（.exp-lead / .exp-box …）已提到 assets/app.css 公共节，这里只留本页列宽 */
   .exp-box .exp-rule th:nth-child(2) { width: 156px; }
   .exp-box .exp-rule th:nth-child(3) { min-width: 300px; }
   .exp-box .exp-rule th:nth-child(4) { width: 78px; }
@@ -506,6 +489,9 @@
                     <div class="right">
                       <span class="tag tag-line" id="respCnt">26 人</span>
                       <button class="btn btn-sm" id="btnRespExport">导出名录</button>
+                      <button class="btn btn-sm btn-ico" id="btnRespExpand" title="放大查看完整表格" aria-label="放大查看处置责任人名录">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 2.5H2.5v6.7M2.5 2.5l4.6 4.6M6.8 13.5h6.7V6.8M13.5 13.5L8.9 8.9"/></svg>
+                      </button>
                       <button class="btn btn-sm btn-primary" id="btnRespAdd">新增责任人</button>
                     </div>
                   </div>

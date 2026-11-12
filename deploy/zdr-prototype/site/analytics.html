@@ -116,7 +116,12 @@
         <div class="card">
           <div class="card-hd">
             <div class="card-title">镇街对比 <span class="sub">20 个镇街 · 全量</span></div>
-            <div class="right"><button class="btn btn-sm" id="btnSortRisk">按高风险排序</button></div>
+            <div class="right">
+              <button class="btn btn-sm" id="btnSortRisk">按高风险排序</button>
+              <button class="btn btn-sm btn-ico" id="btnTownExpand" title="放大查看完整表格" aria-label="放大查看镇街对比">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 2.5H2.5v6.7M2.5 2.5l4.6 4.6M6.8 13.5h6.7V6.8M13.5 13.5L8.9 8.9"/></svg>
+              </button>
+            </div>
           </div>
           <div class="table-wrap" style="flex:1 1 auto;min-height:220px;overflow:auto">
             <table class="tb compact">
@@ -169,7 +174,12 @@
         <div class="card">
           <div class="card-hd">
             <div class="card-title">标签组合前十 <span class="sub" id="comboSub">多标人员</span></div>
-            <div class="right"><span class="tag tag-purple" id="comboTag">3 标 28 人</span></div>
+            <div class="right">
+              <span class="tag tag-purple" id="comboTag">3 标 28 人</span>
+              <button class="btn btn-sm btn-ico" id="btnComboExpand" title="放大查看完整表格" aria-label="放大查看标签组合">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 2.5H2.5v6.7M2.5 2.5l4.6 4.6M6.8 13.5h6.7V6.8M13.5 13.5L8.9 8.9"/></svg>
+              </button>
+            </div>
           </div>
           <div class="card-bd" style="padding:10px 16px 12px">
             <div id="comboBody"></div>

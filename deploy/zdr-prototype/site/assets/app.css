@@ -698,3 +698,41 @@ body.fit .card-bd::-webkit-scrollbar-track { background: transparent; }
   .split-73, .split-64, .split-37 { grid-template-columns: minmax(0,1fr); }
   .g4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
+
+/* ---------- 18. 放大查看弹窗（通用） ----------
+   卡片右上角「双对角箭头」按钮 → 弹窗里给完整表格。
+   表格宽/列差异由各页自带 class（.exp-rule / .exp-dq / .exp-town …）决定，
+   这里只放三页共用的骨架。 */
+.exp-lead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--t3); margin: 0 0 9px; }
+.exp-lead b { color: var(--t1); font-variant-numeric: tabular-nums; }
+.exp-lead .spacer { flex: 1 1 auto; }
+.exp-box { border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: calc(86vh - 190px); }
+.exp-box table.tb { width: 100%; }
+/* 弹窗内不做 fit 压缩，行高回到舒适值；表头沿用 app.css 的 sticky + 底色 */
+.ui-dlg .exp-box table.tb.compact td { padding: 7px 10px; }
+.ui-dlg .exp-box table.tb.compact th { padding: 7px 10px; }
+.ui-dlg .exp-box table.tb td:first-child { padding-left: 12px; }
+.ui-dlg .exp-box table.tb th:first-child { padding-left: 12px; }
+.exp-box .rule-tb td { font-size: 11.5px; }
+.exp-box .exp-empty { padding: 22px 0; text-align: center; color: var(--t4); font-size: 12px; }
+/* 编号列统一等宽字体且不折行 */
+.exp-box table.tb .rid { white-space: nowrap; font-family: var(--mono); font-size: 10.5px; color: var(--t3); }
+.exp-box .exp-tb th:nth-child(1) { width: 72px; }
+/* 镇街对比：名称列留足，数值列等宽 */
+.exp-box .exp-town th:nth-child(1) { width: 150px; }
+.exp-box .exp-town th:nth-child(2),
+.exp-box .exp-town th:nth-child(3),
+.exp-box .exp-town th:nth-child(4),
+.exp-box .exp-town th:nth-child(5) { width: 92px; }
+.exp-box .exp-town th:nth-child(6) { width: 96px; }
+.exp-box .exp-town th:nth-child(7) { width: 90px; }
+/* 标签组合：组合名列自适应，人数/占比定宽 */
+.exp-box .exp-combo th:nth-child(1) { width: 56px; }
+.exp-box .exp-combo th:nth-child(3) { width: 90px; }
+.exp-box .exp-combo th:nth-child(4) { width: 110px; }
+/* 处置责任人：姓名/单位/职务/类别/电话/备注 */
+.exp-box .exp-resp th:nth-child(2) { width: 130px; }
+.exp-box .exp-resp th:nth-child(3) { width: 150px; }
+.exp-box .exp-resp th:nth-child(4) { width: 72px; }
+.exp-box .exp-resp th:nth-child(5) { width: 120px; }
