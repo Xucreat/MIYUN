@@ -150,7 +150,6 @@
             <button class="btn" id="btnTransfer">转派</button>
             <button class="btn btn-primary" id="btnSubmit" ${done ? 'disabled' : ''}>${done ? '已闭环' : '提交处置'}</button>
           </div>
-          <div class="foot-note" style="padding-top:6px">提交后转为「已闭环」，责任人收到结果通知；操作不可撤销，如需更正请发起补充说明。演示环境下的处置结果保存在本次会话中。</div>
         </div>
       </div>
 
@@ -163,9 +162,6 @@
               <span class="sm" style="flex:1">${esc(o.metric)} · ${esc(o.created.slice(5, 10))}</span>
               <span class="tag ${o.status === '已闭环' ? 'tag-green' : 'tag-line'}">${esc(o.status)}</span>
             </div>`).join('') : '<div class="tiny dim" style="padding:6px 0">该人员无其他未闭环预警</div>'}
-        </div>
-        <div class="card-ft">
-          <span>本次演示：生成 <b style="color:var(--t1)">${st.total}</b> · 闭环 <b style="color:var(--green)">${st.done}</b> · 待处置 <b style="color:var(--red)">${st.open}</b> · 本月历史闭环 196 条（91.6%）</span>
         </div>
       </div>`;
 
@@ -329,8 +325,7 @@
             <td><span class="cell-main">${esc(r.name)}</span><span class="cell-sub">${esc(r.desc)}</span></td>
             <td>${esc(r.threshold)}</td>
             <td><span class="cb ${r.on ? 'on' : ''}" data-rule="${r.code}"></span></td>
-          </tr>`).join('')}</tbody></table>
-          <div class="foot-note" style="padding-top:8px">开关状态仅在当前演示会话内可见，不会改动任何规则数据。</div>`,
+          </tr>`).join('')}</tbody></table>`,
         onMount: dlg => {
           dlg.querySelectorAll('.cb').forEach(cb => UI.check(cb, {
             onChange: on => STORE.audit('规则开关', cb.dataset.rule + (on ? ' 启用' : ' 停用'), cb.dataset.rule)

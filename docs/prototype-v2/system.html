@@ -497,10 +497,7 @@
                     <div class="right" id="trioTag"></div>
                   </div>
                   <div class="card-bd" style="padding:7px 14px" id="trioBody"></div>
-                  <div class="card-ft" style="padding:7px 14px;display:block">
-                    <div id="trioFoot" style="line-height:1.45;margin-bottom:7px"></div>
-                    <button class="btn btn-sm" style="width:100%" id="btnPermList">生成本季度权限清单</button>
-                  </div>
+                  <div class="card-ft" style="padding:7px 14px;display:block"><button class="btn btn-sm" style="width:100%" id="btnPermList">生成本季度权限清单</button></div>
                 </div>
 
                 <div class="card">
@@ -518,14 +515,9 @@
                       <tbody id="respBody"></tbody>
                     </table>
                   </div>
-                  <div class="card-ft" style="padding:5px 14px">名录全站共用，不随左侧角色变化；修改即时生效并写入审计日志，可随时回溯。</div>
                 </div>
               </div>
 
-              <div class="foot-note">
-                · 数据范围实现为查询条件单点注入（查询范围单点注入），业务代码不得手写权限过滤；越权访问返回 403 并写入审计（连续 5 次告警）。<br>
-                · 授权变更 3 个工作日内生效、离岗 1 个工作日内停用；每季度出具权限清单由各部门确认，每年全面复核一次。
-              </div>
       </div>
       <div data-panel="dict" style="display:none">
               <div class="split-dict">
@@ -545,7 +537,6 @@
                       <div class="right" id="dictActs"></div>
                     </div>
                     <div class="card-bd flush" id="dictBody"></div>
-                    <div class="card-ft" id="dictFoot" style="padding:5px 13px;display:block;line-height:1.45"></div>
                   </div>
                 </div>
               </div>
@@ -561,9 +552,6 @@
                       <thead><tr><th style="width:12%">部门</th><th style="width:27%">部门原等级口径</th><th style="width:33%">映射统一风险序</th><th>说明</th></tr></thead>
                       <tbody id="mapBody"></tbody>
                     </table>
-                  </div>
-                  <div class="card-ft" style="padding:8px 16px">
-                    <span><b>就高不就低：</b>一人多标时取各区级映射结果中的最高档，不重复计数；以此形成「区级统一管控等级」</span>
                   </div>
                 </div>
 
@@ -581,14 +569,10 @@
                     <div class="row" style="font-size:11.5px;color:var(--t2)">
                       <span>区划编码规则</span><span class="spacer"></span><span class="mono tiny">110228 + 3 位镇街 + 3 位社区村</span>
                     </div>
-                    <div class="foot-note" style="padding-top:5px">区划用于人员归属、地图下钻、属地权限（R5/R6 按辖区过滤）与走访任务派发；变更须与民政区划版本一致</div>
                   </div>
                 </div>
               </div>
 
-              <div class="foot-note">
-                治理说明：① 字典是全站统计口径的唯一来源，任何变更须业务提出 → 安全管理员复核 → 发布并重跑受影响统计；已引用项的编码不可改，仅可改名称与排序；② 等级映射调整须同步出具《口径调整说明》，并在驾驶舱与统计分析页标注生效日期；③ 全部字典变更写入审计日志（操作前后值、操作人、IP、审批单号），留存不少于 6 个月；④ 本页为虚拟演示数据。
-              </div>
       </div>
       <div data-panel="config" style="display:none">
               <div class="grid g5">
@@ -621,11 +605,6 @@
                       </tr></thead>
                       <tbody id="ruleBody"></tbody>
                     </table>
-                  </div>
-                  <div class="card-ft" style="padding:8px 16px">
-                    <span id="ruleFootSum">今日命中合计 173 条</span>
-                    <span class="spacer"></span>
-                    <span class="tiny dim">规则命中只生成待办，不自动改等级</span>
                   </div>
                 </div>
 
@@ -675,7 +654,6 @@
                       <tbody id="dqSysBody"></tbody>
                     </table>
                   </div>
-                  <div class="card-ft" style="padding:8px 16px"><span id="dqFoot">规则编号 DQ-xx 与「报送质量」看板同源；此处新增/停用/改说明后，看板即时同步</span></div>
               </div>
 
               <div class="split-64">
@@ -690,18 +668,12 @@
                       <tbody id="desensBody"></tbody>
                     </table>
                   </div>
-                  <div class="card-ft" style="padding:8px 16px">
-                    <span>全部字段留痕；导出加<b>隐式水印</b>（账号 + 时间 + 用途），可按文件追溯至人</span>
-                  </div>
                 </div>
 
               </div>
 
               </div>
 
-              <div class="foot-note">
-                发布规则：① 下调不跨级、上调必留依据，任一级驳回即终止并回写原等级；② 参数变更走「草稿 → 提交 → 安全管理员复核 → 次日 06:00 生效」四步，生效前可回滚；③ 每次发布生成版本快照（含全部规则与阈值），支持按版本追溯历史预警的判定依据；④ 变更前后的值、操作人、IP、审批单号全部写入审计日志；⑤ 本页为虚拟演示数据。
-              </div>
       </div>
       <div data-panel="audit" style="display:none">
               <div class="grid g5">
@@ -781,10 +753,6 @@
                 </div>
               </div>
 
-              <div class="foot-note">
-                · 审计日志本身不提供「删除」「编辑」入口；如需清理仅能按留存策略由数据库管理员在归档库执行并另行记录。<br>
-                · 追责场景：可按人员、审批单、时间范围反查「谁在何时看了谁的档案、改了什么等级、导出了什么」。
-              </div>
       </div>
 
     </div>

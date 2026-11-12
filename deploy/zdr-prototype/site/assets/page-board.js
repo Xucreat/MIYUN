@@ -593,8 +593,8 @@
         <div class="row" style="font-size:11.5px;margin-bottom:6px"><span class="risk risk-${i + (i >= 1 ? 0 : 0)}">${r.name} ${r.from.toLocaleString()}</span><span class="spacer"></span><span class="risk risk-${i}">${r.to.toLocaleString()}</span></div>
         <div class="dv-bar" style="height:14px;margin-bottom:9px" data-rm="${i}">
           ${r.segs.map(s => `<i style="width:${s[1]}%;background:${s[2]}"></i>`).join('')}
-        </div>`).join('') +
-        `<div class="foot-note" style="padding-top:4px">条内分段：转入高 / 中 / 低风险与待核实；悬浮分段可看人数，待核实新增 43 人多为新入库未评估</div>`;
+        </div>`).join('');
+
       rm.querySelectorAll('.dv-bar').forEach(bar => {
         const r = RISK_MIG[+bar.dataset.rm];
         bar.querySelectorAll('i').forEach((seg, j) => {

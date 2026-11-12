@@ -590,8 +590,6 @@
       <div class="row mt6" style="font-size:11px;color:var(--t2)"><span>本季度权限复核待确认</span><span class="spacer"></span><b style="color:var(--amber)">3 个部门</b></div>`;
     const idle = S.accounts().filter(a => a.status.indexOf('90 天') > -1).length;
     $('#trioIdle').textContent = idle + ' 个账号';
-    $('#trioFoot').textContent = D.SYS_ROLES.length + ' 个角色 · ' + S.accounts().length + ' 个账号 · ' +
-      (bad ? '当前 ' + bad + ' 处冲突待修正' : '三员由不同自然人担任，互斥权限无重叠');
   }
 
   (function initResponders() {
@@ -836,11 +834,6 @@
       </tr>`).join('') : `<tr><td colspan="${def.cols.length + 1}" class="tiny dim" style="text-align:center;padding:16px">当前筛选下没有字典项</td></tr>`}</tbody>
     </table>`;
 
-    const foot = [];
-    if (def.foot) foot.push(def.foot);
-    if (refsSum) foot.push('合计 <b style="color:var(--t1)">' + fmt(refsSum) + '</b> 人次 · 去重 <b style="color:var(--t1)">' + fmt(Math.round(refsSum * 0.848)) + '</b> 人');
-    foot.push('引用影响面：人员档案 / 报表 / 预警规则 / 导出模板 同源，改动后下次统计任务生效');
-    $('#dictFoot').innerHTML = foot.join('　｜　');
 
     $$('#dictSeg button').forEach(b => {
       b.onclick = () => { P.dictFilter = b.dataset.v; renderDict(); };
@@ -1255,8 +1248,6 @@
     $('#kpiVer').textContent = v.at.slice(5, 16);
     $('#kpiVerMeta').textContent = v.no + ' · 发布人 ' + v.by;
     $('#trendToday').textContent = '今日 ' + hits;
-    $('#ruleFootSum').innerHTML = '共 <b>' + S.rules().length + '</b> 条规则 · 今日命中合计 ' + hits +
-      ' 条 <span class="tiny dim" style="margin-left:6px">表格可上下滚动</span>';
     $('#paramPending').textContent = pend + ' 项待复核';
     const draft = S.draftOf();
     const pb = $('#btnPublish');
@@ -1594,8 +1585,6 @@
     const tb = $('#dqSysBody');
     if (!tb) return;
     tb.innerHTML = S.dqRules().map(dqRowHtml).join('');
-    const dqFoot = $('#dqFoot');
-    if (dqFoot) dqFoot.innerHTML = '共 <b>' + S.dqRules().length + '</b> 条 · 表格可上下滚动　｜　规则编号 DQ-xx 与「报送质量」看板同源，新增/停用/改说明后看板即时同步';
     bindDqRows(tb);
   }
 

@@ -60,11 +60,21 @@
   body.fit [data-panel] > .split-37 { flex: 1 1 0; min-height: 0; align-items: stretch; }
   body.fit [data-panel] > .split-37 > .card { min-height: 0; }
   body.fit [data-panel] > .split-37 > .card > .card-bd { flex: 1 1 0; min-height: 0; max-height: none !important; overflow: auto; }
-  body.fit .appr-item { padding: 8px 12px; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
+  body.fit .appr-item { padding: 8px 12px; display: flex; flex-direction: column; justify-content: center; }
+  body.fit [data-panel="level"] .appr-item { flex: 1 1 auto; }
   body.fit [data-panel] > .split-37 > .card > .card-bd { display: flex; flex-direction: column; }
   body.fit .appr-sub { flex: 0 0 auto; }
   body.fit [data-panel] > .split-37 > .stack { display: grid; grid-template-rows: minmax(0,1fr) minmax(0,auto); gap: var(--gap); min-height: 0; }
   body.fit [data-panel] > .split-37 > .stack > .card:first-child > .card-bd { display: flex; flex-direction: column; justify-content: space-between; }
+  /* ===== 明文导出页签：条目定高 + 详情卡按内容高度 ===== */
+  body.fit [data-panel="export"] .appr-item { flex: 0 0 92px; height: 92px; }
+  /* 左卡定高（约 4 条半可视），与右栏两卡底部大致齐平；条目增多时卡内滚动 */
+  body.fit [data-panel="export"] > .split-37 { align-items: start; }
+  body.fit [data-panel="export"] > .split-37 > .card:first-child { flex: 0 0 auto; height: 500px; max-height: 500px; }
+  body.fit [data-panel="export"] > .split-37 > .stack { display: flex; flex-direction: column; justify-content: flex-start; }
+  body.fit [data-panel="export"] > .split-37 > .stack > .card { flex: 0 0 auto; }
+  body.fit [data-panel="export"] > .split-37 > .stack > .card:first-child > .card-bd { justify-content: flex-start; flex: 0 0 auto; }
+  body.fit [data-panel="export"] #plDetail > .card-bd > .pl-chain { margin-top: 8px; }
   body.fit [data-panel] > .split-37 > .stack > .card { min-height: 0; }
   body.fit [data-panel] > .split-37 > .stack > .card > .card-bd { padding: 10px 14px; }
   body.fit .diff-box { padding: 6px 10px; }
@@ -132,7 +142,7 @@
             <div class="right"><span class="tag tag-orange" id="apprCnt">5</span></div>
           </div>
           <div class="card-bd flush" id="apprList" style="max-height:520px;overflow:auto"></div>
-          <div class="card-ft"><span>按超时与风险序排序</span><span class="spacer"></span><span class="tag tag-line" id="apprStat">待审批 5</span></div>
+          <div class="card-ft"><span class="tag tag-line" id="apprStat">待审批 5</span></div>
         </div>
 
         <!-- 右：详情 -->
@@ -154,7 +164,6 @@
                   </tbody>
                 </table>
               </div>
-              <div class="card-ft"><span>上调不设限，下调须依据；依据缺失禁止上调</span></div>
             </div>
 
             <div class="card">
@@ -168,7 +177,7 @@
                   <tbody id="chgBody"></tbody>
                 </table>
               </div>
-              <div class="card-ft"><span>按月生成，供政法委月度报送</span><a class="btn btn-sm btn-ghost" href="#" id="btnChgAll">全部 46 条 ›</a></div>
+              <div class="card-ft"><a class="btn btn-sm btn-ghost" href="#" id="btnChgAll">全部 46 条 ›</a></div>
             </div>
           </div>
         </div>
@@ -185,7 +194,7 @@
               <div class="right"><span class="tag tag-orange" id="plCnt">1 待审批</span></div>
             </div>
             <div class="card-bd flush" id="plList" style="max-height:520px;overflow:auto"></div>
-            <div class="card-ft"><span>按提交时间倒序 · 待审批优先</span><span class="spacer"></span><span class="tag tag-line" id="plStat">—</span></div>
+            <div class="card-ft"><span class="tag tag-line" id="plStat">—</span></div>
           </div>
 
           <div class="stack">

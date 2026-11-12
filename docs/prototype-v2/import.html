@@ -141,7 +141,7 @@
               <div class="divider" style="margin:8px 0"></div>
               <div class="row" style="font-size:11.5px;color:var(--t2)"><span>本月应报 15 表块</span><span class="spacer"></span><b style="color:var(--t1)">已收 14 / 15</b></div>
             </div>
-            <div class="card-ft"><span>报送情况将按月推送政法委</span><a class="btn btn-sm btn-ghost" href="#" id="btnUrgent">生成催办单 ›</a></div>
+            <div class="card-ft"><a class="btn btn-sm btn-ghost" href="#" id="btnUrgent">生成催办单 ›</a></div>
           </div>
 
           <div class="card batch-card">
@@ -160,12 +160,6 @@
           <div class="card">
             <div class="card-hd"><div class="card-title">合并规则 <span class="sub">提示与拦截</span></div></div>
             <div class="card-bd" style="padding:11px 14px">
-              <div class="note" style="line-height:1.75">
-                <b style="color:var(--t1)">1. 唯一键：</b>身份证号哈希，姓名相同不合并（同名不同人为常态，错并后果重于漏并）。<br>
-                <b style="color:var(--t1)">2. 同标签重复：</b>按 <span class="mono tiny">(person, category, dept)</span> 唯一约束合并，不追加重复记录。<br>
-                <b style="color:var(--t1)">3. 等级冲突：</b>同人同类别两部门等级不一致时，保留双方原值，管控等级取高。<br>
-                <b style="color:var(--t1)">4. 无身份证号：</b>生成临时编号并标注，不进入去重统计。
-              </div>
             </div>
           </div>
 
@@ -176,7 +170,6 @@
               <div class="bar mt6"><i style="width:63%"></i></div>
               <div class="row mt10" style="font-size:11.5px"><span class="muted">本次 88 行</span><span class="spacer"></span><b>1.8 秒</b></div>
               <div class="bar mt6"><i style="width:8%"></i></div>
-              <div class="foot-note" style="padding-top:8px">导入为异步任务，进度实时回显；失败自动回滚，不产生半成品档案。</div>
             </div>
           </div>
         </div>

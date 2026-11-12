@@ -32,9 +32,45 @@
   .mx-bd { display: flex; flex-direction: column; }
   .mx-bd table.heat { flex: 1 1 auto; height: 100%; }
   .chg-bd #chgBars { flex: 1 1 auto; min-height: 96px; }
+
+  /* ===== 一屏填满：三行按内容需要分配高度，行内卡片等高 ===== */
+  body.fit .content > .grid.g4 { flex: 0 0 auto; }
+  body.fit .content > .split-64 { flex: 1 1 0; min-height: 0; align-items: stretch; }
+  body.fit .content > .split-64.row-a { flex: 1.45 1 0; }
+  body.fit .content > .split-64.row-b { flex: 1.02 1 0; }
+  body.fit .content > .split-64.row-c { flex: 0.78 1 0; }
+  body.fit .split-64 > .card { min-height: 0; }
+  /* 列表卡：容器不再撑最小高度，改为在卡片内部滚动（表头/合计行吸顶吸底） */
+  body.fit .content .table-wrap { min-height: 0 !important; }
+  body.fit .content table.tb thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-2); }
+  body.fit .content table.tb tfoot td { position: sticky; bottom: 0; z-index: 2; background: var(--surface-2); }
+  body.fit .chg-bd #chgBars { min-height: 72px; }
+  body.fit .bar-pair .bl { font-size: 9px; }
+  body.fit #comboBody { overflow: visible; }
+  body.fit .mini-stat { padding: 5px 9px; }
+  body.fit .mini-stat .v { font-size: 14px; }
+  /* 一屏下压紧行距：矩阵 12 行、月度报送 5 行尽量整表可见，镇街 20 行仍走内部滚动 */
+
+  body.fit table.tb.compact th, body.fit table.tb.compact td { padding: 4px 9px; }
+  body.fit #comboBody .rank-row { padding: 2px 0; }
+  body.fit .content .card-bd > .divider { margin: 7px 0 6px !important; }
+  /* 矩阵：单元格压到 24px 行高，12 行整表落在一屏内 */
+  body.fit table.tb.heat td { padding: 2px 9px; }
+  body.fit table.tb.heat th { padding: 3px 9px; }
+  /* 矮屏（≤950 高）再压一档，让 12 行矩阵与数据质量卡整块可见 */
+  @media (max-height: 950px) {
+    body.fit table.tb.heat td { padding: 1px 9px; font-size: 11px; }
+    body.fit table.tb.heat th { padding: 2px 9px; font-size: 10.5px; }
+    body.fit .mini-stat { padding: 4px 8px; }
+    body.fit .mini-stat .v { font-size: 13px; }
+    body.fit .content .card-bd > .divider { margin: 5px 0 4px !important; }
+    body.fit .content .card-bd .mt6 { margin-top: 3px !important; }
+    body.fit .content .card-bd .mt10 { margin-top: 6px !important; }
+    body.fit .content > .split-64.row-c { flex: 0.84 1 0; }
+  }
 </style>
 </head>
-<body data-page="analytics" data-crumb="查询统计" data-title="统计分析">
+<body class="fit" data-page="analytics" data-crumb="查询统计" data-title="统计分析">
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
   <div class="main">
@@ -75,7 +111,7 @@
         </div>
       </div>
 
-      <div class="split-64 mb10">
+      <div class="split-64 row-a mb10">
         <!-- 镇街对比 -->
         <div class="card">
           <div class="card-hd">
@@ -106,11 +142,10 @@
               <tbody id="matrixBody"></tbody>
             </table>
           </div>
-          <div class="card-ft"><span>本表统计口径为「人员台账」（高风险及以上 486 人 / 728 人次），按标签人次计、多标人员在各标签行重复计入；与全站「四部门报送 7,112 人次」不是同一基数，两者不混用。台账只收录高风险及以上，故「中 / 低」列为 0 属口径事实。</span></div>
         </div>
       </div>
 
-      <div class="split-64 mb10">
+      <div class="split-64 row-b mb10">
         <!-- 等级变动趋势 -->
         <div class="card">
           <div class="card-hd">
@@ -127,7 +162,6 @@
               <div class="mini-stat"><div class="v" id="chgDown">27</div><div class="l" id="chgDownMeta">本月下调 · 环比 +1</div></div>
               <div class="mini-stat"><div class="v">1.4<span class="tiny">天</span></div><div class="l">平均审批时长</div></div>
             </div>
-            <div class="note mt10" id="chgNote">下调多于上调，说明多数人员风险趋于稳定；上调 19 人中 12 人因新增标签或危险性评估升级，7 人因出现扬言、失联等情形。</div>
           </div>
         </div>
 
@@ -139,12 +173,11 @@
           </div>
           <div class="card-bd" style="padding:10px 16px 12px">
             <div id="comboBody"></div>
-            <div class="foot-note" style="padding-top:8px" id="comboFoot"></div>
           </div>
         </div>
       </div>
 
-      <div class="split-64">
+      <div class="split-64 row-c">
         <div class="card">
           <div class="card-hd"><div class="card-title">数据质量 <span class="sub">导入后自动校验</span></div>
             <div class="right"><span class="tag tag-amber">完整率 94.1%</span></div>
@@ -175,7 +208,6 @@
               <tbody id="mReportBody"></tbody>
             </table>
           </div>
-          <div class="card-ft"><span>「谁报了、谁没报、报得全不全」每月自动生成，供政法委督办</span></div>
         </div>
       </div>
 

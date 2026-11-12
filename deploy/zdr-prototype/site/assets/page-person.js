@@ -140,7 +140,6 @@
           <div class="mini-stat mini-sm"><div class="v" style="color:${p.multi ? 'var(--orange)' : 'var(--t1)'}">${p.multi ? '是' : '否'}</div><div class="l">多重标签</div></div>
           <div class="mini-stat mini-sm"><div class="v" style="color:${p.noBasis ? 'var(--red)' : 'var(--green)'}">${p.noBasis ? '缺失' : '齐全'}</div><div class="l">依据完整性</div></div>
         </div>
-        <div class="foot-note" style="padding-top:8px;font-size:10.2px;line-height:1.45">标签由各部门台账推送，追加不覆盖；同一标签在多部门重复时按 (人员, 类别, 部门) 唯一约束合并。</div>
       </div>`;
 
     document.getElementById('btnAddTag').onclick = () => {
@@ -216,7 +215,6 @@
           ${row('数据质量', p.noBasis ? '<span class="tag tag-amber">1 项待补</span>' : '<span class="tag tag-green">完整</span>')}
           ${row('负责民警', '张海涛（' + esc(p.town) + '派出所）')}
         </div>
-        <div class="foot-note" style="padding-top:8px">字段密级：身份证号 / 电话 L3（掩码或申请）、住址 L2（门牌掩码）、走访记录 L4（部门隔离）。当前角色：${esc(STORE.role().roleName)}。</div>
       </div>`;
   }
 
@@ -236,8 +234,7 @@
             <div class="tl-meta">走访人：${esc(v.by)} · ${i === 0 ? '最近一次' : '已核验'}${v.at ? ' · 本次新增 ' + esc(v.at) : ''}</div>
           </div>`).join('')}</div>` : UI.empty('暂无走访记录', '该人员尚未登记走访，将触发「走访超期」规则')}
       </div>
-      <div class="card-ft"><span>走访记录为 L4 密级，按部门隔离；电话联系不计入有效走访</span>
-        <span class="spacer"></span><button class="btn btn-sm btn-ghost" id="btnVisitAll">查看全部 ${list.length} 条 ›</button></div>`;
+      <div class="card-ft"><button class="btn btn-sm btn-ghost" id="btnVisitAll">查看全部 ${list.length} 条 ›</button></div>`;
     const b = document.getElementById('btnVisit2');
     if (b) b.onclick = openVisit;
     const all = document.getElementById('btnVisitAll');
@@ -306,7 +303,7 @@
           <span class="sm" style="flex:1;min-width:0"><span class="dim">首次定级 →</span> <span class="${lv().cls}">${lv().name}</span><span class="cell-sub">系统导入</span></span>
         </div>
       </div>
-      <div class="card-ft"><span>任何等级变更须人工发起、逐级审批</span></div>`;
+`;
   }
 
   /* ---------- 底部同排：跨镇街迁移（与看板「跨镇街流动明细」同源） ---------- */
@@ -326,8 +323,7 @@
           </span>
         </div>`).join('')}
       </div>
-      <div class="card-ft"><span>${last ? '现属地 ' + esc(last.to) + ' · ' + esc(last.inDate.slice(5)) + ' 迁入' : '无迁入记录'}</span>
-        <span class="spacer"></span><a class="btn btn-sm btn-ghost" href="board.html?tab=move">看板明细 ›</a></div>`;
+      <div class="card-ft"><a class="btn btn-sm btn-ghost" href="board.html?tab=move">看板明细 ›</a></div>`;
   }
 
   /* ---------- 底部同排：明文查看授权 / 访问留痕 ---------- */
@@ -343,8 +339,7 @@
           <span class="tag tag-blue" style="height:16px">${esc(d.code.slice(-3))}</span>
         </div>`).join('') : '<div class="tiny dim" style="padding:6px 0">本次会话暂无明文查看记录</div>'}
       </div>
-      <div class="card-ft"><span>明文查看一次一授权，记录不可删除</span>
-        <span class="spacer"></span><button class="btn btn-sm btn-ghost" id="btnPlain2">申请查看明文 ›</button></div>`;
+      <div class="card-ft"><button class="btn btn-sm btn-ghost" id="btnPlain2">申请查看明文 ›</button></div>`;
     const b2 = document.getElementById('btnPlain2');
     if (b2) b2.onclick = requestPlain;
   }
@@ -360,8 +355,7 @@
           <span class="sm" style="flex:1">${esc(a.by)} · ${esc(a.act)}<span class="cell-sub">${esc(a.detail).slice(0, 26)}</span></span>
         </div>`).join('') : '<div class="tiny dim" style="padding:6px 0">暂无本人操作记录</div>'}
       </div>
-      <div class="card-ft"><span>查看档案、登记走访、追加标签均实时落痕</span>
-        <span class="spacer"></span><a class="btn btn-sm btn-ghost" href="system.html?tab=audit">查看完整日志 ›</a></div>`;
+      <div class="card-ft"><a class="btn btn-sm btn-ghost" href="system.html?tab=audit">查看完整日志 ›</a></div>`;
   }
 
   /* ---------- 交互 ---------- */
@@ -379,7 +373,7 @@
         <div class="fld"><label>授权方式</label>
           <div class="ui-radio"><label class="on"><input type="radio" checked style="margin-top:2px"><span style="flex:1"><b>双人复核</b><br><span>本人申请 + 另一名主管复核，5 分钟内生效</span></span></label></div>
         </div>
-        <div class="foot-note">演示环境下复核人自动通过（王立 · 区司法局），并记录双签。</div>`,
+`,
       onOk: dlg => {
         const purpose = dlg.querySelector('#purpose').value.trim();
         if (purpose.length < 6) { UI.toast.warn('请填写查阅用途（不少于 6 字）'); return false; }

@@ -169,8 +169,6 @@
         </table>
       </div>
       <div class="card-ft">
-        <span>映射仅在本机生效；同一表块下次导入自动沿用</span>
-        <span class="spacer"></span>
         <button class="btn btn-sm btn-primary" id="btnToCheck" ${ready ? '' : 'disabled'}>下一步：预检</button>
       </div>`;
 

@@ -133,8 +133,7 @@
                 : (it.status === 'approved' && it.downloadable
                   ? `<button class="btn btn-sm btn-primary" id="plDown">下载明文文件（${it.count} 条）</button>`
                   : `<span class="tiny dim">${it.status === 'rejected' ? '已驳回，需重新发起申请' : '审批完成后可下载'}</span>`)}
-        <span class="spacer"></span>
-        <span class="tiny dim">审批记录写审计日志</span>
+
       </div>`;
 
     const pass = box.querySelector('#plPass');
