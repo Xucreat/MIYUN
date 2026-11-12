@@ -661,22 +661,27 @@ body.fit table.tb td { padding: 5px 9px; }
 /* 页签面板包裹层：填满模式下必须一起走 flex 流程。
    否则 .split-xx / .stack 的高度约束全部失效（父层是无名 block，
    子卡片按内容撑高），整列被撑到几千像素后由 .content 的 overflow:hidden 裁掉，
-   表现为「内容被截断且无法滚动」。 */
-body.fit .content > [data-panel] {
+   表现为「内容被截断且无法滚动」。
+
+   注意特异性：这里必须用 :where() 把选择器权重压到最低（0,1,0）。
+   页面内联样式里有若干自定义网格布局（如数据看板「人员流动」的三列网格
+   body.fit [data-panel="move"] { display:grid }），一旦本规则权重更高，
+   display:flex 会盖掉这些页面自己的 display:grid，所有卡片退化成单列并被
+   flex-shrink 压到只剩表头——表现为「卡片内容全都展示不全、布局错乱」。 */
+:where(body.fit) .content > :where([data-panel]) {
   flex: 1 1 0; min-height: 0;
   display: flex; flex-direction: column; gap: var(--gap);
 }
-body.fit .content > [data-panel] > .split-37,
-body.fit .content > [data-panel] > .split-46,
-body.fit .content > [data-panel] > .split-64,
-body.fit .content > [data-panel] > .split-73,
-body.fit .content > [data-panel] > .stack,
-body.fit .content > [data-panel] > .grid {
+:where(body.fit) .content > :where([data-panel]) > :where(.split-37, .split-46, .split-64, .split-73, .stack, .grid) {
   flex: 1 1 0; min-height: 0;
 }
-body.fit .content > [data-panel] > .grid { flex: 0 1 auto; }
+:where(body.fit) .content > :where([data-panel]) > :where(.grid) { flex: 0 1 auto; }
 
-/* 细滚动条：卡内滚动不抢视觉 */body.fit .card-bd::-webkit-scrollbar { width: 7px; height: 7px; }
+/* 细滚动条：卡内滚动不抢视觉 */
+body.fit .card-bd::-webkit-scrollbar { width: 7px; height: 7px; }
+body.fit .card-bd::-webkit-scrollbar-thumb { background: var(--line-3); border-radius: 4px; }
+body.fit .card-bd::-webkit-scrollbar-thumb:hover { background: var(--t4); }
+body.fit .card-bd::-webkit-scrollbar-track { background: transparent; }
 
 @media (max-height: 820px) {
   body.fit { --gap-fit: 8px; }
