@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>调整审批 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .appr-item { padding: 10px 13px; border-bottom: 1px solid var(--line); cursor: pointer; border-left: 2.5px solid transparent; }
+  .appr-item:hover { background: #f9fbff; }
+  .appr-item.on { background: var(--blue-soft); border-left-color: var(--blue); }
+  .appr-item.done { background: #fcfcfd; }
+  .appr-item.done b { color: var(--t2); }
+  .appr-sub { padding: 8px 13px 5px; font-size: 10.5px; font-weight: 650; color: var(--t3); letter-spacing: .3px; background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .appr-item:last-child { border-bottom: 0; }
+  /* 明文导出审批链 */
+  .pl-chain { margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--line-2); }
+  .pl-step { display: flex; gap: 8px; padding: 6px 0; position: relative; }
+  .pl-step:not(:last-child)::before { content: ""; position: absolute; left: 4.5px; top: 16px; bottom: -4px; width: 1.5px; background: var(--line-2); }
+  .pl-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex: 0 0 10px;
+    background: var(--surface-3); border: 1.5px solid var(--line-3); position: relative; z-index: 1; }
+  .pl-dot[data-s=approved] { background: var(--green); border-color: var(--green); }
+  .pl-dot[data-s=rejected] { background: var(--red); border-color: var(--red); }
+  .pl-dot[data-s=pending] { background: #fff; border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+  .pl-step-main { flex: 1 1 auto; min-width: 0; }
+  .pl-step-main b { font-size: 11.5px; color: var(--t1); font-weight: 600; }
+  .pl-step:not(.cur) .pl-dot[data-s=wait] ~ .pl-step-main b { color: var(--t3); }
+  .flow { display: flex; align-items: flex-start; gap: 0; }
+  .flow .fs { flex: 1 1 auto; text-align: center; position: relative; padding: 0 2px; }
+  .flow .fs .dot {
+    width: 20px; height: 20px; border-radius: 50%; margin: 0 auto 6px; display: grid; place-items: center;
+    background: var(--surface-3); color: var(--t3); border: 1.5px solid var(--line-2); font-size: 10px; font-weight: 650;
+    position: relative; z-index: 2;
+  }
+  .flow .fs.done .dot { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .flow .fs.cur .dot { background: #fff; border-color: var(--blue); color: var(--blue); box-shadow: 0 0 0 3.5px var(--blue-soft); }
+  .flow .fs .ft { font-size: 11px; color: var(--t3); line-height: 1.4; }
+  .flow .fs.done .ft, .flow .fs.cur .ft { color: var(--t1); font-weight: 600; }
+  .flow .fs .fm { font-size: 10px; color: var(--t4); margin-top: 1px; line-height: 1.4; }
+  .flow .fs::after {
+    content: ""; position: absolute; top: 9.5px; left: 50%; width: 100%; height: 1.5px;
+    background: var(--line-2); z-index: 1;
+  }
+  .flow .fs.done::after { background: var(--blue-soft-2); }
+  .flow .fs:last-child::after { display: none; }
+  .split-37 { align-items: start; /* 左栏收窄到约 29%，把宽度让给右栏详情 */ grid-template-columns: minmax(268px, 0.82fr) minmax(0, 2.18fr); }
+  .diff-box { display: flex; align-items: center; justify-content: flex-start; gap: 14px; padding: 14px; background: var(--surface-2); border-radius: 11px; border: 1px solid var(--line); }
+  .diff-side { text-align: center; }
+  .diff-side .lbl { font-size: 10.5px; color: var(--t3); }
+  .diff-side .val { font-size: 19px; font-weight: 700; letter-spacing: -.4px; margin-top: 2px; }
+  .diff-note { font-size: 11px; color: var(--t2); line-height: 1.7; text-align: left; padding-left: 4px; }
+  .diff-arrow { color: var(--t4); }
+  /* 审批链：发起人回避节点的样式 */
+  .flow .fs.skip .dot { background: #fff; border-style: dashed; border-color: var(--line-3); color: var(--t4); }
+  .flow .fs.skip .ft { color: var(--t3); font-weight: 500; }
+  .flow .fs.skip::after { background: repeating-linear-gradient(90deg, var(--line-2) 0 4px, transparent 4px 8px); }
+  .textarea { border: 1px solid var(--line-2); border-radius: 9px; padding: 9px 11px; font-size: 12px; color: var(--t3); min-height: 56px; line-height: 1.6; }
+
+  /* ===== 一屏填满（body.fit） ===== */
+  body.fit [data-panel] > .split-37 { flex: 1 1 0; min-height: 0; align-items: stretch; }
+  body.fit [data-panel] > .split-37 > .card { min-height: 0; }
+  body.fit [data-panel] > .split-37 > .card > .card-bd { flex: 1 1 0; min-height: 0; max-height: none !important; overflow: auto; }
+  body.fit .appr-item { padding: 8px 12px; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
+  body.fit [data-panel] > .split-37 > .card > .card-bd { display: flex; flex-direction: column; }
+  body.fit .appr-sub { flex: 0 0 auto; }
+  body.fit [data-panel] > .split-37 > .stack { display: grid; grid-template-rows: minmax(0,1fr) minmax(0,auto); gap: var(--gap); min-height: 0; }
+  body.fit [data-panel] > .split-37 > .stack > .card:first-child > .card-bd { display: flex; flex-direction: column; justify-content: space-between; }
+  body.fit [data-panel] > .split-37 > .stack > .card { min-height: 0; }
+  body.fit [data-panel] > .split-37 > .stack > .card > .card-bd { padding: 10px 14px; }
+  body.fit .diff-box { padding: 6px 10px; }
+  body.fit .diff-box > div[style*="line-height"] { line-height: 1.5 !important; }
+  body.fit [data-panel] > .split-37 > .card > .card-bd .kv { gap: 3px 10px; font-size: 11.5px; line-height: 1.45; }
+  body.fit [data-panel] > .split-37 > .stack > .grid.g2 { align-content: start; }
+  body.fit [data-panel] > .split-37 > .stack > .grid.g2 td .cell-sub { display: inline; margin-left: 5px; }
+  body.fit [data-panel] > .split-37 > .stack > .grid.g2 table.tb td { padding: 3px 9px; }
+  body.fit [data-panel] > .split-37 > .stack > .grid.g2 table.tb th { padding: 4px 9px; }
+  body.fit [data-panel] > .split-37 > .stack > .grid.g2 .card-ft { padding: 5px 13px; }
+  /* 变动台账：46 条全量入表，容器定高内滚，表头吸顶，避免撑破一屏 */
+  body.fit [data-panel] > .split-37 > .stack > .grid.g2 > .card:nth-child(2) > .card-bd { max-height: 138px; overflow: auto; }
+  body.fit [data-panel] > .split-37 > .stack > .grid.g2 > .card:nth-child(2) table.tb thead th {
+    position: sticky; top: 0; z-index: 2; background: var(--surface-2);
+  }
+  body.fit [data-panel] > .split-37 > .stack > .grid.g2 .card-hd { padding: 7px 13px 6px; }
+  body.fit .flow .fs .ft { font-size: 10.5px; }
+  body.fit [data-panel] > .split-37 > .card > .card-bd .divider { margin: 6px 0; }
+  body.fit .acts-ft .textarea { min-height: 28px; }
+  body.fit .diff-side .val { font-size: 16px; }
+  body.fit .flow .fs .dot { width: 17px; height: 17px; font-size: 9px; margin-bottom: 4px; }
+  body.fit .flow .fs .fm { font-size: 9.5px; }
+  body.fit .sect-title { margin-bottom: 4px; }
+  body.fit .textarea { min-height: 42px; font-size: 11.5px; padding: 7px 9px; }
+  body.fit .acts-ft { padding: 6px 13px 5px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+  body.fit .acts-ft .acts-row { display: flex; align-items: center; gap: 7px; }
+  body.fit .acts-ft .acts-lb { font-size: 11px; color: var(--t3); flex: 0 0 auto; }
+  body.fit .acts-ft .input { background: var(--surface-3); border-color: transparent; }
+  body.fit .acts-ft .textarea { color: var(--t1); }
+</style>
+</head>
+<body class="fit" data-page="risk" data-crumb="风险与预警" data-title="调整审批">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head">
+        <div class="ph-t">
+          <h1>审批中心 <span class="tag tag-orange" id="hdrPending">5 待审批</span></h1>
+          <p>等级调整须人工发起、填写评估依据、逐级审批后生效 · 明文导出须提交申请单并按条数走单人审批 / 双人复核 · 全部留痕不可修改</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn" id="btnNew">发起调整申请</button>
+          <button class="btn" id="btnExport">导出变动台账</button>
+          <button class="btn btn-primary" id="btnMonthly">月度报送预览</button>
+        </div>
+      </div>
+
+      <div class="subnav" id="apprNav">
+        <button class="on" data-tab="level">风险等级调整</button>
+        <button data-tab="export">明文导出 <span class="cnt" id="navExpCnt">1</span></button>
+        <span class="sep"></span>
+        <span class="tiny dim" id="navHint" style="padding-left:4px">按超时与风险序排序</span>
+      </div>
+
+      <div data-panel="level">
+
+      <div class="split-37">
+        <!-- 左：待办 -->
+        <div class="card">
+          <div class="card-hd" style="padding-right:10px">
+            <div class="card-title">待我审批</div>
+            <div class="right"><span class="tag tag-orange" id="apprCnt">5</span></div>
+          </div>
+          <div class="card-bd flush" id="apprList" style="max-height:520px;overflow:auto"></div>
+          <div class="card-ft"><span>按超时与风险序排序</span><span class="spacer"></span><span class="tag tag-line" id="apprStat">待审批 5</span></div>
+        </div>
+
+        <!-- 右：详情 -->
+        <div class="stack">
+          <div class="card" id="detailCard"></div>
+
+          <!-- 层级规则 + 变动台账 -->
+          <div class="grid g2" style="gap:12px">
+            <div class="card">
+              <div class="card-hd"><div class="card-title">审批层级规则</div></div>
+              <div class="card-bd" style="padding:0">
+                <table class="tb compact">
+                  <thead><tr><th>调整情形</th><th>审批层级</th><th class="r">本月</th></tr></thead>
+                  <tbody>
+                    <tr><td>低 ↔ 中风险</td><td>部门主管</td><td class="r num" id="ruleLowMid">11</td></tr>
+                    <tr><td>中 ↔ 高 <span class="tag tag-line" style="height:16px">上浮</span></td><td>部门主管 + 政法委</td><td class="r num" id="ruleMidHigh">15</td></tr>
+                    <tr><td>高风险降级</td><td>政法委主管</td><td class="r num" id="ruleHighDown">12</td></tr>
+                    <tr><td>个人极端 / A 类 / 一级降级</td><td>政法委 + 双人复核</td><td class="r num" id="ruleDouble">8</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-ft"><span>上调不设限，下调须依据；依据缺失禁止上调</span></div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-title">本月变动台账 <span class="sub" id="chgSub">46 条</span></div>
+                <div class="right"><span class="tag tag-red" id="chgUp">上调 22</span><span class="tag tag-green" id="chgDown">下调 24</span></div>
+              </div>
+              <div class="card-bd" style="padding:0">
+                <table class="tb compact">
+                  <thead><tr><th>人员 / 日期</th><th>变动</th><th class="r">审批</th></tr></thead>
+                  <tbody id="chgBody"></tbody>
+                </table>
+              </div>
+              <div class="card-ft"><span>按月生成，供政法委月度报送</span><a class="btn btn-sm btn-ghost" href="#" id="btnChgAll">全部 46 条 ›</a></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      </div><!-- /data-panel=level -->
+
+      <!-- 明文导出审批 -->
+      <div data-panel="export" style="display:none">
+        <div class="split-37">
+          <div class="card">
+            <div class="card-hd" style="padding-right:10px">
+              <div class="card-title">明文导出申请</div>
+              <div class="right"><span class="tag tag-orange" id="plCnt">1 待审批</span></div>
+            </div>
+            <div class="card-bd flush" id="plList" style="max-height:520px;overflow:auto"></div>
+            <div class="card-ft"><span>按提交时间倒序 · 待审批优先</span><span class="spacer"></span><span class="tag tag-line" id="plStat">—</span></div>
+          </div>
+
+          <div class="stack">
+            <div class="card" id="plDetail"></div>
+
+            <div class="card">
+              <div class="card-hd">
+                <div class="card-title">我的申请 <span class="sub" id="plMineSub">—</span></div>
+                <div class="right"><a class="btn btn-sm btn-ghost" href="persons.html?tab=query">去组合查询发起 ›</a></div>
+              </div>
+              <div class="card-bd" style="padding:0">
+                <table class="tb compact">
+                  <thead><tr><th>申请单</th><th>条数 / 用途</th><th class="r">状态</th></tr></thead>
+                  <tbody id="plMineBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /data-panel=export -->
+
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/page-risk.js"></script>
+<script src="assets/page-approval.js"></script>
+</body>
+</html>

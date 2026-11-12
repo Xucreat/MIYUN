@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>盲区人群 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  /* 本月变化量并入上方 KPI（原识别清单顶部三张切换卡已删除） */
+  .kpi-val .delta { font-size: 10.5px; font-weight: 650; letter-spacing: 0; margin-left: 6px; }
+  .kpi-val .delta.up { color: var(--red); }
+  .kpi-val .delta.down { color: var(--green); }
+  .kpi-val .delta em { font-style: normal; font-size: 9.5px; font-weight: 500; color: var(--t4); margin-left: 2px; }
+
+  /* 解疑说明 */
+  .why { display: flex; gap: 10px; padding: 11px 13px; border-radius: 11px; background: var(--blue-soft); }
+  .why .ico { width: 26px; height: 26px; border-radius: 8px; background: #fff; color: var(--blue); display: grid; place-items: center; flex: 0 0 26px; box-shadow: 0 1px 2px rgba(16,24,40,.08); }
+  .why .ico svg { width: 14px; height: 14px; }
+  .why .wt { font-size: 12px; font-weight: 650; color: var(--blue-ink); }
+  .why .wc { font-size: 11.5px; color: #315f92; line-height: 1.62; margin-top: 3px; }
+
+  /* 来源行 */
+  .src-row { display: grid; grid-template-columns: 74px 1fr 78px; gap: 8px; align-items: center; padding: 6.5px 0; border-bottom: 1px solid var(--line); }
+  .src-row:last-child { border-bottom: 0; }
+  .src-dot { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 550; white-space: nowrap; }
+  .src-dot i { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
+  .src-meta { font-size: 10px; color: var(--t3); text-align: right; line-height: 1.4; white-space: nowrap; }
+
+  /* 成因条 */
+  .cause-row { display: grid; grid-template-columns: 104px 1fr 32px; gap: 8px; align-items: center; padding: 4.5px 0; font-size: 11.5px; }
+  .cause-row .nm { color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cause-row .vl { text-align: right; color: var(--t2); font-variant-numeric: tabular-nums; }
+
+  /* 环形进度 */
+  .ring-wrap { position: relative; width: 92px; height: 92px; flex: 0 0 92px; }
+  .ring-wrap .ctr { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .ring-wrap .ctr b { display: block; font-size: 17px; font-weight: 650; letter-spacing: -.5px; line-height: 1.1; }
+  .ring-wrap .ctr span { font-size: 9.5px; color: var(--t3); }
+
+  /* 规则表 */
+  .rule-tb td { font-size: 11.5px; vertical-align: top; }
+  .rule-tb .rg { font-family: var(--mono); font-size: 10.5px; color: var(--t3); }
+  .rule-tb .cond { color: var(--t2); line-height: 1.55; }
+
+  /* 变化行 */
+  .chg-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 11.5px; }
+  .chg-row:last-child { border-bottom: 0; }
+  .chg-ico { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex: 0 0 20px; font-size: 11px; font-weight: 700; }
+
+  .two-line { line-height: 1.42; }
+  .two-line span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .two-line span + span { font-size: 10.5px; color: var(--t3); }
+  .split-64 { align-items: start; }
+  td.nowrap, th.nowrap { white-space: nowrap; }
+  td .risk { white-space: nowrap; }
+
+  /* 可点击行 / 可悬浮柱条的交互提示 */
+  .chg-row { cursor: pointer; border-radius: 7px; transition: background .12s; }
+  .chg-row:hover { background: var(--blue-soft); }
+  /* 化解卡：列表区内部滚动，图例固定在卡片底部不随滚动 */
+  .chg-bd { display: flex; flex-direction: column; min-height: 0; }
+  .chg-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 7px 14px 2px; }
+  .chg-legend { flex: 0 0 auto; display: flex; align-items: center; gap: 6px 12px;
+    padding: 5px 14px 6px; border-top: 1px solid var(--line); background: #fff; font-size: 10.5px; color: var(--t3); }
+  .chg-legend > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .chg-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .bar.hoverable, .src-row, .cause-row { cursor: default; }
+  .bar.hoverable:hover { filter: brightness(1.04); }
+
+  /* ===== 一屏化（body.fit）：页面不出现整页滚动，溢出在模块内部滚动 ===== */
+  body.fit .content { display: flex; flex-direction: column; gap: var(--gap); }
+  body.fit .content > * { margin-bottom: 0 !important; }
+  body.fit .content > .grid.g6 { flex: 0 0 auto; }
+  body.fit { --gap-fit: 8px; }
+  body.fit .content > .why { flex: 0 0 auto; padding: 4px 11px; }
+  body.fit .why .ico { width: 22px; height: 22px; flex: 0 0 22px; }
+  body.fit .why .wt { font-size: 11.5px; }
+  /* 一屏下说明文字压成一行（完整文本挂在 title 上，悬停可看），省下的高度给四卡与清单 */
+  body.fit .why .wc {
+    font-size: 10.5px; line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  /* 识别清单吃满剩余高度，表格内部滚动 */
+  body.fit .content > .card.mb10 { flex: 1 1 auto; min-height: 212px; display: flex; flex-direction: column; }
+  body.fit .content > .card.mb10 > .card-hd { flex: 0 0 auto; }
+  body.fit .content > .card.mb10 > .card-bd { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 8px 14px 0; }
+  body.fit .content > .card.mb10 > .card-bd > .row { flex: 0 0 auto; }
+  body.fit .content > .card.mb10 > .card-bd > .row#fCond:empty { display: none; }
+  body.fit .content > .card.mb10 .table-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  body.fit .content > .card.mb10 > .pager { flex: 0 0 auto; padding: 4px 13px; }
+  body.fit .content > .card.mb10 .tb td, body.fit .content > .card.mb10 .tb th { padding: 4px 9px; font-size: 11px; }
+  /* 三张小卡 + 下方两卡：定高，内容超出内部滚动 */
+  /* 四卡与底部两卡定高内滚：把省下的高度让给「盲区识别清单」，避免清单只剩一行 */
+  body.fit .content > .grid.g3 { flex: 0 0 auto; max-height: 198px; overflow: hidden; }
+  body.fit .content > .grid.g3 > .card { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  body.fit .content > .grid.g3 > .card > .card-bd { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 6px 12px 8px; }
+  body.fit .content > .split-64 { flex: 0 0 auto; align-items: stretch; max-height: 234px; overflow: hidden; }
+  body.fit .content > .split-64 > .card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  body.fit .content > .split-64 > .card > .card-bd { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  body.fit .content > .foot-note { flex: 0 0 auto; }
+  /* 卡片内部压缩 */
+  body.fit .kpi { padding: 6px 10px; }
+  body.fit .kpi-val { font-size: 18px; }
+  body.fit .src-row { padding: 4px 0; }
+  body.fit .cause-row { padding: 3px 0; }
+  body.fit .chg-row { padding: 4px 4px; line-height: 1.3; }
+  body.fit .chg-row .tiny { line-height: 1.25; }
+  body.fit .rule-tb td, body.fit .rule-tb th { padding: 3px 8px; font-size: 10.5px; }
+  body.fit .ring-wrap { width: 76px; height: 76px; flex: 0 0 76px; }
+  body.fit .ring-wrap svg { width: 76px; height: 76px; display: block; }
+  body.fit .ring-wrap .ctr b { font-size: 15px; }
+  /* 闭环卡：一屏下 4 条明细压紧行距，否则 card-bd 里会冒出 6px 滚动条 */
+  body.fit #ringBody .li { padding: 2px 0 !important; }
+  #ringBody { overflow: auto; }
+  #fCond:empty { display: none; }
+</style>
+</head>
+<body class="fit" data-page="blind" data-crumb="风险与预警" data-title="盲区人群">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head">
+        <div class="ph-t">
+          <h1>盲区人群 <span class="tag tag-orange">887 人待核查</span></h1>
+          <p>按身份证号自动比对四部门台账，识别「责任交叉」与「依据缺失」两类管控盲区 · 最近比对 2026-11-10 06:00 · 比对口径见页脚</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn" id="btnExportTop">导出清单（脱敏）</button>
+          <a class="btn" href="system.html?tab=audit&focus=盲区">比对日志</a>
+          <button class="btn btn-primary" id="btnGenTask">生成核查任务</button>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="grid g6 mb10">
+        <div class="card kpi k-orange">
+          <div class="kpi-label">双在册人员 <span class="q">?</span></div>
+          <div class="kpi-val">127<span class="unit">人</span><span class="delta up">+14<em>本月</em></span></div>
+          <div class="kpi-meta">公安卫健 103 · 公安信访 24</div>
+          </div>
+        <div class="card kpi">
+          <div class="kpi-label">多重标签人员 <span class="q">?</span></div>
+          <div class="kpi-val">214<span class="unit">人</span><span class="delta down">−6<em>本月</em></span></div>
+          <div class="kpi-meta">2 标 186 · 3 标 28</div>
+          </div>
+        <div class="card kpi k-amber">
+          <div class="kpi-label">风险未定级 <span class="q">?</span></div>
+          <div class="kpi-val">612<span class="unit">人</span><span class="delta up">+55<em>本月</em></span></div>
+          <div class="kpi-meta" id="kpiUnknownMeta">其中超 30 日未走访 89</div>
+          </div>
+        <div class="card kpi k-slate">
+          <div class="kpi-label">依据缺失 <span class="q">?</span></div>
+          <div class="kpi-val">358<span class="unit">人</span></div>
+          <div class="kpi-meta">有等级无评估材料</div>
+          </div>
+        <div class="card kpi k-red">
+          <div class="kpi-label">超期未确认 <span class="q">?</span></div>
+          <div class="kpi-val">9<span class="unit">条</span></div>
+          <div class="kpi-meta">双在册发起 &gt; 7 日</div>
+          </div>
+        <div class="card kpi k-green">
+          <div class="kpi-label">本月已化解 <span class="q">?</span></div>
+          <div class="kpi-val">41<span class="unit">人</span></div>
+          <div class="kpi-meta" id="kpiResolve">并档 26 · 补评 15</div>
+          </div>
+      </div>
+
+      <div class="why mb10">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v.1M12 11.4v4.2"/></svg>
+        </div>
+        <div>
+          <div class="wt">为什么把这三类人单列成"盲区"</div>
+          <div class="wc">双在册人员同时受两个部门管理，容易出现"都管、都以为对方在管"；多重标签人员分属不同部门，单看任何一个部门只能看到局部；风险未定级人员缺少评估依据，是最容易被忽略的部分。三类人员的共同特征是<b>责任交叉</b>或<b>依据缺失</b>，纯靠 Excel 人工比对周期长、易遗漏。系统按身份证号每日 06:00 自动比对，本页只做识别与督办，<b>不自动改变任何人的管控等级</b> —— 等级调整仍须走人工研判与分级审批。</div>
+        </div>
+      </div>
+
+      <!-- 识别清单（整宽） -->
+      <div class="card mb10">
+        <div class="card-hd">
+          <div class="card-title">盲区识别清单 <span class="sub">按类型切换 · 三类去重合计 887 人</span></div>
+          <div class="right">
+            <div class="seg" id="segType">
+              <button class="on" data-v="dual">双在册 127</button>
+              <button data-v="multi">多标 214</button>
+              <button data-v="unknown">未定级 612</button>
+            </div>
+          </div>
+        </div>
+        <div class="card-bd" style="padding:11px 16px 0">
+          <div class="row mb8" style="gap:8px">
+            <div class="field" style="flex:0 0 156px">
+              <div class="input" style="height:27px;font-size:11.5px">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--t3)"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+                <input id="qKw" placeholder="姓名 / 身份证后四位" autocomplete="off" spellcheck="false" style="border:0;background:transparent;outline:none;flex:1 1 auto;min-width:0;font-size:11.5px;font-family:inherit;color:var(--t1)">
+              </div>
+            </div>
+            <div class="field" style="flex:0 0 118px"><div class="select" id="fTown" style="height:27px;font-size:11.5px">全部镇街</div></div>
+            <div class="field" style="flex:0 0 118px"><div class="select" id="fDept" style="height:27px;font-size:11.5px">全部部门</div></div>
+            <div class="field" style="flex:0 0 120px"><div class="select" id="fSort" style="height:27px;font-size:11.5px">按风险序升序</div></div>
+            <div class="field" style="flex:0 0 116px"><div class="select" id="fStatus" style="height:27px;font-size:11.5px">全部确认状态</div></div>
+            <button class="btn btn-sm" id="btnQuery">查询</button>
+            <button class="btn btn-sm btn-ghost" id="btnReset">重置</button>
+            <span class="spacer"></span>
+            <span class="tiny dim" style="white-space:nowrap">命中 <b style="color:var(--t1)" id="hitCount">127</b> 人 · 已选 <b style="color:var(--blue)" id="selCount">0</b></span>
+            <button class="btn btn-sm" id="btnAssign" disabled style="white-space:nowrap;flex:0 0 auto">批量指派核查</button>
+            <button class="btn btn-sm btn-primary" id="btnExport" style="white-space:nowrap;flex:0 0 auto">导出脱敏清单</button>
+            <button class="btn btn-sm btn-ghost" id="btnExportPlain" style="white-space:nowrap;flex:0 0 auto;display:none;color:var(--red);border-color:#f3c9c9" title="仅政法委主管可导，导出即留痕">导出明文</button>
+          </div>
+          <div class="row" id="fCond" style="gap:6px;margin-bottom:8px;white-space:nowrap"></div>
+          <div class="table-wrap" id="listWrap" style="border:1px solid var(--line);border-radius:9px"></div>
+        </div>
+        <div class="pager" id="listPager"></div>
+      </div>
+
+      <!-- 三张小卡 -->
+      <div class="grid g3 mb10">
+        <div class="card">
+          <div class="card-hd"><div class="card-title">比对来源 <span class="sub">四部门台账</span></div>
+            <div class="right"><span class="tag tag-green">已同步</span></div>
+          </div>
+          <div class="card-bd" id="srcBody" style="padding:8px 14px 10px">
+            <div class="src-row"><span class="src-dot"><i style="background:#0071e3"></i>公安分局</span><div class="bar thin"><i style="width:100%;background:#0071e3"></i></div><span class="src-meta">2,914 条 · 05:42</span></div>
+            <div class="src-row"><span class="src-dot"><i style="background:#e8830c"></i>区卫健委</span><div class="bar thin"><i style="width:41%;background:#e8830c"></i></div><span class="src-meta">1,204 条 · 05:55</span></div>
+            <div class="src-row"><span class="src-dot"><i style="background:#6b56c9"></i>区信访办</span><div class="bar thin"><i style="width:54%;background:#6b56c9"></i></div><span class="src-meta">1,568 条 · 05:58</span></div>
+            <div class="src-row"><span class="src-dot"><i style="background:#1f8a53"></i>区司法局</span><div class="bar thin"><i style="width:49%;background:#1f8a53"></i></div><span class="src-meta">1,426 条 · 06:01</span></div>
+            <div class="divider" style="margin:8px 0 6px"></div>
+            <div class="row" style="font-size:11.5px;color:var(--t2)">
+              <span>人次合计 / 去重后</span><span class="spacer"></span><b>7,112</b><span class="dim">/</span><b>6,028</b>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><div class="card-title">盲区成因分布 <span class="sub">按处置优先级取首因</span></div></div>
+          <div class="card-bd" id="causeBody" style="padding:8px 14px 10px">
+            <div class="cause-row"><span class="nm">未做风险等级评估</span><span class="bar thin"><i style="width:74%;background:var(--amber)"></i></span><span class="vl">292</span></div>
+            <div class="cause-row"><span class="nm">拒访 · 无法接触</span><span class="bar thin"><i style="width:58%;background:var(--orange)"></i></span><span class="vl">231</span></div>
+            <div class="cause-row"><span class="nm">两部门口径不一致</span><span class="bar thin"><i style="width:32%;background:var(--purple)"></i></span><span class="vl">127</span></div>
+            <div class="cause-row"><span class="nm">评估材料超 12 个月</span><span class="bar thin"><i style="width:22%;background:var(--slate)"></i></span><span class="vl">89</span></div>
+            <div class="cause-row"><span class="nm">等级字段为空</span><span class="bar thin"><i style="width:14%;background:var(--red)"></i></span><span class="vl">58</span></div>
+            <div class="cause-row"><span class="nm">其他 / 待复核</span><span class="bar thin"><i style="width:24%;background:var(--t4)"></i></span><span class="vl">90</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><div class="card-title">核查任务闭环 <span class="sub">本月累计</span></div>
+            <div class="right"><a class="btn btn-sm btn-ghost" href="alerts.html">待办 ›</a></div>
+          </div>
+          <div class="card-bd" id="ringBody" style="padding:10px 14px 11px;display:flex;gap:12px;align-items:center">
+            <div class="ring-wrap">
+              <svg viewBox="0 0 100 100" width="92" height="92">
+                <circle cx="50" cy="50" r="41" fill="none" stroke="#f2f4f7" stroke-width="9"/>
+                <circle cx="50" cy="50" r="41" fill="none" stroke="#1f8a53" stroke-width="9" stroke-linecap="round"
+                        stroke-dasharray="158 258" transform="rotate(-90 50 50)"/>
+              </svg>
+              <div class="ctr"><div><b>61.4%</b><span>闭环率</span></div></div>
+            </div>
+            <div style="flex:1 1 auto;min-width:0">
+              <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:var(--green)"></i><span class="sm">已闭环</span><span class="spacer"></span><b style="font-size:12.5px">41</b></div>
+              <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:var(--blue)"></i><span class="sm">核查中</span><span class="spacer"></span><b style="font-size:12.5px">16</b></div>
+              <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:var(--orange)"></i><span class="sm">已派发待核查</span><span class="spacer"></span><b style="font-size:12.5px">10</b></div>
+              <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:var(--red)"></i><span class="sm">已超期</span><span class="spacer"></span><b style="font-size:12.5px;color:var(--red)">9</b></div>
+            </div>
+          </div>
+          <div class="card-ft" id="ringFoot" style="padding:7px 14px"><span class="spacer"></span><a href="alerts.html" class="tiny" style="color:var(--blue)">超期督办 ›</a></div>
+        </div>
+      </div>
+
+      <div class="split-64">
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">识别规则与口径 <span class="sub">规则可配置 · 变更留痕</span></div>
+            <div class="right"><a class="btn btn-sm btn-ghost" href="system.html?tab=config">规则参数 ›</a></div>
+          </div>
+          <div class="card-bd flush">
+            <table class="tb compact rule-tb">
+              <thead><tr><th style="width:56px">规则</th><th>判定条件</th><th style="width:52px">命中</th><th style="width:76px">刷新</th><th style="width:82px">责任方</th><th style="width:62px">状态</th></tr></thead>
+              <tbody>
+                <tr><td class="rg">RG-01</td><td class="cond">同一身份证号在 ≥ 2 个部门台账中同时为「在册」状态</td><td><b>127</b></td><td class="nowrap">每日 06:00</td><td class="nowrap">区委政法委</td><td><span class="tag tag-green">启用</span></td></tr>
+                <tr><td class="rg">RG-02</td><td class="cond">同一人员在 11 类标签口径中命中 ≥ 2 类</td><td><b>214</b></td><td class="nowrap">每日 06:00</td><td class="nowrap">区委政法委</td><td><span class="tag tag-green">启用</span></td></tr>
+                <tr><td class="rg">RG-03</td><td class="cond">管控等级为空 / 标注「不详」/ 拒访且无替代评估</td><td><b>612</b></td><td class="nowrap">每日 06:00</td><td class="nowrap">对口部门</td><td><span class="tag tag-green">启用</span></td></tr>
+                <tr><td class="rg">RG-04</td><td class="cond">已有等级但无评估材料，或评估时间距今 &gt; 12 个月</td><td><b>358</b></td><td class="nowrap">每周一</td><td class="nowrap">对口部门</td><td><span class="tag tag-green">启用</span></td></tr>
+                <tr><td class="rg">RG-05</td><td class="cond">最近走访间隔 &gt; 30 天（重点时期 &gt; 7 天）</td><td><b>89</b></td><td class="nowrap">每日 06:00</td><td class="nowrap">属地镇街</td><td><span class="tag tag-green">启用</span></td></tr>
+                <tr><td class="rg">RG-06</td><td class="cond">双在册确认任务发起后 &gt; 7 日未两部门确认</td><td><b>9</b></td><td class="nowrap">每日 06:00</td><td class="nowrap">区委政法委</td><td><span class="tag tag-amber">试运行</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><div class="card-title">本月盲区化解 <span class="sub" id="chgSub">新增 63 · 化解 41</span></div>
+            <div class="right"><a class="btn btn-sm btn-ghost" href="system.html?tab=audit&focus=盲区" id="btnChgAudit">留痕 ›</a></div>
+          </div>
+          <div class="card-bd chg-bd" id="chgBody" style="padding:0">
+            <div class="chg-list" id="chgList"></div>
+            <div class="chg-legend" id="chgLegend">
+              <span><i style="background:var(--orange)"></i>双在册</span>
+              <span><i style="background:var(--purple)"></i>多重标签</span>
+              <span><i style="background:var(--amber)"></i>未定级</span>
+              <span><i style="background:var(--slate)"></i>依据缺失</span>
+              <span class="spacer"></span>
+              <span class="tiny dim">口径与统计分析页一致</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot-note">
+        口径说明：① 三类盲区人员存在交叉（三类叠加 66 人），去重后合计 <b>887</b> 人，与驾驶舱「双在册 127 / 多标 214 / 待核实 612」逐项对应；②「风险未定级」不参与高风险及以上统计，单列管理；③ 盲区识别只做提示与督办，任何等级变更须经人工研判、分级审批并在审计日志留痕；④ 本页为虚拟演示数据，不含真实公民个人信息。
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/page-blind.js"></script>
+</body>
+</html>

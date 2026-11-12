@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>一人一档 · 任玉荣 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .hero {
+    background: linear-gradient(120deg, #f7fbff 0%, #ffffff 46%, #fbfdff 100%);
+    border: 1px solid rgba(0,113,227,.14);
+    border-radius: var(--r-md); padding: 16px 18px;
+    display: flex; gap: 18px; align-items: flex-start;
+    box-shadow: var(--sh1);
+  }
+  .hero .bigava {
+    width: 56px; height: 56px; border-radius: 15px; flex: 0 0 56px;
+    background: linear-gradient(150deg, #e6f0fd, #cfe2f9); color: var(--blue-ink);
+    display: grid; place-items: center; font-size: 22px; font-weight: 650;
+    border: 1px solid rgba(10,70,133,.10); box-shadow: inset 0 1px 0 #fff;
+  }
+  .hero .h-name { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .hero .h-name b { font-size: 21px; font-weight: 650; letter-spacing: -.4px; }
+  .hero .h-meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--t2); margin-top: 6px; }
+  .hero .h-meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .hero .h-meta i { width: 1px; height: 10px; background: var(--line-2); }
+  .grade-box {
+    margin-left: auto; display: flex; align-items: center; gap: 14px;
+    padding-left: 18px; border-left: 1px solid var(--line);
+  }
+  .grade-badge {
+    text-align: center; padding: 7px 15px; border-radius: 11px;
+    background: var(--red-soft); border: 1px solid rgba(217,45,32,.18);
+  }
+  .grade-badge .g { font-size: 17px; font-weight: 700; color: var(--red); letter-spacing: -.2px; line-height: 1.2; }
+  .grade-badge .s { font-size: 10px; color: #9c1f16; opacity: .8; }
+  .rank-compare { display: flex; flex-direction: column; gap: 5px; min-width: 168px; }
+  .rc-row { display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--t2); }
+  .rc-row .nm { width: 76px; flex: 0 0 76px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rc-bar { flex: 1 1 auto; height: 8px; border-radius: 3px; background: var(--surface-3); position: relative; overflow: hidden; }
+  .rc-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+  .rc-row b { font-size: 10.5px; width: 30px; text-align: right; }
+  .tagcard {
+    border-radius: 11px; border: 1px solid var(--line); background: #fff;
+    padding: 11px 12px; display: flex; flex-direction: column; gap: 7px; position: relative; overflow: hidden;
+  }
+  .tagcard::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--slate); }
+  .tagcard.red::before { background: var(--red); }
+  .tagcard.orange::before { background: var(--orange); }
+  .tagcard.slate::before { background: var(--slate); }
+  .tagcard .tc-hd { display: flex; align-items: center; gap: 6px; }
+  .tagcard .tc-hd b { font-size: 12.5px; font-weight: 650; }
+  .tagcard .tc-meta { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; color: var(--t2); }
+  .tagcard .tc-meta div { display: flex; gap: 5px; }
+  .tagcard .tc-meta .k { color: var(--t3); flex: 0 0 52px; }
+  .basis-ok { color: var(--green); font-weight: 600; }
+  .basis-no { color: var(--red); font-weight: 600; }
+  .file-item { display: flex; align-items: center; gap: 7px; font-size: 11.5px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .file-item:last-child { border-bottom: 0; }
+  .file-item .fi { width: 22px; height: 22px; border-radius: 6px; background: var(--blue-soft); color: var(--blue); display: grid; place-items: center; flex: 0 0 22px; }
+  .file-item .fi svg { width: 12px; height: 12px; }
+  .step-line { display: flex; align-items: center; gap: 0; margin: 4px 0 2px; }
+  .step-line .st { flex: 1 1 auto; text-align: center; font-size: 10.5px; color: var(--t3); position: relative; }
+  .step-line .st::before { content: ""; display: block; width: 9px; height: 9px; border-radius: 50%; background: var(--surface-3); border: 1.6px solid var(--line-3); margin: 0 auto 4px; }
+  .step-line .st.done::before { background: var(--blue); border-color: var(--blue); }
+  .step-line .st.done { color: var(--blue-ink); font-weight: 600; }
+  .step-line .st.wait::before { background: #fff; border-color: var(--amber); }
+  .step-line .st.wait { color: var(--amber); font-weight: 600; }
+
+  /* ===== 一屏化：整页不滚动，模块内容内部滚动 ===== */
+  body.fit .app { height: 100vh; }
+  body.fit .content { flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding-bottom: 10px; }
+  body.fit .page-head, body.fit .hero, body.fit #heroBanner, body.fit .foot-note { flex: 0 0 auto; }
+  body.fit .split-73 { flex: 1 1 0; min-height: 0; }
+  body.fit .split-73 > .stack { min-height: 0; }
+  body.fit .stack > .card { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  body.fit .stack > .card > .card-hd, body.fit .stack > .card > .card-ft { flex: 0 0 auto; }
+  body.fit .stack > .card > .card-bd { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+  body.fit .hero { padding-top: 6px; padding-bottom: 6px; }
+  /* ===== 底部四卡同排 + 右列责任链路/风险预警/跨镇街迁移（消除异常空白、页面铺满） ===== */
+  body.fit .content > .split-73 { flex: 1 1 0; min-height: 0; }
+  body.fit #bottomRow { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1.18fr 0.9fr 1.02fr; gap: var(--gap); min-height: 0; height: 22vh; }
+  body.fit #bottomRow > .card { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+  body.fit #bottomRow > .card > .card-hd,
+  body.fit #bottomRow > .card > .card-ft { flex: 0 0 auto; }
+  body.fit #bottomRow > .card > .card-bd { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+  body.fit .content > .split-73 > .stack:first-child > .card:nth-child(1) { flex: 0.9 1 0; }
+  body.fit .content > .split-73 > .stack:first-child > .card:nth-child(2) { flex: 1.62 1 0; }
+  /* 责任链路 / 风险预警按内容自适应高度（不留内部空白），剩余高度全部给跨镇街迁移；
+     窗口偏矮时前两卡可优先收缩（卡内滚动），保证迁移卡始终有可用高度 */
+  body.fit #sideCards > .card:nth-child(1) { flex: 0 1 auto; }
+  body.fit #sideCards > .card:nth-child(2) { flex: 0 1 auto; }
+  body.fit #sideCards > .card:nth-child(3) { flex: 1 1 0; min-height: 116px; }
+  /* 卡体按内容撑开（fit 模式默认 flex:1 1 0 + min-height:0 会把内容压没），空间不足时才卡内滚动 */
+  body.fit #sideCards > .card:nth-child(1) > .card-bd,
+  body.fit #sideCards > .card:nth-child(2) > .card-bd { flex: 1 1 auto; min-height: 0; }
+  /* 预警条数过多时卡内滚动，避免把迁移卡挤没 */
+  body.fit #sideCards > .card:nth-child(2) > .card-bd { max-height: 132px; overflow-y: auto; }
+  /* list 内的副行必须独占一行，否则与主文本连排导致换行错乱 */
+  body.fit #bottomRow .li .cell-sub, body.fit #sideCards .li .cell-sub { display: block; font-size: 10.5px; color: var(--t3); margin-top: 1px; }
+  /* 迁移卡副行收紧行高，三条记录可在一屏内完整展示 */
+  body.fit #sideCards .li .cell-sub { line-height: 1.28; }
+  body.fit .hero { margin-bottom: 0 !important; }
+  body.fit #heroBanner:empty { display: none; }
+  body.fit #heroBanner { margin-bottom: 0; }
+
+  /* ===== 类别标签卡：卡片占比不变（flex .9），把卡内内容整体缩小到卡高之内，取消卡内滚动窗 ===== */
+  body.fit #tagCard > .card-bd { overflow: hidden; }
+  body.fit #tagCard .card-hd { padding: 8px 14px 7px; }
+  body.fit #tagCard .mini-sm { padding: 6px 9px; border-radius: 8px; }
+  body.fit #tagCard .mini-sm .v { font-size: 14px; letter-spacing: -.3px; line-height: 1.25; }
+  body.fit #tagCard .mini-sm .l { font-size: 10px; line-height: 1.3; }
+  /* 矮屏（≤820px 高）再压一档：三个指标改为「数值 + 标签」同行，保证说明行仍完整可见 */
+  @media (max-height: 820px) {
+    body.fit #tagCard .card-hd { padding: 6px 14px 5px; }
+    body.fit #tagCard > .card-bd { padding: 8px 13px 8px !important; }
+    body.fit #tagCard .mini-sm { display: flex; align-items: baseline; gap: 6px; padding: 3px 8px; }
+    body.fit #tagCard .mini-sm .v { font-size: 12.5px; }
+    body.fit #tagCard .mini-sm .l { font-size: 9.5px; }
+    body.fit #tagCard .foot-note { font-size: 9.6px !important; line-height: 1.35 !important; padding-top: 5px !important; }
+  }
+</style>
+</head>
+<body class="fit" data-page="person" data-crumb="台账管理" data-title="一人一档">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head">
+        <div class="ph-t">
+          <h1>人员档案 <span class="tag tag-line" id="hdNo">MY-2026-000000</span></h1>
+          <p>一个自然人一份档案 · 标签可叠加 · 管控等级按「就高不就低」计算，部门原始等级完整保留</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn" id="btnExportFile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 4v12m0 0l-4.5-4.5M12 16l4.5-4.5"/><path d="M4 20h16"/></svg>导出档案</button>
+          <button class="btn" id="btnPlain">申请查看明文</button>
+          <button class="btn btn-primary" id="btnVisit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>登记走访</button>
+        </div>
+      </div>
+
+      <!-- 档案头（按角色密级渲染） -->
+      <div class="hero mb10" id="hero"></div>
+      <div id="heroBanner"></div>
+
+      <div class="split-73">
+        <!-- 左主列 -->
+        <div class="stack">
+          <div class="card" id="tagCard"></div>
+          <div class="card" id="baseCard"></div>
+        </div>
+        <!-- 右列：责任链路（占高）+ 风险预警 + 等级变动 -->
+        <div class="stack" id="sideCards"></div>
+      </div>
+
+      <!-- 底部同排四卡：等级变动 / 走访记录 / 明文授权 / 访问留痕 -->
+      <div id="bottomRow">
+        <div class="card" id="lvlChgCard"></div>
+        <div class="card" id="visitCard"></div>
+        <div class="card" id="plainCard"></div>
+        <div class="card" id="traceCard"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/page-person.js"></script>
+</body>
+</html>

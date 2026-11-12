@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>统计分析 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .heat td { text-align: center; font-variant-numeric: tabular-nums; }
+  .heat td.nm { text-align: left; }
+  .c1 { background: #fbe9e7; color: #9c1f16; font-weight: 600; }
+  .c2 { background: #fdf1e0; color: #8a5200; font-weight: 600; }
+  .c3 { background: #eef3f8; color: #3e5f80; font-weight: 600; }
+  .c4 { background: #fdf8e8; color: #7a5600; font-weight: 600; }
+  .c0 { background: #fff; color: var(--t3); }
+  .tot { background: var(--surface-2); font-weight: 650; }
+  .rank-pill { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #fff; margin-left: 3px; }
+  .rp1 { background: var(--red); } .rp2 { background: var(--orange); } .rp4 { background: var(--orange); opacity: .78; }
+  .rp6 { background: var(--slate); } .rp8 { background: var(--amber); } .rp9 { background: var(--t4); }
+  .lvlcell { font-size: 11px; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+  .bar-pair { display: flex; align-items: flex-end; gap: 8px; height: 96px; }
+  .bar-pair .bp { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .bar-pair .bs { display: flex; align-items: flex-end; gap: 3px; height: 100%; }
+  .bar-pair .bs i { width: 10px; border-radius: 2px 2px 0 0; display: block; }
+  .bar-pair .bl { font-size: 9.5px; color: var(--t3); }
+  /* 可下钻行 / 格 */
+  .heat tbody tr[data-tag] { cursor: pointer; }
+  .heat tbody tr[data-tag]:hover td { background: var(--blue-soft) !important; }
+  #mapBody tr[data-tag] { cursor: pointer; }
+  #mapBody tr[data-tag]:hover td { background: var(--surface-3); }
+  #comboBody .rank-row { cursor: pointer; }
+  #comboBody .rank-row:hover .rank-nm .nm { color: var(--blue); }
+  #comboBody .rank-row:hover .rank-no { background: var(--blue); }
+  .bar-pair .bp { cursor: pointer; }
+</style>
+</head>
+<body data-page="analytics" data-crumb="查询统计" data-title="统计分析">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head">
+        <div class="ph-t">
+          <h1>统计分析</h1>
+          <p>口径依据《07-业务规则与风险分级口径说明》· 统一风险序为唯一排序标尺 · 可按月生成报送报表</p>
+        </div>
+        <div class="page-actions">
+          <div class="seg"><button>近 30 天</button><button class="on">近 12 月</button><button>累计</button></div>
+          <button class="btn" id="btnExportRpt">导出报表</button>
+          <button class="btn btn-primary" id="btnMonthly">月度报送预览</button>
+        </div>
+      </div>
+
+      <div class="grid g4 mb10">
+        <div class="card kpi">
+          <div class="kpi-label">在册总数</div>
+          <div class="kpi-val">6,028<span class="unit">人</span></div>
+          <div class="kpi-meta">去重后 · 台账 7,112 人次</div>
+        </div>
+        <div class="card kpi k-red">
+          <div class="kpi-label">高风险及以上</div>
+          <div class="kpi-val">486<span class="unit">人</span></div>
+          <div class="kpi-meta">按管控等级 · 占 8.1%</div>
+        </div>
+        <div class="card kpi k-orange">
+          <div class="kpi-label">重点时期见面率</div>
+          <div class="kpi-val"><span id="kpiRate">89.2</span><span class="unit">%</span></div>
+          <div class="kpi-meta" id="kpiRateMeta">应见 408 · 已见 364</div>
+        </div>
+        <div class="card kpi k-amber">
+          <div class="kpi-label">数据完整率</div>
+          <div class="kpi-val">94.1<span class="unit">%</span></div>
+          <div class="kpi-meta">依据缺失 358 · 未定级 612</div>
+        </div>
+      </div>
+
+      <div class="split-64 mb10">
+        <!-- 镇街对比 -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">镇街对比 <span class="sub">20 个镇街 · 全量</span></div>
+            <div class="right"><button class="btn btn-sm" id="btnSortRisk">按高风险排序</button></div>
+          </div>
+          <div class="table-wrap" style="max-height:340px;overflow:auto">
+            <table class="tb compact">
+              <thead><tr><th style="width:96px">镇街</th><th class="r" style="width:52px">在册</th><th class="r" style="width:52px">高风险</th><th class="r" style="width:52px">双在册</th><th class="r" style="width:48px">多标</th><th class="r" style="width:56px">见面率</th><th style="width:64px">趋势</th></tr></thead>
+              <tbody id="townBody">
+              </tbody>
+              <tfoot>
+                <tr class="tot"><td>全区合计</td><td class="r num">6,028</td><td class="r num" style="color:var(--red)">486</td><td class="r num">127</td><td class="r num">214</td><td class="r num">89.3%</td><td></td></tr>
+              </tfoot>
+            </table>
+          </div>
+          <div class="card-ft"><span>城区两街道占 26.0%，高风险占全区 37.4%；新城子镇见面率最低（75.0%）</span></div>
+        </div>
+
+        <!-- 类别 × 等级矩阵 -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">类别 × 管控等级 <span class="sub" id="matrixSub">人员台账 486 人 · 728 人次</span></div>
+            <div class="right"><span class="tag tag-line">点击任一格看人</span></div>
+          </div>
+          <div class="card-bd" style="padding:0">
+            <table class="tb compact heat">
+              <thead><tr><th class="nm">类别</th><th>极高</th><th>高</th><th>中</th><th>低</th><th>待核</th><th>合计</th></tr></thead>
+              <tbody id="matrixBody"></tbody>
+            </table>
+          </div>
+          <div class="card-ft"><span>本表统计口径为「人员台账」（高风险及以上 486 人 / 728 人次），按标签人次计、多标人员在各标签行重复计入；与全站「四部门报送 7,112 人次」不是同一基数，两者不混用。台账只收录高风险及以上，故「中 / 低」列为 0 属口径事实。</span></div>
+        </div>
+      </div>
+
+      <div class="split-64 mb10">
+        <!-- 等级变动趋势 -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">风险等级月度变动 <span class="sub">近 6 个月</span></div>
+            <div class="right">
+              <div class="legend"><span><i style="background:#d92d20"></i>上调</span><span><i style="background:#1f8a53"></i>下调</span></div>
+            </div>
+          </div>
+          <div class="card-bd" style="padding:14px 18px 10px">
+            <div class="bar-pair" id="chgBars"></div>
+            <div class="divider" style="margin:12px 0 9px"></div>
+            <div class="grid g3" style="gap:8px">
+              <div class="mini-stat"><div class="v" id="chgUp">19</div><div class="l" id="chgUpMeta">本月上调 · 环比 -2</div></div>
+              <div class="mini-stat"><div class="v" id="chgDown">27</div><div class="l" id="chgDownMeta">本月下调 · 环比 +1</div></div>
+              <div class="mini-stat"><div class="v">1.4<span class="tiny">天</span></div><div class="l">平均审批时长</div></div>
+            </div>
+            <div class="note mt10" id="chgNote">下调多于上调，说明多数人员风险趋于稳定；上调 19 人中 12 人因新增标签或危险性评估升级，7 人因出现扬言、失联等情形。</div>
+          </div>
+        </div>
+
+        <!-- 标签组合 -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">标签组合前十 <span class="sub" id="comboSub">多标人员</span></div>
+            <div class="right"><span class="tag tag-purple" id="comboTag">3 标 28 人</span></div>
+          </div>
+          <div class="card-bd" style="padding:10px 16px 12px">
+            <div id="comboBody"></div>
+            <div class="foot-note" style="padding-top:8px" id="comboFoot"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 统一风险序映射 -->
+      <div class="card mb10">
+        <div class="card-hd">
+          <div class="card-title">统一风险序映射表 <span class="sub">口径基石 · 11 类部门分级 → 1—9 序号</span></div>
+          <div class="right"><span class="tag tag-line">数字越小风险越高</span><span class="tag tag-amber" id="mapPending">口径待确认</span></div>
+        </div>
+        <div class="card-bd" style="padding:12px 16px 0">
+          <div class="banner" style="padding:9px 12px;font-size:11.5px;background:var(--blue-soft);border:1px solid var(--blue-soft-2);color:var(--blue-ink);border-radius:9px">
+            <span><b>这张表做什么：</b>各部门的分级话术并不统一（信访用 A/B/C 类、公安用一/二/三级、卫健用高/中/低/不详、司法用高/中/低）。
+            本表把 11 类口径统一折算成 1—9 风险序，作为「就高不就低」合并、判定「高风险及以上」、列表排序的唯一标尺；
+            <b>它不产生任何新数据，也不取消部门原等级</b>。点击任一行可查看该类在台账中的实际人数与映射结果。</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="tb compact">
+            <thead><tr><th style="width:150px">类别</th><th>该类的等级（后标注统一风险序）</th><th style="width:100px">主责部门</th></tr></thead>
+            <tbody id="mapBody"></tbody>
+          </table>
+        </div>
+        <div class="card-ft"><span>部门原始等级完整保留、不取消；仅在计算「就高不就低」「高风险及以上」「排序」时映射。7—9 保留给待核实类状态，不参与高风险统计。</span></div>
+      </div>
+
+      <div class="split-64">
+        <div class="card">
+          <div class="card-hd"><div class="card-title">数据质量 <span class="sub">导入后自动校验</span></div>
+            <div class="right"><span class="tag tag-amber">完整率 94.1%</span></div>
+          </div>
+          <div class="card-bd" style="padding:12px 16px 14px">
+            <div class="grid g5" style="gap:9px">
+              <div class="mini-stat"><div class="v" style="color:var(--amber)">358</div><div class="l">依据缺失 · 5.9%</div></div>
+              <div class="mini-stat"><div class="v" style="color:var(--amber)">612</div><div class="l">未定级 · 10.2%</div></div>
+              <div class="mini-stat"><div class="v">46</div><div class="l">住址缺失</div></div>
+              <div class="mini-stat"><div class="v">3</div><div class="l">身份证异常</div></div>
+              <div class="mini-stat"><div class="v" style="color:var(--green)">121</div><div class="l">已合并记录</div></div>
+            </div>
+            <div class="divider" style="margin:11px 0 9px"></div>
+            <div class="row" style="font-size:11.5px;color:var(--t2)"><span>身份证号唯一性</span><span class="spacer"></span><b style="color:var(--green)">100%（6,028/6,028）</b></div>
+            <div class="bar mt6"><i style="width:100%;background:var(--green)"></i></div>
+            <div class="row mt10" style="font-size:11.5px;color:var(--t2)"><span>主干字段必填完成度</span><span class="spacer"></span><b>96.8%</b></div>
+            <div class="bar mt6"><i style="width:96.8%"></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><div class="card-title">月度报送情况 <span class="sub" id="mReportSub">2026-11</span></div>
+            <div class="right"><button class="btn btn-sm" id="btnDiffReport">生成差异说明</button></div>
+          </div>
+          <div class="card-bd" style="padding:0">
+            <table class="tb compact">
+              <thead><tr><th>部门</th><th class="r">应报表块</th><th class="r">实报</th><th class="r">迟报</th><th class="r">状态</th></tr></thead>
+              <tbody id="mReportBody"></tbody>
+            </table>
+          </div>
+          <div class="card-ft"><span>「谁报了、谁没报、报得全不全」每月自动生成，供政法委督办</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/page-analytics.js"></script>
+<script>
+function scanPills(tag){
+  var SEL='.tag,.risk,.flag,.op,.perm,.risk-pill,.zero-chip,.chip-select,.ec,.qv,.lvlcell,.feed-tag,.opt,.seg button,.cell-sub';
+  var out=[];
+  document.querySelectorAll(SEL).forEach(function(el){
+    var pane=el.closest('[data-panel]');
+    if(pane && pane.style.display==='none') return;
+    var r=el.getBoundingClientRect();
+    if(!r.width||!r.height) return;
+    var vOver = el.scrollHeight > el.clientHeight + 1;
+    var hOver = el.scrollWidth > el.clientWidth + 1;
+    if(vOver||hOver) out.push(tag+'|'+(el.className||'')+'|'+(el.textContent||'').trim().slice(0,18)
+      +'|h'+el.offsetHeight+'/sh'+el.scrollHeight+'|w'+Math.round(r.width)+'/sw'+el.scrollWidth);
+  });
+  return out;
+}
+function flush(arr){ document.body.setAttribute('data-of', arr.length+'##'+arr.join(' ;; ')); }
+
+
+setTimeout(function(){
+  var tr=document.querySelector('#matrixBody tr[data-tag]');
+  if(tr){ var td=tr.querySelector('td[data-lv]'); (td||tr).click(); }
+  setTimeout(function(){
+    var r=scanPills('catdlg');
+    var rk=document.querySelector('.ui-mask .risk');
+    if(rk) r.push('riskSample:h'+rk.offsetHeight+'/sh'+rk.scrollHeight+'|colw'+Math.round(rk.parentNode.getBoundingClientRect().width)+'|txt='+rk.textContent.trim());
+    flush(r);
+  },420);
+},2200);
+
+</script></body>
+</html>

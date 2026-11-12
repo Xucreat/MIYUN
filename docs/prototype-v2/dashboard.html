@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>态势驾驶舱 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  /* ===== 地图 ===== */
+  .map-box { position: relative; min-height: 0; overflow: hidden; }
+  .map-box svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .map-cell { cursor: pointer; transition: filter .13s; }
+  .map-cell:hover { filter: brightness(1.06) saturate(1.06); }
+  .map-cell.hot { stroke: #0a4685 !important; stroke-width: 2.2 !important; }
+  .map-lbl { font-size: 10px; font-weight: 600; pointer-events: none; }
+  .map-val { font-size: 11px; font-weight: 700; pointer-events: none; letter-spacing: -.2px; }
+  .map-tip {
+    position: fixed; pointer-events: none; z-index: 90; opacity: 0;
+    background: rgba(12, 43, 77, .95); color: #fff; border-radius: 9px; padding: 8px 10px 9px;
+    font-size: 11px; line-height: 1.55; min-width: 152px; box-shadow: 0 8px 22px rgba(10,40,80,.28);
+    transition: opacity .1s; backdrop-filter: blur(6px);
+  }
+  .map-tip.on { opacity: 1; }
+  .map-tip .tt { font-size: 12px; font-weight: 650; display: flex; align-items: center; gap: 6px; }
+  .map-tip .tt .tag { height: 15px; font-size: 9px; }
+  .map-tip .tr { display: flex; justify-content: space-between; gap: 12px; opacity: .92; margin-top: 2px; }
+  .map-tip .tr b { font-weight: 650; }
+  .map-tip .th { margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.18); opacity: .78; font-size: 10px; }
+  .map-bc { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--t3); margin-bottom: 6px; }
+  .map-bc b { color: var(--t1); font-weight: 650; font-size: 12px; }
+  .map-bc .sep { color: var(--t4); }
+  .map-bc .btn { margin-left: auto; }
+  .map-chips { display: flex; flex-wrap: wrap; gap: 3px 5px; padding: 3px 0 1px; }
+  .map-chips .mc { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: var(--t2); border: 1px solid var(--line-2);
+    background: #fff; border-radius: 999px; padding: 1.5px 7px; cursor: pointer; line-height: 1.5; }
+  .map-chips .mc:hover { background: var(--blue-soft); border-color: var(--blue-soft-2); color: var(--blue-ink); }
+  .map-chips .mc b { font-weight: 650; color: var(--t1); font-variant-numeric: tabular-nums; }
+  .map-chips .mc.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .map-chips .mc.on b { color: #fff; }
+  .map-scale { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--t3); }
+  .map-scale i { width: 16px; height: 10px; border-radius: 2px; display: block; }
+
+  /* ===== 环形 ===== */
+  .donut-wrap { position: relative; width: 142px; height: 142px; flex: 0 0 142px; }
+  .donut-wrap .ctr { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .donut-wrap .ctr b { font-size: 21px; font-weight: 650; letter-spacing: -.8px; display: block; line-height: 1.1; }
+  .donut-wrap .ctr span { font-size: 10px; color: var(--t3); }
+  .ring-wrap { position: relative; width: 106px; height: 106px; flex: 0 0 106px; }
+  .ring-wrap svg, .donut-wrap svg { width: 100%; height: 100%; display: block; }
+  .ring-wrap .ctr { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .ring-wrap .ctr b { font-size: 19px; font-weight: 650; letter-spacing: -.6px; line-height: 1.1; display: block; }
+  .ring-wrap .ctr span { font-size: 9.5px; color: var(--t3); }
+
+  /* ===== 图表通用 ===== */
+  .trend-legend { display: flex; gap: 12px; font-size: 11px; color: var(--t2); }
+  .trend-legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .trend-legend i { width: 12px; height: 2.5px; border-radius: 2px; }
+  .trend-legend i.sq { width: 8px; height: 8px; border-radius: 2px; }
+  #dlgRows td { white-space: nowrap; }
+  #dlgRows td:nth-child(3) { white-space: normal; }
+  .combo-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 5.5px 0; border-bottom: 1px solid var(--line); }
+  .combo-row:last-child { border-bottom: 0; }
+  .combo-tags { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+
+  /* 热力日历 */
+  .cal { display: grid; grid-template-columns: 24px repeat(7, minmax(0,1fr)); gap: 4px; align-items: center; }
+  .cal .wd { font-size: 9px; color: var(--t4); text-align: center; }
+  .cal .wk { font-size: 9px; color: var(--t4); text-align: right; padding-right: 2px; }
+  .cal .cl { height: 17px; border-radius: 3px; display: grid; place-items: center; font-size: 9px; color: #fff; font-weight: 600; }
+  .cal .cl.z { background: var(--surface-3); color: var(--t4); font-weight: 500; }
+
+  /* 迁移矩阵 */
+  .mtx { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 11px; }
+  .mtx th { font-size: 10px; color: var(--t3); font-weight: 600; padding: 2px; text-align: center; }
+  .mtx td { height: 34px; border-radius: 5px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--t1); }
+  .mtx td.rh { text-align: left; font-size: 10px; font-weight: 600; color: var(--t2); white-space: nowrap; padding-left: 2px; width: 1%; }
+  .mtx td.dg { outline: 1.5px solid rgba(0,113,227,.28); outline-offset: -1.5px; }
+  .mtx td.zero { color: var(--t4); font-weight: 500; }
+
+  /* 弹窗 */
+  .mask-bg {
+    position: fixed; inset: 0; background: rgba(12, 22, 38, .34); backdrop-filter: blur(3px);
+    z-index: 90; display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  .mask-bg.on { display: flex; }
+  .dlg {
+    width: 620px; max-width: 100%; background: #fff; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 24px 70px rgba(10,30,60,.34); animation: pop .16s ease-out;
+  }
+  @keyframes pop { from { transform: translateY(8px) scale(.99); opacity: .6 } to { transform: none; opacity: 1 } }
+  .dlg-hd { padding: 13px 16px 11px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; gap: 10px; }
+  .dlg-hd .x { margin-left: auto; width: 26px; height: 26px; border-radius: 7px; border: 0; background: transparent; color: var(--t3); font-size: 16px; line-height: 1; }
+  .dlg-hd .x:hover { background: var(--surface-3); }
+  .dlg-bd { padding: 12px 16px 4px; }
+  .dlg-ft { padding: 10px 16px 13px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; background: var(--surface-2); }
+
+
+  /* ===== 一屏比例网格 ===== */
+  .dash {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: 1.1fr 1fr 1.02fr;
+  }
+  .dash .map-card { grid-column: 1; grid-row: 1 / span 2; }
+  .dash .c-trend { grid-column: 1; grid-row: 3; }
+  .map-card .map-box { min-height: 0; }
+  .map-card .map-box svg { height: 100%; width: 100%; display: block; }
+  .dash .card-bd > svg { flex: 1 1 auto; min-height: 0; }
+  /* 高度受限时的紧凑化 */
+  /* 卡片标题单行，副标题溢出省略，避免小卡内换行 */
+  body.fit .card-hd { gap: 8px; }
+  body.fit .card-title { white-space: nowrap; min-width: 0; overflow: hidden; flex: 0 1 auto; }
+  body.fit .card-title .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash .card-hd .right { flex: 0 0 auto; }
+  body.fit .page-head.compact h1 { white-space: nowrap; flex: 0 0 auto; }
+  body.fit .page-head.compact p { flex: 1 1 auto; min-width: 0; }
+  /* 中/右列卡片内容紧凑化 */
+  .dash .li { padding: 3px 0; }
+  .dash .li .sm { font-size: 11px; }
+  .dash .card-title .sub { display: inline; }
+  .dash .trend-legend { gap: 8px; font-size: 10px; }
+  .dash .trend-legend i.sq { width: 7px; height: 7px; }
+  .dash .mtx th { font-size: 9px; white-space: nowrap; }
+  body.fit .cal { gap: 2.5px; }
+  body.fit .cal .cl { height: 13px; font-size: 8px; }
+  body.fit .cal .wd, body.fit .cal .wk { font-size: 8.5px; }
+  body.fit .mtx { border-spacing: 2.5px; }
+  body.fit .mtx td { height: 25px; font-size: 10.5px; }
+  body.fit .mtx th { font-size: 9.5px; }
+  body.fit .donut-wrap .ctr b { font-size: 17px; }
+  body.fit .ring-wrap { width: 92px; height: 92px; flex: 0 0 92px; }
+  body.fit .rank-row { padding: 3.5px 0; }
+  body.fit .banner { padding: 6px 12px; font-size: 11.5px; }
+  body.fit .combo-row { padding: 4px 0; }
+
+  .split-73, .split-64, .split-37 { align-items: start; }
+  .two-line span { display: block; }
+  .two-line span + span { font-size: 10.5px; color: var(--t3); }
+</style>
+</head>
+<body class="fit" data-page="dashboard" data-crumb="态势总览" data-title="态势驾驶舱">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+            <div class="page-head compact">
+              <div class="ph-t">
+                <h1>全区重点人员态势总览 <span class="tag tag-line">累计视图</span></h1>
+      <p>在册 <b data-metric="inRegister">6,028</b> 人（台账 7,112 人次去重）· 高风险 <b data-metric="highPlus">486</b> · 待核实 612 · 截至 2026-11-10 09:45 · 来源：公安分局 / 区信访办 / 区卫健委 / 区司法局<span data-import-note hidden></span></p>
+              </div>
+              <div class="page-actions">
+                <div class="seg">
+                  <button>近 7 天</button><button>近 30 天</button><button>近 12 月</button><button class="on">累计</button>
+                </div>
+                <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>导出快报</button>
+                <a class="btn btn-primary" href="bigscreen.html" target="_blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M9 20.5h6M12 17v3.5"/></svg>投屏模式</a>
+              </div>
+            </div>
+
+            <div class="banner banner-warn mb10">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z"/></svg>
+              <span>当前处于<b>重点时期（2026-11-01 至 2026-12-31，共 61 天，第 10 天）</b> · 应见名单 <b>412</b> 人，已见面 <b>368</b> 人，未报告 <b>44</b> 人，另有 <b>18</b> 条预警待处置</span>
+              <a class="act" href="wartime.html">进入重点时期管控 ›</a>
+            </div>
+
+      <div class="grid g6">
+        <div class="card kpi">
+                <div class="kpi-label">在册总数 <span class="q">?</span></div>
+                <div class="kpi-val" data-metric="inRegister" data-unit="人">6,028<span class="unit">人</span></div>
+                <div class="kpi-meta">去重后 · 台账 7,112 人次</div>
+                </div>
+              <div class="card kpi k-red">
+                <div class="kpi-label">高风险及以上 <span class="q">?</span></div>
+                <div class="kpi-val" data-metric="highPlus" data-unit="人">486<span class="unit">人</span></div>
+                <div class="kpi-meta">占 <b data-metric="percentHigh" data-dec="1">8.1</b>% · <span class="up">较上月 +6</span></div>
+                </div>
+              <div class="card kpi k-orange">
+                <div class="kpi-label">双在册人员 <span class="q">?</span></div>
+                <div class="kpi-val">127<span class="unit">人</span></div>
+                <div class="kpi-meta">公安卫健 103 · 公安信访 24</div>
+                </div>
+              <div class="card kpi">
+                <div class="kpi-label">多重标签人员 <span class="q">?</span></div>
+                <div class="kpi-val">214<span class="unit">人</span></div>
+                <div class="kpi-meta">2 标 186 · 3 标 28</div>
+                </div>
+              <div class="card kpi k-amber">
+                <div class="kpi-label">待核实 <span class="q">?</span></div>
+                <div class="kpi-val">612<span class="unit">人</span></div>
+                <div class="kpi-meta">未定级 · 风险不详</div>
+                </div>
+              <div class="card kpi k-green">
+                <div class="kpi-label">本月变动 <span class="q">?</span></div>
+                <div class="kpi-val">+31<span class="unit">人</span></div>
+                <div class="kpi-meta">新增 43 · 消减 12</div>
+                </div>
+
+      </div>
+
+      <!-- 一屏比例网格：左列地图（跨 2 行）+ 12 月趋势，中/右列各 3 卡 -->
+      <div class="fit-body dash">
+                <div class="card map-card">
+                  <div class="card-hd">
+                    <div class="card-title">镇街分布 <span class="sub">真实行政边界 · 悬浮看明细 · 点击下钻到社区</span></div>
+                    <div class="right">
+                      <div class="map-scale" id="mapScale">
+                        <span>少</span>
+                        <i style="background:#d0e3f7"></i><i style="background:#a9c8ea"></i><i style="background:#7cabdb"></i><i style="background:#4d86c6"></i><i style="background:#1a63b8"></i>
+                        <span>多</span>
+                      </div>
+                      <div class="select" id="mapMetric" style="height:26px;font-size:11.5px">在册人数</div>
+                    </div>
+                  </div>
+                  <div class="card-bd" style="padding:8px 12px 6px;display:flex;flex-direction:column">
+                    <div class="map-bc">
+                      <span>全区</span><span class="sep">/</span><b id="bcName">20 个镇街</b>
+                      <span class="tag tag-line" id="bcHint">点击区块下钻</span>
+                      <button class="btn btn-sm" id="mapBack" style="display:none">‹ 返回全区</button>
+                    </div>
+                    <div class="map-box" id="mapBox" style="flex:1 1 0;min-height:0">
+                      <svg id="mapSvg" viewBox="0 0 600 462" preserveAspectRatio="xMidYMid meet">
+                        <defs>
+                          <clipPath id="distClip">
+                            <path id="distClipPath" d=""/>
+                          </clipPath>
+                          <filter id="landShadow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#0c2b4d" flood-opacity=".14"/>
+                          </filter>
+                        </defs>
+                        <path id="distLand" d="" fill="#e9f1fa" filter="url(#landShadow)" stroke="#c9dcef" stroke-width="1"/>
+                        <g id="mapCells"></g>
+                      </svg>
+                      <div class="map-tip" id="mapTip"></div>
+                    </div>
+                    <div class="map-chips" id="mapChips"></div>
+                    <div class="row" id="urbanNote" style="gap:10px;font-size:10.5px;color:var(--t3);padding-top:4px">
+                      <span>城区 6 个单元面积过小，按当前指标列示并可点击下钻</span>
+                      <span class="spacer"></span>
+                      <span>鼓楼 + 果园 <b style="color:var(--t1)">1,568</b> 人 · 26.0%</span>
+                    </div>
+                  </div>
+                </div>
+
+                  <div class="card">
+                    <div class="card-hd"><div class="card-title">风险等级结构 <span class="sub">按管控等级（就高不就低）</span></div>
+                      <div class="right"><a class="btn btn-sm btn-ghost" href="analytics.html">明细</a></div>
+                    </div>
+                    <div class="card-bd" style="display:flex;gap:10px;align-items:center;padding:8px 13px">
+                      <div class="donut-wrap" style="width:98px;height:98px;flex:0 0 98px">
+                        <svg viewBox="0 0 160 160" width="98" height="98">
+                          <circle cx="80" cy="80" r="62" fill="none" stroke="#f2f4f7" stroke-width="15"/>
+                          <g transform="rotate(-90 80 80)">
+                            <circle cx="80" cy="80" r="62" fill="none" stroke="#d92d20" stroke-width="15" stroke-dasharray="30 359.6" stroke-dashoffset="0"/>
+                            <circle cx="80" cy="80" r="62" fill="none" stroke="#e8830c" stroke-width="15" stroke-dasharray="108.6 281" stroke-dashoffset="-31.4"/>
+                            <circle cx="80" cy="80" r="62" fill="none" stroke="#8fb0cd" stroke-width="15" stroke-dasharray="206.9 182.6" stroke-dashoffset="-141.5"/>
+                            <circle cx="80" cy="80" r="62" fill="none" stroke="#c9a227" stroke-width="15" stroke-dasharray="38 351.6" stroke-dashoffset="-349.9"/>
+                          </g>
+                        </svg>
+                        <div class="ctr"><div><b data-metric="inRegister">6,028</b><span>在册总数</span></div></div>
+                      </div>
+                      <div style="flex:1 1 auto;min-width:0">
+                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#d92d20"></i><span class="sm">第一档 · 高风险</span><span class="spacer"></span><b style="font-size:12.5px" data-metric="highPlus">486</b><span class="tiny dim" style="width:36px;text-align:right" data-metric="percentHigh" data-dec="1">8.1%</span></div>
+                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#e8830c"></i><span class="sm">第二档 · 中风险</span><span class="spacer"></span><b style="font-size:12.5px">1,704</b><span class="tiny dim" style="width:36px;text-align:right">28.3%</span></div>
+                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#8fb0cd"></i><span class="sm">第三档 · 低风险</span><span class="spacer"></span><b style="font-size:12.5px">3,226</b><span class="tiny dim" style="width:36px;text-align:right">53.5%</span></div>
+                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#c9a227"></i><span class="sm">第四档 · 待核实</span><span class="spacer"></span><b style="font-size:12.5px">612</b><span class="tiny dim" style="width:36px;text-align:right">10.2%</span></div>
+                      </div>
+                    </div>
+                    <div class="card-ft" style="padding:7px 14px">
+                      <span>本月等级调整：上调 <b style="color:var(--red)">19</b> · 下调 <b style="color:var(--green)">27</b> <span class="tiny dim">· 分档构成按 11-10 快照，导入新增于次日 06:00 重算后并入</span></span>
+                      <span class="spacer"></span>
+                      <a class="btn btn-sm btn-ghost" href="risk.html">变动台账 ›</a>
+                    </div>
+                  </div>
+
+                  <div class="card">
+                    <div class="card-hd"><div class="card-title">重点时期管控进度 <span class="sub">一级响应 · 第 10 / 61 天</span></div>
+                      <div class="right"><a class="btn btn-sm btn-ghost" href="wartime.html">回填 ›</a></div>
+                    </div>
+                    <div class="card-bd" style="padding:8px 13px 9px;display:flex;gap:10px;align-items:center">
+                      <div class="ring-wrap">
+                        <svg viewBox="0 0 110 110" width="106" height="106">
+                          <circle cx="55" cy="55" r="45" fill="none" stroke="#f2f4f7" stroke-width="10"/>
+                          <circle cx="55" cy="55" r="45" fill="none" stroke="#0071e3" stroke-width="10" stroke-linecap="round"
+                                  stroke-dasharray="252 283" transform="rotate(-90 55 55)"/>
+                        </svg>
+                        <div class="ctr"><div><b>89.3%</b><span>见面率</span></div></div>
+                      </div>
+                      <div style="flex:1 1 auto;min-width:0">
+                        <div class="li" style="padding:4px 0"><span class="sm">应见名单</span><span class="spacer"></span><b style="font-size:12.5px">412</b><span class="tiny dim">人</span></div>
+                        <div class="li" style="padding:4px 0"><span class="sm">已见面</span><span class="spacer"></span><b style="font-size:12.5px;color:var(--green)">368</b><span class="tiny dim">人</span></div>
+                        <div class="li" style="padding:4px 0"><span class="sm">未报告</span><span class="spacer"></span><b style="font-size:12.5px;color:var(--red)">44</b><span class="tiny dim">人</span></div>
+                        <div class="bar mt6" style="height:4px"><i style="width:89.3%;background:var(--blue)"></i></div>
+                        <div class="tiny dim" style="margin-top:4px">零报告 19/20 · 石城镇未提交</div>
+                      </div>
+                    </div>
+                  </div>
+
+                <div class="card">
+                  <div class="card-hd">
+                    <div class="card-title">预警与处置 <span class="sub">近 14 天 · 规则命中与当日闭环</span></div>
+                    <div class="right">
+                      <div class="trend-legend">
+                        <span><i class="sq" style="background:#e8830c"></i>新增预警</span>
+                        <span><i class="sq" style="background:#1f8a53"></i>当日闭环</span>
+                        <span><i style="background:#0071e3"></i>闭环率</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card-bd" style="padding:8px 12px 4px;display:flex">
+                    <svg viewBox="0 0 600 176" width="100%" height="100%" preserveAspectRatio="none" style="display:block">
+                      <g stroke="#eef0f3" stroke-width="1">
+                        <line x1="34" y1="16" x2="590" y2="16"/><line x1="34" y1="56" x2="590" y2="56"/>
+                        <line x1="34" y1="96" x2="590" y2="96"/><line x1="34" y1="136" x2="590" y2="136"/>
+                      </g>
+                      <g fill="#aeb4bc" font-size="8.5">
+                        <text x="8" y="19">20</text><text x="8" y="59">15</text><text x="8" y="99">10</text><text x="8" y="139">5</text>
+                      </g>
+                      <!-- 柱：新增预警（橙）/ 当日闭环（绿） -->
+                      <g>
+                        <rect x="42"  y="104" width="9" height="32" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="53" y="120" width="9" height="16" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="81"  y="90"  width="9" height="46" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="92" y="112" width="9" height="24" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="120" y="98"  width="9" height="38" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="131" y="116" width="9" height="20" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="159" y="82"  width="9" height="54" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="170" y="108" width="9" height="28" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="198" y="88"  width="9" height="48" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="209" y="112" width="9" height="24" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="237" y="94"  width="9" height="42" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="248" y="118" width="9" height="18" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="276" y="78"  width="9" height="58" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="287" y="106" width="9" height="30" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="315" y="84"  width="9" height="52" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="326" y="110" width="9" height="26" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="354" y="94"  width="9" height="42" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="365" y="118" width="9" height="18" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="393" y="88"  width="9" height="48" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="404" y="114" width="9" height="22" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="432" y="72"  width="9" height="64" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="443" y="102" width="9" height="34" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="471" y="84"  width="9" height="52" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="482" y="112" width="9" height="24" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="510" y="78"  width="9" height="58" rx="1.5" fill="#e8830c" opacity=".85"/><rect x="521" y="110" width="9" height="26" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                        <rect x="549" y="66"  width="9" height="70" rx="1.5" fill="#d92d20" opacity=".9"/><rect x="560" y="100" width="9" height="36" rx="1.5" fill="#1f8a53" opacity=".8"/>
+                      </g>
+                      <!-- 闭环率折线（右轴 60-100%） -->
+                      <polyline points="52,60 91,66 130,62 169,70 208,64 247,68 286,58 325,63 364,68 402,60 442,52 481,58 520,54 559,48"
+                        fill="none" stroke="#0071e3" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>
+                      <g fill="#0071e3">
+                        <circle cx="559" cy="48" r="2.8" fill="#fff" stroke="#0071e3" stroke-width="1.8"/>
+                      </g>
+                      <g font-size="8.5" fill="#aeb4bc">
+                        <text x="52" y="170" text-anchor="middle">10-28</text><text x="169" y="170" text-anchor="middle">11-01</text>
+                        <text x="286" y="170" text-anchor="middle">11-05</text><text x="402" y="170" text-anchor="middle">11-08</text>
+                        <text x="556" y="170" text-anchor="middle" fill="#0071e3" font-weight="600">11-10</text>
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="card-ft" style="padding:7px 16px">
+                    <span>14 日预警 <b style="color:var(--t1)">173</b> · 闭环 <b style="color:var(--green)">148</b>（85.5%）· 超期 <b style="color:var(--red)">7</b></span>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-hd">
+                    <div class="card-title">预警热力日历 <span class="sub">近 7 周</span></div>
+                    <div class="right">
+                      <div class="map-scale"><span>少</span><i style="background:#e9f2fc"></i><i style="background:#92bce5"></i><i style="background:#4d8fd2"></i><i style="background:#1e6cbf"></i><span>多</span></div>
+                    </div>
+                  </div>
+                  <div class="card-bd" style="padding:8px 12px 6px">
+                    <div class="cal" id="heatCal"></div>
+                  </div>
+                  <div class="card-ft" style="padding:5px 12px">
+                    <span>峰值 <b style="color:var(--t1)">11-07 · 24 条</b> · 日均 12.4 条</span>
+                    <span class="spacer"></span>
+                    <span>点击日期查看当日预警</span>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-hd">
+                    <div class="card-title">等级迁移矩阵 <span class="sub">上月 → 本月 · 含就高不就低结果</span></div>
+                    <div class="right"><a class="btn btn-sm btn-ghost" href="risk.html">调整台账 ›</a></div>
+                  </div>
+                  <div class="card-bd" style="padding:8px 13px 8px">
+                    <table class="mtx">
+                      <thead><tr><th></th><th>高风险</th><th>中风险</th><th>低风险</th><th>待核实</th><th>上期</th></tr></thead>
+                      <tbody>
+                        <tr><td class="rh">高风险</td>
+                          <td class="dg" style="background:#fdecea">461</td><td style="background:#fff8f0">12</td><td style="background:#f7f9fb">4</td><td style="background:#fdf8ec">3</td><td class="num" style="background:var(--surface-3)">480</td></tr>
+                        <tr><td class="rh">中风险</td>
+                          <td style="background:#fff1f0">14</td><td class="dg" style="background:#fff3e2">1,652</td><td style="background:#f7f9fb">38</td><td style="background:#fdf8ec">12</td><td class="num" style="background:var(--surface-3)">1,716</td></tr>
+                        <tr><td class="rh">低风险</td>
+                          <td style="background:#fff1f0">3</td><td style="background:#fff8f0">26</td><td class="dg" style="background:#eef3f8">3,150</td><td style="background:#fdf8ec">24</td><td class="num" style="background:var(--surface-3)">3,203</td></tr>
+                        <tr><td class="rh">待核实</td>
+                          <td style="background:#fff1f0">8</td><td style="background:#fff8f0">14</td><td style="background:#f7f9fb">34</td><td class="dg" style="background:#fdf6e3">542</td><td class="num" style="background:var(--surface-3)">598</td></tr>
+                        <tr><td class="rh" style="color:var(--t3)">本期合计</td>
+                          <td class="num" style="background:var(--surface-3);color:var(--red)">486</td><td class="num" style="background:var(--surface-3);color:#a35c00">1,704</td><td class="num" style="background:var(--surface-3)">3,226</td><td class="num" style="background:var(--surface-3);color:#8a6100">612</td><td class="num" style="background:var(--blue-soft);color:var(--blue-ink)">6,028</td></tr>
+                      </tbody>
+                    </table>
+                    <div class="foot-note" style="padding-top:7px">上期存量 5,997 + 新增入库 43 − 消减 12 = 6,028<span data-import-note="excl" hidden></span>；对角为主保持项，右上为上调（19 人）、左下为下调（27 人），均需审批留痕</div>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-hd">
+                    <div class="card-title">部门报送质量 <span class="sub">本期批次 · 11-10</span></div>
+                    <div class="right"><span class="tag tag-green">实时</span></div>
+                  </div>
+                  <div class="card-bd" style="padding:6px 13px 4px">
+                    <div class="src-row" style="display:grid;grid-template-columns:60px 1fr 54px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
+                      <span style="font-size:11.5px;font-weight:550">公安分局</span>
+                      <div><div class="bar thin"><i style="width:99%;background:#0071e3"></i></div><div class="tiny dim" style="margin-top:1px;font-size:9.5px">及时 99% · 完整 98%</div></div>
+                      <span class="tiny dim" style="text-align:right">2,914 条</span>
+                    </div>
+                    <div class="src-row" style="display:grid;grid-template-columns:60px 1fr 54px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
+                      <span style="font-size:11.5px;font-weight:550">区卫健委</span>
+                      <div><div class="bar thin"><i style="width:92%;background:#e8830c"></i></div><div class="tiny dim" style="margin-top:1px;font-size:9.5px">及时 92% · 完整 95%</div></div>
+                      <span class="tiny dim" style="text-align:right">1,204 条</span>
+                    </div>
+                    <div class="src-row" style="display:grid;grid-template-columns:60px 1fr 54px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
+                      <span style="font-size:11.5px;font-weight:550">区信访办</span>
+                      <div><div class="bar thin"><i style="width:96%;background:#6b56c9"></i></div><div class="tiny dim" style="margin-top:1px;font-size:9.5px">及时 96% · 完整 97%</div></div>
+                      <span class="tiny dim" style="text-align:right">1,568 条</span>
+                    </div>
+                    <div class="src-row" style="display:grid;grid-template-columns:60px 1fr 54px;gap:8px;align-items:center;padding:4px 0;border-bottom:0">
+                      <span style="font-size:11.5px;font-weight:550">区司法局</span>
+                      <div><div class="bar thin"><i style="width:88%;background:#1f8a53"></i></div><div class="tiny dim" style="margin-top:1px;font-size:9.5px">及时 88% · 完整 93%</div></div>
+                      <span class="tiny dim" style="text-align:right">1,426 条</span>
+                    </div>
+                  </div>
+                  <div class="card-ft" style="padding:5px 12px">
+                    <span>必填缺失 5 项 · 查重率 1.2%</span>
+                    <span class="spacer"></span>
+                    <a class="btn btn-sm btn-ghost" href="import.html">导入记录 ›</a>
+                  </div>
+                </div>
+
+                <div class="card c-trend">
+                  <div class="card-hd">
+                    <div class="card-title">近 12 个月总量趋势</div>
+                    <div class="right">
+                      <div class="trend-legend">
+                        <span><i style="background:#0071e3"></i>在册总量</span>
+                        <span><i class="sq" style="background:#1f8a53"></i>新增</span>
+                        <span><i class="sq" style="background:#d92d20"></i>消减</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card-bd" style="padding:8px 12px 6px;display:flex">
+                    <svg viewBox="0 0 620 168" width="100%" height="100%" preserveAspectRatio="none" style="display:block">
+                      <defs>
+                        <linearGradient id="ga" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#0071e3" stop-opacity=".22"/>
+                          <stop offset="100%" stop-color="#0071e3" stop-opacity="0"/>
+                        </linearGradient>
+                      </defs>
+                      <g stroke="#eef0f3" stroke-width="1">
+                        <line x1="34" y1="16" x2="606" y2="16"/><line x1="34" y1="52" x2="606" y2="52"/>
+                        <line x1="34" y1="88" x2="606" y2="88"/><line x1="34" y1="124" x2="606" y2="124"/>
+                      </g>
+                      <g fill="#aeb4bc" font-size="8.5" font-family="-apple-system,sans-serif">
+                        <text x="8" y="19">6100</text><text x="8" y="55">5950</text>
+                        <text x="8" y="91">5800</text><text x="8" y="127">5650</text>
+                      </g>
+                      <path d="M50 130 L100 126 L150 122 L200 118 L250 114 L300 110 L350 106 L400 101 L450 96 L500 90 L550 84 L600 72 L600 140 L50 140 Z" fill="url(#ga)"/>
+                      <polyline points="50,130 100,126 150,122 200,118 250,114 300,110 350,106 400,101 450,96 500,90 550,84 600,72"
+                        fill="none" stroke="#0071e3" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+                      <g fill="#1f8a53" opacity=".55">
+                        <rect x="46" y="136" width="8" height="7" rx="1.5"/><rect x="96" y="134" width="8" height="9" rx="1.5"/>
+                        <rect x="146" y="135" width="8" height="8" rx="1.5"/><rect x="196" y="133" width="8" height="10" rx="1.5"/>
+                        <rect x="246" y="136" width="8" height="7" rx="1.5"/><rect x="296" y="132" width="8" height="11" rx="1.5"/>
+                        <rect x="346" y="134" width="8" height="9" rx="1.5"/><rect x="396" y="131" width="8" height="12" rx="1.5"/>
+                        <rect x="446" y="133" width="8" height="10" rx="1.5"/><rect x="496" y="130" width="8" height="13" rx="1.5"/>
+                        <rect x="546" y="132" width="8" height="11" rx="1.5"/><rect x="596" y="128" width="8" height="15" rx="1.5"/>
+                      </g>
+                      <g fill="#d92d20" opacity=".42">
+                        <rect x="56" y="139" width="8" height="4" rx="1.5"/><rect x="106" y="140" width="8" height="3" rx="1.5"/>
+                        <rect x="156" y="139" width="8" height="4" rx="1.5"/><rect x="206" y="140" width="8" height="3" rx="1.5"/>
+                        <rect x="256" y="138" width="8" height="5" rx="1.5"/><rect x="306" y="140" width="8" height="3" rx="1.5"/>
+                        <rect x="356" y="139" width="8" height="4" rx="1.5"/><rect x="406" y="140" width="8" height="3" rx="1.5"/>
+                        <rect x="456" y="139" width="8" height="4" rx="1.5"/><rect x="506" y="141" width="8" height="2" rx="1.5"/>
+                        <rect x="556" y="139" width="8" height="4" rx="1.5"/><rect x="606" y="140" width="8" height="3" rx="1.5"/>
+                      </g>
+                      <circle cx="600" cy="72" r="3.4" fill="#fff" stroke="#0071e3" stroke-width="2"/>
+                      <g font-size="9" fill="#5b6169" font-family="-apple-system,sans-serif">
+                        <text x="50" y="158" text-anchor="middle">25-12</text><text x="150" y="158" text-anchor="middle">26-02</text>
+                        <text x="250" y="158" text-anchor="middle">26-04</text><text x="350" y="158" text-anchor="middle">26-06</text>
+                        <text x="450" y="158" text-anchor="middle">26-08</text><text x="550" y="158" text-anchor="middle">26-10</text>
+                        <text x="600" y="158" text-anchor="middle" fill="#0071e3" font-weight="600">26-11</text>
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="card-ft" style="padding:7px 16px">
+                    <span>近 12 个月净增 <b style="color:var(--t1)">538</b> 人，月均 +44.8；11 月为累计口径终值 <b style="color:var(--t1)">6,028</b></span>
+                  </div>
+                </div>
+      </div>
+
+    </div>
+    </div>
+  </div>
+
+<!-- 社区下钻弹窗 -->
+<div class="mask-bg" id="dlgMask">
+  <div class="dlg">
+    <div class="dlg-hd">
+      <div>
+        <div class="row" style="gap:7px">
+          <b style="font-size:15px;letter-spacing:-.2px" id="dlgTitle">长安西社区</b>
+          <span class="tag tag-blue" id="dlgStreet">鼓楼街道</span>
+          <span class="tag tag-red" id="dlgHigh">高风险 12</span>
+        </div>
+        <div class="tiny dim" style="margin-top:3px" id="dlgSub">在册 96 人 · 包联干部 王海峰 · 最近走访 11-08</div>
+      </div>
+      <button class="x" id="dlgClose">✕</button>
+    </div>
+    <div class="dlg-bd">
+      <div class="grid g4" style="gap:8px;margin-bottom:10px">
+        <div class="mini-stat"><div class="v" id="d1">96</div><div class="l">在册人数</div></div>
+        <div class="mini-stat"><div class="v" style="color:var(--red)" id="d2">12</div><div class="l">高风险</div></div>
+        <div class="mini-stat"><div class="v" style="color:var(--orange)" id="d3">3</div><div class="l">双在册</div></div>
+        <div class="mini-stat"><div class="v" id="d4">94%</div><div class="l">走访完成</div></div>
+      </div>
+      <div class="sect-title" id="dlgListTitle">重点人员（按风险序 · 姓名与身份证按角色密级展示）</div>
+      <div class="table-wrap" style="border:1px solid var(--line);border-radius:9px">
+        <table class="tb compact">
+          <thead><tr><th style="width:74px">姓名</th><th style="width:126px">身份证号</th><th>标签</th><th style="width:74px">等级</th><th style="width:88px">最近走访</th><th style="width:44px">操作</th></tr></thead>
+          <tbody id="dlgRows"></tbody>
+        </table>
+      </div>
+      <div class="foot-note" style="padding-top:7px" id="dlgNote">姓名、身份证号默认掩码展示；查看明文需填写用途并经双人复核，操作全部留痕</div>
+    </div>
+    <div class="dlg-ft">
+      <span class="tiny dim">下钻层级：全区 → 镇街 → 社区 / 村</span>
+      <span class="spacer"></span>
+      <button class="btn" id="dlgCancel">关闭</button>
+      <a class="btn" href="persons.html" id="dlgLedger">该社区台账</a>
+      <a class="btn btn-primary" href="person.html" id="dlgOpen">打开一人一档</a>
+    </div>
+  </div>
+</div>
+
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script>
+/* ============ 镇街地图 · 真实行政边界（OpenStreetMap admin_level=8） ============ */
+const GEO = window.MIYUN_GEO;
+const TOWNS = window.DATA.towns;
+const TOWN = {};
+TOWNS.forEach(t => { TOWN[t.name] = t; });
+
+const svgEl = document.getElementById("mapSvg");
+const gCells = document.getElementById("mapCells");
+const tip = document.getElementById("mapTip");
+const box = document.getElementById("mapBox");
+const bcName = document.getElementById("bcName");
+const bcHint = document.getElementById("bcHint");
+const btnBack = document.getElementById("mapBack");
+const distLand = document.getElementById("distLand");
+const distClipPath = document.getElementById("distClipPath");
+const metricNode = document.getElementById("mapMetric");
+const chipsBox = document.getElementById("mapChips");
+const insetCells = document.getElementById("insetCells");
+const SVGNS = "http://www.w3.org/2000/svg";
+let level = 1, curStreet = null, curMetric = "v";
+
+svgEl.setAttribute("viewBox", GEO.viewBox);
+distLand.setAttribute("d", GEO.district);
+distClipPath.setAttribute("d", GEO.district);
+
+/* ---- 颜色阶梯 ---- */
+function ramp(t){
+  t = Math.max(0, Math.min(1, t));
+  const c1 = [208, 227, 247], c2 = [26, 99, 184];   /* 最浅档也保持明确蓝调，避免与底色混淆 */
+  return "rgb(" + c1.map((v, i) => Math.round(v + (c2[i] - v) * t)).join(",") + ")";
+}
+function textOn(t){ return t > 0.56 ? "#ffffff" : "#123c66"; }
+function shortName(n){ return n.replace(/(街道|地区|镇)$/, ""); }
+/* 按权重把总量拆分到各社区，保证求和一致 */
+function splitTotal(total, n, seed){
+  const w = [];
+  for (let i = 0; i < n; i++){ w.push(0.62 + Math.abs(Math.sin(seed * 7.3 + i * 2.7))); }
+  const sum = w.reduce((a, b) => a + b, 0);
+  const out = w.map(v => Math.floor(total * v / sum));
+  let rem = total - out.reduce((a, b) => a + b, 0);
+  for (let i = 0; rem > 0; i++, rem--) out[i % n]++;
+  return out;
+}
+/* 映射到 0..1：中位数附近拉平，避免个别极值把色阶压扁 */
+function norm(v, min, max){
+  if (max === min) return 0.5;
+  return Math.pow((v - min) / (max - min), 0.55);
+}
+function el(tag, attrs){
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function showTip(html, evt){
+  tip.innerHTML = html;
+  tip.classList.add("on");
+  /* fixed 定位：跟随鼠标、自动避开视口边缘，不被地图卡片裁切 */
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = evt.clientX + 14, y = evt.clientY - h - 12;
+  if (x + w > innerWidth - 8) x = evt.clientX - w - 14;
+  if (y < 8) y = evt.clientY + 16;
+  tip.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + "px";
+  tip.style.top = Math.max(8, Math.min(y, innerHeight - h - 8)) + "px";
+}
+function hideTip(){ tip.classList.remove("on"); }
+
+/* ---- 一级：20 个镇街（真实边界） ---- */
+function renderLevel1(){
+  level = 1; curStreet = null;
+  gCells.innerHTML = "";
+  gCells.removeAttribute("clip-path");
+  const tc = document.getElementById("townClipPath");
+  if (tc) tc.setAttribute("d", "");
+  svgEl.setAttribute("viewBox", GEO.viewBox);   /* 恢复全区视图 */
+  if (chipsBox) chipsBox.style.display = "";
+  bcName.textContent = "20 个镇街";
+  bcHint.textContent = "点击区块下钻";
+  bcHint.style.display = "";
+  const un1 = document.getElementById("urbanNote");
+  if (un1) un1.style.display = "";
+  btnBack.style.display = "none";
+
+  const key = curMetric;
+  const vals = TOWNS.map(t => t[key]);
+  const vmax = Math.max.apply(null, vals), vmin = Math.min.apply(null, vals);
+
+  const labels = [];
+  TOWNS.forEach(t => {
+    const g = GEO.towns.find(x => x.n === t.name);
+    if (!g) return;
+    const ratio = norm(t[key], vmin, vmax);
+    const fill = ramp(ratio), txt = textOn(ratio);
+    const p = el("path", { d: g.d, fill: fill, stroke: "#ffffff", "stroke-width": 1.5 });
+    p.setAttribute("class", "map-cell");
+    p.style.filter = "drop-shadow(0 1px 1px rgba(10,60,110,.10))";
+    p.addEventListener("mousemove", e => {
+      showTip(
+        `<div class="tt">${t.name}<span class="tag tag-line" style="background:rgba(255,255,255,.16);color:#fff;border:0">镇街</span></div>
+         <div class="tr"><span>在册人数</span><b>${t.v} 人</b></div>
+         <div class="tr"><span>高风险及以上</span><b>${t.h} 人 · ${(t.h / t.v * 100).toFixed(1)}%</b></div>
+         <div class="tr"><span>双在册</span><b>${t.d} 人</b></div>
+         <div class="tr"><span>重点时期见面率</span><b>${t.m}%</b></div>
+         <div class="th">包联干部 ${t.officer} · 社区/村 ${t.villages.length} 个 · 点击下钻</div>`, e);
+    });
+    p.addEventListener("mouseleave", hideTip);
+    p.addEventListener("click", () => renderLevel2(t.name));
+    gCells.appendChild(p);
+
+    labels.push({ g, t, ratio, txt });
+  });
+
+  /* 标签层：小面积城区单元用引线标注，其余在形心处两行标注 */
+  labels.forEach(L => {
+    const { g, t, ratio, txt } = L;
+    if (g.lb) {
+      /* 城区小单元面积过小，仅画定位点，名称见右侧清单，避免标签互相压盖 */
+      const dot = el("circle", { cx: g.c[0], cy: g.c[1], r: 1.5, fill: "#123c66", opacity: .45 });
+      gCells.appendChild(dot);
+    } else {
+      const t1 = el("text", { x: g.c[0], y: g.c[1] - 1, "text-anchor": "middle", fill: txt, class: "map-val" });
+      t1.textContent = curMetric === "m" ? t.m + "%" : t[curMetric];
+      const t2 = el("text", { x: g.c[0], y: g.c[1] + 9.5, "text-anchor": "middle", fill: txt, class: "map-lbl", opacity: .88 });
+      t2.textContent = shortName(t.name);
+      gCells.appendChild(t1); gCells.appendChild(t2);
+    }
+  });
+
+  renderUrban(labels.filter(L => L.g.lb));
+}
+
+/* ---- 城区 6 个单元：地理上过小，改用清单承载标注与下钻 ---- */
+function renderUrban(urban){
+  if (!chipsBox) return;
+  chipsBox.style.display = "";
+  chipsBox.innerHTML = urban
+    .slice()
+    .sort((a, b) => b.t[curMetric] - a.t[curMetric])
+    .map(L => `<span class="mc" data-town="${L.t.name}">${shortName(L.t.name)} <b>${curMetric === "m" ? L.t.m + "%" : L.t[curMetric]}</b></span>`).join("");
+  chipsBox.querySelectorAll('.mc').forEach(c => { c.onclick = () => renderLevel2(c.dataset.town); });
+}
+
+/* ---- 二级：社区 / 村（真实镇街边界放大聚焦 + 边界内拼块） ---- */
+function renderLevel2(name){
+  const t = TOWN[name];
+  if (!t) return;
+  level = 2; curStreet = name;
+  gCells.innerHTML = "";
+  gCells.removeAttribute("clip-path");
+  if (chipsBox) chipsBox.style.display = "none";
+  const un = document.getElementById("urbanNote");
+  if (un) un.style.display = "none";
+  bcName.textContent = name + " · " + t.villages.length + " 个社区 / 村";
+  bcHint.textContent = "点击区块查看该社区重点人员";
+  btnBack.style.display = "";
+
+  const g = GEO.towns.find(x => x.n === name);
+  if (!g){ return; }
+
+  /* 放大聚焦：viewBox 对准该镇街真实边界 */
+  const probe = el("path", { d: g.d, fill: "none" });
+  gCells.appendChild(probe);
+  const bb = probe.getBBox();
+  const pad = Math.max(bb.width, bb.height) * 0.07;
+  svgEl.setAttribute("viewBox", (bb.x - pad) + " " + (bb.y - pad) + " " + (bb.width + pad * 2) + " " + (bb.height + pad * 2));
+  const z = (bb.width + pad * 2) / 600;   /* 相对全区视图的缩放比（<1 即放大） */
+  /* 视觉像素比：viewBox 用户单位 → 卡内实际像素（meet 取较小缩放）。
+     标注字号按此换算，任何放大倍数下视觉字号恒定，不再溢出压盖 */
+  const vbz = svgEl.viewBox.baseVal;
+  const boxR = svgEl.getBoundingClientRect();
+  const pxPerUnit = Math.max(0.5, Math.min(boxR.width / vbz.width, boxR.height / vbz.height));
+  gCells.removeChild(probe);
+
+  /* 底图：其余 19 个镇街淡色，保留地理参照 */
+  TOWNS.forEach(o => {
+    const og = GEO.towns.find(x => x.n === o.name);
+    if (!og || o.name === name) return;
+    gCells.appendChild(el("path", { d: og.d, fill: "#eef1f5", stroke: "#dbe1e8", "stroke-width": 1.4 * z }));
+  });
+
+  /* 目标镇街：纯白底 + 加重描边（与邻镇中性灰明确区分，镇界轮廓一目了然） */
+  const defs = svgEl.querySelector("defs");
+  let townClipPath = document.getElementById("townClipPath");
+  if (!townClipPath) {
+    const cpEl = el("clipPath", { id: "townClip" });
+    townClipPath = el("path", { id: "townClipPath" });
+    cpEl.appendChild(townClipPath);
+    defs.appendChild(cpEl);
+  }
+  townClipPath.setAttribute("d", g.d);
+  gCells.appendChild(el("path", { d: g.d, fill: "#ffffff", stroke: "#8ab4de", "stroke-width": 2.6 * z, "vector-effect": "non-scaling-stroke" }));
+
+  /* ---------- 村域着色：canvas 栅格化，着色范围严格等于镇界形状 ----------
+     旧方案「bbox 网格 + clip-path」存在两处硬伤：块形会越出镇界产生矩形凸出、
+     网格覆盖不满镇界产生空白。改为逐像素判定界内 + 最近种子点归属村，
+     着色与镇界轮廓完全一致，界内无空白，村块分界按像素归属描白。 */
+  const n = t.villages.length;
+  const vals = splitTotal(t.v, n, name.charCodeAt(0) + n);
+  const highs = splitTotal(t.h, n, name.charCodeAt(1) + n);
+  const duals = splitTotal(t.d, n, name.charCodeAt(2) + n);
+  const vmax = Math.max.apply(null, vals), vmin = Math.min.apply(null, vals);
+
+  const bx0 = bb.x - pad, by0 = bb.y - pad;
+  const bwx = bb.width + pad * 2, bhy = bb.height + pad * 2;
+  const SW = 840, SH = Math.max(90, Math.round(SW * bhy / bwx));
+  const SC = bwx / SW;                        /* 用户单位 / 栅格像素 */
+  const cv = document.createElement("canvas");
+  cv.width = SW; cv.height = SH;
+  const ctx2 = cv.getContext("2d");
+
+  /* ① 镇界遮罩：折线转像素坐标后一次填充，用 alpha 判定界内像素 */
+  const nums = g.d.match(/-?\d*\.?\d+/g) || [];
+  let dpx = "";
+  for (let i = 0; i + 1 < nums.length; i += 2){
+    const px = (parseFloat(nums[i]) - bx0) / SC, py = (parseFloat(nums[i + 1]) - by0) / SC;
+    dpx += (dpx ? "L" : "M") + px.toFixed(2) + " " + py.toFixed(2);
+  }
+  dpx += "Z";
+  ctx2.fillStyle = "#ffffff";
+  ctx2.fill(new Path2D(dpx));
+  const maskD = ctx2.getImageData(0, 0, SW, SH).data;
+  const inMask = (x, y) => maskD[(y * SW + x) * 4 + 3] > 128;
+
+  /* ② 村种子点：界内网格候选 + 贪心最大最小距离，分布均匀且全部落在界内 */
+  const cand = [];
+  for (let y = 3; y < SH - 3; y += 4){
+    for (let x = 3; x < SW - 3; x += 4){ if (inMask(x, y)) cand.push([x, y]); }
+  }
+  const seeds = [];
+  const nTarget = Math.max(1, Math.min(n, cand.length || 1));
+  if (cand.length){
+    seeds.push(cand.reduce((a, b) => (b[0] + b[1] < a[0] + a[1] ? b : a), cand[0]));
+    while (seeds.length < nTarget){
+      let best = null, bdSel = -1;
+      for (let ci = 0; ci < cand.length; ci++){
+        const c = cand[ci];
+        let m2 = 1e18;
+        for (let si = 0; si < seeds.length; si++){
+          const dx = c[0] - seeds[si][0], dy = c[1] - seeds[si][1], d2 = dx * dx + dy * dy;
+          if (d2 < m2) m2 = d2;
+        }
+        if (m2 > bdSel){ bdSel = m2; best = c; }
+      }
+      if (!best) break;
+      seeds.push(best);
+    }
+  }
+
+  /* ③ 逐像素归属最近种子并直接填色 */
+  const owner = new Int8Array(SW * SH).fill(-1);
+  const imgD = ctx2.createImageData(SW, SH);
+  const p32 = imgD.data;
+  const RGB = vals.map(v => ramp(norm(v, vmin, vmax)).match(/\d+/g).map(Number));
+  const sn = seeds.length || 1;
+  for (let y = 0; y < SH; y++){
+    for (let x = 0; x < SW; x++){
+      const idx = y * SW + x;
+      if (!inMask(x, y)) continue;
+      let bi = 0, bd2 = 1e18;
+      for (let s = 0; s < sn; s++){
+        const dx = x - seeds[s][0], dy = y - seeds[s][1], d2 = dx * dx + dy * dy;
+        if (d2 < bd2){ bd2 = d2; bi = s; }
+      }
+      owner[idx] = bi;
+      const c3 = RGB[Math.min(bi, RGB.length - 1)] || [208, 227, 247];
+      p32[idx * 4] = c3[0]; p32[idx * 4 + 1] = c3[1]; p32[idx * 4 + 2] = c3[2]; p32[idx * 4 + 3] = 255;
+    }
+  }
+  /* ④ 村域分界：归属变化的像素描白，只区分村块、不改变外形 */
+  for (let y = 0; y < SH; y++){
+    for (let x = 0; x < SW; x++){
+      const idx = y * SW + x, o = owner[idx];
+      if (o < 0) continue;
+      const r = x + 1 < SW ? owner[idx + 1] : -1;
+      const dn = y + 1 < SH ? owner[idx + SW] : -1;
+      if ((r >= 0 && r !== o) || (dn >= 0 && dn !== o)){
+        p32[idx * 4] = 255; p32[idx * 4 + 1] = 255; p32[idx * 4 + 2] = 255;
+      }
+    }
+  }
+  ctx2.putImageData(imgD, 0, 0);
+  const dataUrl = cv.toDataURL("image/png");
+
+  /* ⑤ 贴回 SVG：image 精确铺满 bbox，随 viewBox 缩放自动对齐 */
+  const cellImg = el("image", {
+    x: bx0.toFixed(2), y: by0.toFixed(2),
+    width: bwx.toFixed(2), height: bhy.toFixed(2), preserveAspectRatio: "none"
+  });
+  cellImg.setAttribute("href", dataUrl);
+  cellImg.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", dataUrl);
+  cellImg.style.cursor = "crosshair";
+  gCells.appendChild(cellImg);
+
+  /* 镇界描边压在色块之上，轮廓清晰 */
+  gCells.appendChild(el("path", { d: g.d, fill: "none", stroke: "#8ab4de", "stroke-width": 2, "vector-effect": "non-scaling-stroke" }));
+
+  /* ⑥ 村可见像素统计：标注锚点取「距边界最远的稳定点」，装不下就不标 —— 彻底消除溢出 */
+  const stat = [];
+  for (let s = 0; s < n; s++) stat.push({ cnt: 0, x0: 1e9, x1: -1, y0: 1e9, y1: -1, sx: 0, sy: 0 });
+  for (let y = 0; y < SH; y++){
+    for (let x = 0; x < SW; x++){
+      const o = owner[y * SW + x];
+      if (o < 0 || o >= n) continue;
+      const s = stat[o];
+      s.cnt++; s.sx += x; s.sy += y;
+      if (x < s.x0) s.x0 = x;
+      if (x > s.x1) s.x1 = x;
+      if (y < s.y0) s.y0 = y;
+      if (y > s.y1) s.y1 = y;
+    }
+  }
+  function anchorOf(o){
+    const s = stat[o];
+    if (!s.cnt) return null;
+    const cxp = s.sx / s.cnt, cyp = s.sy / s.cnt;
+    let best = null, bd = 1e18;
+    for (let y = s.y0; y <= s.y1; y++){
+      for (let x = s.x0; x <= s.x1; x++){
+        const idx = y * SW + x;
+        if (owner[idx] !== o) continue;
+        if (x < 3 || y < 3 || x >= SW - 3 || y >= SH - 3) continue;
+        /* 要求 5×5 邻域同村，保证文字不压镇界、不窜到邻村 */
+        if (owner[idx - 1] !== o || owner[idx + 1] !== o || owner[idx - SW] !== o || owner[idx + SW] !== o) continue;
+        if (owner[idx - 2] !== o || owner[idx + 2] !== o || owner[idx - SW * 2] !== o || owner[idx + SW * 2] !== o) continue;
+        const dx = x - cxp, dy = y - cyp, d2 = dx * dx + dy * dy;
+        if (d2 < bd){ bd = d2; best = [x, y]; }
+      }
+    }
+    return best;
+  }
+  function runWidthAt(o, y){
+    let bestLen = 0, len = 0;
+    for (let x = 0; x < SW; x++){
+      if (owner[y * SW + x] === o){ len++; if (len > bestLen) bestLen = len; } else len = 0;
+    }
+    return bestLen;
+  }
+
+  const labelG = el("g", {});
+  for (let i = 0; i < n; i++){
+    const anc = anchorOf(i);
+    if (!anc) continue;
+    const wPx = Math.max(
+      runWidthAt(i, anc[1]),
+      runWidthAt(i, Math.max(0, anc[1] - 1)),
+      runWidthAt(i, Math.min(SH - 1, anc[1] + 1))
+    );
+    const wVis = wPx * SC * pxPerUnit;                                  /* 可用宽度（屏幕像素） */
+    const hVis = (stat[i].y1 - stat[i].y0 + 1) * SC * pxPerUnit;        /* 可用高度（屏幕像素） */
+    const ratio = norm(vals[i], vmin, vmax), txt = textOn(ratio);
+    const numStr = String(vals[i]);
+    const nm = t.villages[i].replace(/(社区|村)$/, "");
+    const canNum = wVis >= numStr.length * 13 * 0.64 + 6 && hVis >= 16;
+    const canName = canNum && wVis >= nm.length * 11 * 1.06 + 8 && hVis >= 30;
+    const lx = bx0 + anc[0] * SC, ly = by0 + anc[1] * SC;
+    const fzV = 13 / pxPerUnit, fzL = 11 / pxPerUnit;                   /* 反算字号：视觉字号恒定 */
+    if (canNum){
+      const t1 = el("text", { x: lx, y: ly + (canName ? -fzV * 0.26 : fzV * 0.34), "text-anchor": "middle", fill: txt, class: "map-val", style: "font-size:" + fzV.toFixed(2) + "px" });
+      t1.textContent = vals[i];
+      labelG.appendChild(t1);
+      if (canName){
+        const t2 = el("text", { x: lx, y: ly + fzL * 1.16, "text-anchor": "middle", fill: txt, class: "map-lbl", opacity: .92, style: "font-size:" + fzL.toFixed(2) + "px" });
+        t2.textContent = nm;
+        labelG.appendChild(t2);
+      }
+    }
+  }
+  gCells.appendChild(labelG);
+
+  /* ⑦ 悬浮与点击：屏幕坐标 → 用户坐标 → 栅格归属 */
+  function hitCell(evt){
+    const pt = svgEl.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    const mt = svgEl.getScreenCTM();
+    if (!mt) return -1;
+    const u = pt.matrixTransform(mt.inverse());
+    const gx = Math.round((u.x - bx0) / SC), gy = Math.round((u.y - by0) / SC);
+    if (gx < 0 || gy < 0 || gx >= SW || gy >= SH) return -1;
+    return owner[gy * SW + gx];
+  }
+  cellImg.addEventListener("mousemove", e => {
+    const i = hitCell(e);
+    if (i < 0 || i >= n){ hideTip(); return; }
+    showTip(
+      `<div class="tt">${t.villages[i]}<span class="tag tag-orange" style="background:rgba(255,255,255,.18);color:#fff;border:0">${name}</span></div>
+       <div class="tr"><span>在册人数</span><b>${vals[i]} 人</b></div>
+       <div class="tr"><span>高风险及以上</span><b>${highs[i]} 人</b></div>
+       <div class="tr"><span>双在册</span><b>${duals[i]} 人</b></div>
+       <div class="th">走访完成 ${t.m}% · 点击查看名单</div>`, e);
+  });
+  cellImg.addEventListener("mouseleave", hideTip);
+  cellImg.addEventListener("click", e => {
+    const i = hitCell(e);
+    if (i < 0 || i >= n) return;
+    openDlg(name, i, vals[i], highs[i], duals[i], t);
+  });
+}
+
+/* ---- 弹窗：真实台账记录（按角色掩码） ---- */
+const mask = document.getElementById("dlgMask");
+const roleKey = STORE.role().key;
+function openDlg(street, idx, v, h, dd, t){
+  const vil = t.villages[idx];
+  const list = window.DATA.persons.filter(p => p.town === street && p.village === vil).slice(0, 6);
+  document.getElementById("dlgTitle").textContent = vil;
+  document.getElementById("dlgStreet").textContent = street;
+  document.getElementById("dlgHigh").textContent = "高风险 " + h;
+  document.getElementById("dlgSub").textContent =
+    "在册 " + v + " 人 · 包联干部 " + t.officer + " · 走访完成 " + t.m + "% · 数据截至 2026-11-10 09:45";
+  document.getElementById("d1").textContent = v;
+  document.getElementById("d2").textContent = h;
+  document.getElementById("d3").textContent = dd;
+  document.getElementById("d4").textContent = t.m + "%";
+  document.getElementById("dlgListTitle").textContent = "高风险人员（" + list.length + " 条）· 按风险序 · 姓名与身份证按角色密级展示";
+  const rows = document.getElementById("dlgRows");
+  rows.innerHTML = list.length ? list.map(p => {
+    const lv = window.DATA.levelOf(STORE.levelOf(p));
+    return `<tr>
+      <td class="cell-main">${UI.esc(window.DATA.field(roleKey, 'name', p).text)}</td>
+      <td class="mask">${UI.esc(window.DATA.field(roleKey, 'idNo', p).text)}</td>
+      <td class="tiny">${UI.esc(p.tags.join(' / '))}</td>
+      <td><span class="${lv.cls}">${lv.name}</span></td>
+      <td class="tiny dim">${window.DATA.dateBefore(p.visitGap)}</td>
+      <td><a class="tiny" href="person.html?id=${p.id}" style="color:var(--blue)">档案</a></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="6">${UI.empty('该社区暂无高风险及以上人员', '在册人员由镇街属地管理，区级台账仅收录高风险及以上')}</td></tr>`;
+
+  const note = document.getElementById('dlgNote');
+  if (note) {
+    const masked = window.DATA.field(roleKey, 'idNo', { idNo: '110228199001011234' }).masked;
+    note.textContent = masked
+      ? '当前角色「' + STORE.role().roleName + '」仅可见掩码；查看明文需填写用途并经复核，操作全部留痕'
+      : '当前角色「' + STORE.role().roleName + '」可查看全字段明文，本次展示已记入审计流水';
+  }
+  const openLink = document.getElementById('dlgOpen');
+  if (openLink) openLink.href = list.length ? 'person.html?id=' + list[0].id : 'persons.html?town=' + encodeURIComponent(street);
+  const ledgerLink = document.getElementById('dlgLedger');
+  if (ledgerLink) ledgerLink.href = 'persons.html?town=' + encodeURIComponent(street) + '&village=' + encodeURIComponent(vil);
+
+  mask.classList.add("on");
+}
+document.getElementById("dlgClose").onclick = () => mask.classList.remove("on");
+document.getElementById("dlgCancel").onclick = () => mask.classList.remove("on");
+mask.addEventListener("click", e => { if (e.target === mask) mask.classList.remove("on"); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") mask.classList.remove("on"); });
+
+btnBack.onclick = () => renderLevel1();
+
+/* ---- 指标切换（真下拉） ---- */
+const metricOpt = UI.select(metricNode, {
+  items: [
+    { v: "v", t: "在册人数" },
+    { v: "h", t: "高风险人数" },
+    { v: "d", t: "双在册人数" },
+    { v: "m", t: "重点时期见面率" }
+  ],
+  value: "v",
+  onChange: v => {
+    curMetric = v;
+    if (level === 1) renderLevel1();
+    else { const s = curStreet; renderLevel1(); renderLevel2(s); }
+  }
+});
+
+/* ---- 热力日历（点击查看当日预警） ---- */
+(function(){
+  const cal = document.getElementById("heatCal");
+  if (!cal) return;
+  const wd = ["一","二","三","四","五","六","日"];
+  let html = '<div class="wk"></div>' + wd.map(w => `<div class="wd">${w}</div>`).join("");
+  const weeks = [];
+  let seed = 3;
+  for (let w = 0; w < 7; w++){
+    const arr = [];
+    for (let d = 0; d < 7; d++){ seed = (seed * 9301 + 49297) % 233280; arr.push(Math.round(seed / 233280 * 22) + 2); }
+    weeks.push(arr);
+  }
+  weeks[5][5] = 24; weeks[6][0] = 14;
+  const max = 24;
+  const SCALE = ["#e9f2fc","#c6ddf5","#92bce5","#4d8fd2","#1e6cbf"];
+
+  /* 第 w 行第 d 列的真实日期：第 7 行（w=6）周一为 2026-11-09 */
+  function dateOf(w, d){
+    const base = new Date(2026, 10, 9);
+    base.setDate(base.getDate() - (6 - w) * 7 + d);
+    return (base.getMonth() + 1) + "/" + base.getDate();
+  }
+
+  function openDay(w, d, v){
+    const date = dateOf(w, d);
+    const ruleNames = window.STORE.rules().map(r => r.name);
+    const towns = window.DATA.towns.map(t => t.name);
+    const persons = window.DATA.persons;
+    const roleKey = STORE.role().key;
+    let s = (w * 7 + d) * 97 + 31;
+    const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+    const rows = [];
+    for (let i = 0; i < v; i++){
+      const rule = ruleNames[Math.floor(rnd() * ruleNames.length)];
+      const town = towns[Math.floor(rnd() * towns.length)];
+      const p = persons[Math.floor(rnd() * persons.length)];
+      const hh = 8 + Math.floor(rnd() * 12), mm = Math.floor(rnd() * 60);
+      const done = rnd() > 0.45;
+      rows.push({ time: (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm,
+        rule, town, name: window.DATA.field(roleKey, 'name', p).text, done });
+    }
+    rows.sort((a, b) => a.time.localeCompare(b.time));
+    const open = rows.filter(r => !r.done).length;
+    UI.modal({
+      title: date + " 预警 " + v + " 条",
+      sub: "处置完成 " + (v - open) + " · 待处置 " + open + " · 规则命中只生成待办，不自动改等级",
+      width: 560,
+      okText: null,
+      cancelText: "关闭",
+      body: `<div class="table-wrap" style="border:1px solid var(--line);border-radius:9px;max-height:280px;overflow:auto">
+        <table class="tb compact"><thead><tr><th style="width:48px">时间</th><th>规则</th><th>镇街</th><th>人员</th><th class="c" style="width:64px">状态</th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td class="dim num">${r.time}</td><td class="tiny">${UI.esc(r.rule)}</td><td class="tiny">${UI.esc(r.town)}</td><td class="tiny cell-main">${UI.esc(r.name)}</td><td class="c"><span class="tag ${r.done ? 'tag-green' : 'tag-amber'}">${r.done ? '已闭环' : '待处置'}</span></td></tr>`).join('')}</tbody>
+        </table></div>
+        <div class="tiny dim" style="margin-top:8px">演示明细由规则池确定性生成，与当日命中数 ${v} 条对齐；完整处置请前往「预警待办」。</div>`,
+      onMount: () => { STORE.audit("查看日预警明细", date + " · " + v + " 条", "态势驾驶舱"); }
+    });
+  }
+
+  weeks.forEach((arr, w) => {
+    html += `<div class="wk">${w === 0 ? "9/28" : w === 3 ? "10/19" : w === 6 ? "11/9" : ""}</div>`;
+    arr.forEach((v, d) => {
+      const b = Math.min(4, Math.floor(v / max * 5));
+      const bg = v < 4 ? "" : `background:${SCALE[Math.max(b, 1)]};color:${b >= 3 ? "#fff" : "#123c66"}`;
+      html += `<div class="${v < 4 ? "cl z" : "cl"}" style="${bg}" data-w="${w}" data-d="${d}" title="${dateOf(w, d)} · ${v} 条 · 点击查看当日预警">${v}</div>`;
+    });
+  });
+  cal.innerHTML = html;
+  cal.addEventListener("click", e => {
+    const cell = e.target.closest(".cl");
+    if (!cell) return;
+    openDay(parseInt(cell.dataset.w, 10), parseInt(cell.dataset.d, 10), parseInt(cell.textContent, 10) || 0);
+  });
+})();
+
+/* ---- 初始化：支持 ?street= 深链直达二级，?community= 直接打开弹窗 ---- */
+renderLevel1();
+(function(){
+  const q = new URLSearchParams(location.search);
+  const street = q.get("street");
+  if (street && TOWN[street]) {
+    renderLevel2(street);
+    const c = q.get("community");
+    if (c) {
+      const t = TOWN[street];
+      const idx = t.villages.indexOf(c);
+      if (idx > -1) {
+        const n = t.villages.length;
+        const vals = splitTotal(t.v, n, street.charCodeAt(0) + n);
+        const highs = splitTotal(t.h, n, street.charCodeAt(1) + n);
+        const duals = splitTotal(t.d, n, street.charCodeAt(2) + n);
+        openDlg(street, idx, vals[idx], highs[idx], duals[idx], t);
+      }
+    }
+  }
+})();
+</script>
+</body>
+</html>

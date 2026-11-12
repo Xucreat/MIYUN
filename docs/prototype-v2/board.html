@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>数据看板 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  /* 实时指标 */
+  .rt-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; }
+  .rt-card { background: #fff; border-radius: 11px; box-shadow: var(--sh1), var(--sh-in); padding: 10px 12px; position: relative; overflow: hidden; }
+  .rt-l { font-size: 11px; color: var(--t2); display: flex; align-items: center; gap: 5px; }
+  .rt-v { font-size: 24px; font-weight: 650; letter-spacing: -.8px; line-height: 1.2; margin-top: 2px; display: flex; align-items: baseline; gap: 4px; }
+  .rt-v small { font-size: 11px; font-weight: 500; color: var(--t3); letter-spacing: 0; }
+  .rt-m { font-size: 10.5px; color: var(--t3); margin-top: 1px; }
+  .rt-spark { position: absolute; right: 8px; bottom: 8px; opacity: .5; }
+
+  /* 动态流 */
+  .feed { max-height: 262px; overflow: auto; }
+  .feed-item { display: flex; gap: 9px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .feed-item:last-child { border-bottom: 0; }
+  .feed-t { font-family: var(--mono); font-size: 10.5px; color: var(--t3); flex: 0 0 38px; padding-top: 1px; }
+  .feed-d { font-size: 11.5px; line-height: 1.5; min-width: 0; }
+  .feed-d b { font-weight: 600; }
+  .feed-tag { display: inline-flex; align-items: center; height: 15px; padding: 0 4px; border-radius: 3px; font-size: 9.5px; font-weight: 600; margin-right: 4px; white-space: nowrap; }
+
+  /* 流向图 */
+  .flow-wrap { position: relative; }
+  .flow-node { font-size: 10.5px; }
+  .flow-lbl { font-size: 10px; fill: #5b6169; }
+
+  /* 分钟柱 */
+  .minbar { display: flex; align-items: flex-end; gap: 2px; height: 34px; }
+  .minbar i { flex: 1 1 0; background: var(--blue-soft-2); border-radius: 1.5px; display: block; }
+
+  /* 零报告宫格 */
+  .zg { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; }
+  .zg-item { border: 1px solid var(--line); border-radius: 8px; padding: 6px 7px; font-size: 10.5px; background: #fff; }
+  .zg-item .zw { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+  .zg-item.ok { border-color: #cfe9db; background: #f6fcf8; }
+  .zg-item.no { border-color: #f6d3ce; background: #fef8f7; }
+  .zg-item .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .zg-item.ok .dot { background: var(--green); }
+  .zg-item.no .dot { background: var(--red); }
+  .zg-item .zt { color: var(--t3); margin-top: 2px; }
+
+  .dv-bar { display: flex; height: 16px; border-radius: 4px; overflow: hidden; background: var(--surface-3); }
+  .dv-bar i { display: block; height: 100%; }
+
+
+  /* ===== 视口填满：各子看板按比例分配 ===== */
+  body.fit [data-panel] { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: var(--gap); }
+  body.fit [data-panel] > * { margin-bottom: 0 !important; }
+  body.fit [data-panel] > .grid { flex: 0 0 auto; }
+  body.fit [data-panel] > .split-73,
+  body.fit [data-panel] > .split-64,
+  body.fit [data-panel] > .split-46,
+  body.fit [data-panel] > .split-37 { flex: 1 1 0; min-height: 0; align-items: stretch; }
+  body.fit [data-panel] > .split-73 { flex: 1.18 1 0; }
+  body.fit [data-panel="rt"] > .split-64 { flex: 1.1 1 0; }
+  body.fit [data-panel] .stack { min-height: 0; }
+  body.fit .rt-grid { gap: var(--gap); }
+  body.fit .rt-card { padding: 8px 11px; }
+  body.fit .rt-v { font-size: 21px; }
+  body.fit .feed { max-height: none; }
+  /* 口径说明压成单行，避免挤出视口 */
+  body.fit [data-panel] > .foot-note {
+    flex: 0 0 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: 2px 2px 0; font-size: 9.5px;
+  }
+  /* 分时热力在受限高度下的紧凑行 */
+  body.fit .cal .cl { height: 15px; font-size: 8.5px; }
+  body.fit .cal { gap: 2px; }
+  /* 受限高度下的行距压缩 */
+  body.fit .li { padding: 4px 0; }
+  body.fit .cat-row { padding: 2.5px 0; }
+  body.fit .rank-row { padding: 3px 0; }
+  body.fit .mini-stat { padding: 6px 9px; }
+  body.fit .mini-stat .v { font-size: 14px; }
+  body.fit .zg { gap: 5px; }
+  body.fit .zg-item { padding: 4px 6px; }
+  body.fit .combo-row { padding: 4px 0; }
+  body.fit .feed-item { padding: 5px 0; }
+  body.fit .timeline .tl-item { padding-bottom: 9px; }
+  body.fit [data-panel="rt"] > .split-73 { flex: 1.18 0 0; }
+  body.fit [data-panel="rt"] > .split-64 { flex: 1.16 1 0; grid-template-columns: minmax(0,1.42fr) minmax(0,1fr) minmax(0,1fr); align-items: stretch; }
+  body.fit [data-panel="rt"] #rtHeat { margin-top: -1px; }
+  body.fit [data-panel="rt"] .cal .cl { height: 15px; }
+  body.fit [data-panel="rt"] .card-bd > .foot-note[style*="padding-top:7px"] { padding-top: 4px !important; }
+  /* 报送质量页：字段缺失卡的条目与批次行收紧 */
+  body.fit [data-panel="quality"] .cat-row { padding: 2.5px 0; }
+  body.fit [data-panel="quality"] .li[style*="padding:5px 0"] { padding: 3px 0 !important; }
+  body.fit [data-panel="quality"] .card-bd .divider { margin: 6px 0 5px !important; }
+  body.fit [data-panel="quality"] .cat-row { padding: 2px 0; }
+  /* 风险变化页：按内容需要分配三行高度，保证柱状图与明细表完整 */
+  body.fit [data-panel="risk"] > div:nth-of-type(2) { flex: 1.115 1 0; }
+  body.fit [data-panel="risk"] > div:nth-of-type(3) { flex: 0.905 1 0; }
+  body.fit [data-panel="risk"] .dv-bar + .foot-note { line-height: 1.3; }
+  body.fit [data-panel="risk"] > div:nth-of-type(4) { flex: 1 1 0; }
+  body.fit [data-panel="risk"] .dv-bar { height: 10px !important; }
+  body.fit [data-panel="risk"] .card-hd { padding: 7px 13px 6px; }
+  body.fit [data-panel="risk"] .card-ft { padding: 5px 13px; }
+  body.fit [data-panel="risk"] .row[style*="margin-bottom:6px"] { margin-bottom: 0 !important; }
+  body.fit [data-panel="risk"] .card-bd > .li { padding: 1.5px 0 !important; }
+  body.fit [data-panel="risk"] table.mini-tb td { padding: 3px 9px; }
+  body.fit [data-panel="risk"] table.mini-tb th { padding: 5px 9px; }
+  body.fit [data-panel="risk"] .dv-bar { height: 10px; margin-bottom: 4px !important; }
+  body.fit [data-panel="risk"] .row[style*="margin-bottom:6px"] { margin-bottom: 2px !important; }
+  body.fit [data-panel="risk"] .cat-row { padding: 2px 0; }
+  body.fit [data-panel="risk"] .card-bd > .li { padding: 3px 0 !important; }
+  body.fit [data-panel="risk"] .mini-stat { padding: 3px 8px; }
+  body.fit [data-panel="risk"] .card-bd > .foot-note { white-space: normal; font-size: 9.5px; line-height: 1.35; }
+  .split-73, .split-64, .split-37, .split-46 { align-items: start; }
+
+  /* 人员流动页：两行三列，按各卡内容需要分配高度 */
+  body.fit [data-panel="move"] {
+    display: grid; grid-template-columns: minmax(0,1.06fr) minmax(0,1fr) minmax(0,0.94fr);
+    grid-template-rows: auto minmax(0,0.98fr) minmax(0,1.1fr); gap: var(--gap);
+  }
+  body.fit [data-panel="move"] > .grid.g5 { grid-column: 1 / -1; }
+  body.fit [data-panel="move"] > .split-64,
+  body.fit [data-panel="move"] > .split-46 { display: contents; }
+  body.fit [data-panel="move"] > .split-64:last-of-type { display: contents; }
+  body.fit [data-panel="move"] .c-chart   { grid-column: 1; grid-row: 2; }
+  body.fit [data-panel="move"] .c-src     { grid-column: 2; grid-row: 2; }
+  body.fit [data-panel="move"] .c-alert   { grid-column: 3; grid-row: 2; }
+  body.fit [data-panel="move"] .c-cat     { grid-column: 1; grid-row: 3; }
+  body.fit [data-panel="move"] .c-cross   { grid-column: 2; grid-row: 3; }
+  body.fit [data-panel="move"] .c-insight { grid-column: 3; grid-row: 3; }
+  body.fit [data-panel="move"] .card { min-height: 0; }
+  body.fit [data-panel="move"] table.mini-tb td { padding: 2px 8px; }
+  body.fit [data-panel="move"] table.mini-tb th { padding: 4px 8px; }
+  body.fit [data-panel="move"] .card-hd { padding: 8px 12px 7px; }
+  body.fit [data-panel="move"] .card-ft { padding: 5px 12px; }
+  body.fit [data-panel="move"] .card-bd > .li { padding: 6px 0; }
+  body.fit [data-panel="move"] .cat-row { padding: 3px 0; }
+  body.fit [data-panel="move"] .mini-stat { padding: 4px 8px; }
+  /* 重点盯控页：20 镇街表压缩行高 */
+  body.fit [data-panel="watch"] table.mini-tb td { padding: 1.5px 9px; }
+  body.fit [data-panel="watch"] table.mini-tb th { padding: 4px 9px; }
+  body.fit [data-panel="watch"] .card-bd > .li { padding: 5px 0; }
+  body.fit [data-panel="watch"] .stack > .card > .card-bd { padding-top: 6px !important; padding-bottom: 7px !important; }
+
+  /* 自定义看板页：左侧组件/模板，右侧画布与已保存看板 */
+  body.fit [data-panel="custom"] {
+    display: grid; grid-template-columns: 330px minmax(0,1fr);
+    grid-template-rows: minmax(0,1.72fr) minmax(0,1fr); gap: var(--gap);
+  }
+  body.fit [data-panel="custom"] > .split-37 { display: contents; }
+  body.fit [data-panel="custom"] > .split-37 > .stack { display: contents; }
+  body.fit [data-panel="custom"] .c-lib    { grid-column: 1; grid-row: 1; }
+  body.fit [data-panel="custom"] .c-canvas { grid-column: 2; grid-row: 1; }
+  body.fit [data-panel="custom"] .c-tpl    { grid-column: 1; grid-row: 2; }
+  body.fit [data-panel="custom"] .c-saved  { grid-column: 2; grid-row: 2; }
+  body.fit [data-panel="custom"] .card { min-height: 0; }
+  body.fit [data-panel="custom"] .chip-select { height: 22px; font-size: 11px; }
+  body.fit [data-panel="custom"] .sect-title { margin-bottom: 4px; }
+  body.fit [data-panel="custom"] table.mini-tb td { padding: 2.5px 9px; }
+  body.fit [data-panel="custom"] .c-canvas .card-bd > .card.pad { padding: 5px 10px !important; }
+  body.fit [data-panel="custom"] .c-canvas .card-bd > .card { padding: 6px 10px !important; }
+  body.fit [data-panel="custom"] .c-canvas .rank-row { padding: 2px 0 !important; }
+  body.fit [data-panel="custom"] .c-canvas .li { padding: 2px 0 !important; }
+  body.fit [data-panel="custom"] .c-tpl .li { padding: 5px 0; }
+  body.fit [data-panel="custom"] .c-tpl .foot-note { white-space: normal; line-height: 1.45; }
+  /* 组件库：说明文字沉到卡片底部，避免卡片下方留白 */
+  body.fit [data-panel="custom"] .c-lib .card-bd > .divider { margin-top: auto !important; }
+  body.fit [data-panel="custom"] .c-lib .card-bd { display: flex; flex-direction: column; }
+  body.fit [data-panel="custom"] .c-saved table.mini-tb td { padding: 1.5px 9px; }
+  body.fit [data-panel="custom"] .c-saved .card-hd { padding: 7px 13px 6px; }
+  body.fit [data-panel="custom"] table.mini-tb th { padding: 4px 9px; }
+  .split-46 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.15fr); gap: 12px; }
+  .two-line span { display: block; }
+  .two-line span + span { font-size: 10.5px; color: var(--t3); }
+  .mini-tb td { font-size: 11.5px; }
+  .mini-tb th { font-size: 10.5px; }
+
+  /* 分时热力网格 */
+  .cal { display: grid; grid-template-columns: 24px repeat(12, minmax(0,1fr)); gap: 3px; align-items: center; }
+  .cal .wd { font-size: 9px; color: var(--t4); text-align: center; }
+  .cal .wk { font-size: 9.5px; color: var(--t4); text-align: right; padding-right: 2px; font-variant-numeric: tabular-nums; }
+  .cal .cl { height: 19px; border-radius: 3px; display: grid; place-items: center; font-size: 9.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* 宽标签分类条 */
+  .cat-wide .cat-row { grid-template-columns: 132px 1fr 40px; }
+  /* 周迁移迷你柱 */
+  .mm { display: flex; gap: 5px; height: 46px; }
+  .mm-c { flex: 1 1 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; min-width: 0; }
+  .mm-c i { width: 100%; background: var(--blue-soft-2); border-radius: 2px 2px 0 0; display: block; }
+  .mm-c b { font-size: 9.5px; font-weight: 600; color: var(--t3); }
+  .mm-c span { font-size: 8.5px; color: var(--t4); }
+</style>
+</head>
+<body class="fit" data-page="board" data-crumb="态势总览" data-title="数据看板">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head compact">
+        <div class="ph-t">
+          <h1>数据看板 <span class="tag tag-line">实时 · 可下钻</span></h1>
+          <p>随时监测 · 实时看变化 · 看重点人员流动趋势与区域流向 · 每 5 分钟增量刷新，日终 23:30 定格</p>
+        </div>
+        <div class="page-actions">
+          <div class="seg"><button>今日</button><button class="on">近 7 天</button><button>近 30 天</button><button>本期</button></div>
+          <button class="btn">订阅推送</button>
+          <button class="btn btn-primary">导出看板</button>
+        </div>
+      </div>
+
+      <!-- 二级导航 -->
+      <div class="subnav" id="subnav">
+        <button class="on" data-tab="rt">实时总览</button>
+        <button data-tab="move">人员流动 <span class="cnt">+31</span></button>
+        <button data-tab="region">区域迁徙</button>
+        <button data-tab="risk">风险变化 <span class="cnt">19↑27↓</span></button>
+        <button data-tab="watch">重点盯控 <span class="cnt">44</span></button>
+        <button data-tab="quality">报送质量</button>
+        <span class="sep"></span>
+        <span class="tail"><i class="live-dot"></i> 实时数据 · 更新于 <b style="color:var(--t1);font-weight:600">10:55</b></span>
+      </div>
+
+      <!-- ===== 实时总览 ===== -->
+      <div data-panel="rt">
+        <div class="rt-grid mb10">
+          <div class="rt-card">
+            <div class="rt-l">在线用户</div>
+            <div class="rt-v">42<small>人</small></div>
+            <div class="rt-m">峰值 68 · 覆盖 16 个单位</div>
+            <div class="minbar rt-spark" id="spark1"></div>
+          </div>
+          <div class="rt-card">
+            <div class="rt-l">今日新增入库</div>
+            <div class="rt-v">7<small>人</small></div>
+            <div class="rt-m">公安 4 · 卫健 2 · 信访 1</div>
+            <div class="minbar rt-spark" id="spark2"></div>
+          </div>
+          <div class="rt-card">
+            <div class="rt-l">今日预警</div>
+            <div class="rt-v" style="color:var(--red)">18<small>条</small></div>
+            <div class="rt-m">待处置 18 · 已闭环 14</div>
+            <div class="minbar rt-spark" id="spark3"></div>
+          </div>
+          <div class="rt-card">
+            <div class="rt-l">今日走访回填</div>
+            <div class="rt-v" style="color:var(--green)">126<small>条</small></div>
+            <div class="rt-m">见面 118 · 电话 8</div>
+            <div class="minbar rt-spark" id="spark4"></div>
+          </div>
+          <div class="rt-card">
+            <div class="rt-l">接口健康</div>
+            <div class="rt-v">99.6<small>%</small></div>
+            <div class="rt-m">95 分位响应 218 毫秒 · 失败 3 次</div>
+            <div class="minbar rt-spark" id="spark5"></div>
+          </div>
+        </div>
+
+        <div class="split-73 mb10">
+          <div class="card">
+            <div class="card-hd">
+              <div class="card-title">24 小时活跃与操作 <span class="sub">按小时聚合 · 实时增量</span></div>
+              <div class="right">
+                <div class="trend-legend">
+                  <span><i style="background:#0071e3"></i>在线人数</span>
+                  <span><i class="sq" style="background:#8fb0cd"></i>查询/查阅</span>
+                  <span><i class="sq" style="background:#1f8a53"></i>走访回填</span>
+                </div>
+              </div>
+            </div>
+            <div class="card-bd" style="padding:10px 14px 6px">
+              <svg viewBox="0 0 620 186" width="100%" height="186" preserveAspectRatio="none" style="display:block">
+                <defs>
+                  <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#0071e3" stop-opacity=".2"/><stop offset="100%" stop-color="#0071e3" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <g stroke="#eef0f3"><line x1="30" y1="20" x2="610" y2="20"/><line x1="30" y1="58" x2="610" y2="58"/><line x1="30" y1="96" x2="610" y2="96"/><line x1="30" y1="134" x2="610" y2="134"/></g>
+                <g fill="#aeb4bc" font-size="8.5"><text x="6" y="23">60</text><text x="6" y="61">40</text><text x="6" y="99">20</text><text x="6" y="137">0</text></g>
+                <!-- 柱：查询 / 回填 -->
+                <g fill="#8fb0cd" opacity=".55">
+                  <rect x="36" y="150" width="7" height="6" rx="1.5"/><rect x="61" y="147" width="7" height="9" rx="1.5"/>
+                  <rect x="86" y="144" width="7" height="12" rx="1.5"/><rect x="111" y="140" width="7" height="16" rx="1.5"/>
+                  <rect x="136" y="136" width="7" height="20" rx="1.5"/><rect x="161" y="128" width="7" height="28" rx="1.5"/>
+                  <rect x="186" y="112" width="7" height="44" rx="1.5"/><rect x="211" y="96" width="7" height="60" rx="1.5"/>
+                  <rect x="236" y="86" width="7" height="70" rx="1.5"/><rect x="261" y="78" width="7" height="78" rx="1.5"/>
+                  <rect x="286" y="72" width="7" height="84" rx="1.5"/><rect x="311" y="80" width="7" height="76" rx="1.5"/>
+                  <rect x="336" y="88" width="7" height="68" rx="1.5"/><rect x="361" y="74" width="7" height="82" rx="1.5"/>
+                  <rect x="386" y="66" width="7" height="90" rx="1.5"/><rect x="411" y="76" width="7" height="80" rx="1.5"/>
+                  <rect x="436" y="84" width="7" height="72" rx="1.5"/><rect x="461" y="96" width="7" height="60" rx="1.5"/>
+                  <rect x="486" y="110" width="7" height="46" rx="1.5"/><rect x="511" y="122" width="7" height="34" rx="1.5"/>
+                  <rect x="536" y="134" width="7" height="22" rx="1.5"/><rect x="561" y="142" width="7" height="14" rx="1.5"/>
+                  <rect x="586" y="148" width="7" height="8" rx="1.5"/>
+                </g>
+                <g fill="#1f8a53" opacity=".5">
+                  <rect x="44" y="152" width="6" height="4" rx="1.5"/><rect x="94" y="150" width="6" height="6" rx="1.5"/>
+                  <rect x="144" y="146" width="6" height="10" rx="1.5"/><rect x="194" y="136" width="6" height="20" rx="1.5"/>
+                  <rect x="244" y="124" width="6" height="32" rx="1.5"/><rect x="294" y="118" width="6" height="38" rx="1.5"/>
+                  <rect x="344" y="128" width="6" height="28" rx="1.5"/><rect x="394" y="120" width="6" height="36" rx="1.5"/>
+                  <rect x="444" y="130" width="6" height="26" rx="1.5"/><rect x="494" y="140" width="6" height="16" rx="1.5"/>
+                  <rect x="544" y="146" width="6" height="10" rx="1.5"/><rect x="594" y="150" width="6" height="6" rx="1.5"/>
+                </g>
+                <!-- 在线折线 -->
+                <path d="M40 156 L90 155 L140 150 L190 138 L240 120 L290 100 L340 88 L390 76 L440 82 L490 100 L540 124 L590 142 L590 160 L40 160 Z" fill="url(#rg1)"/>
+                <polyline points="40,156 90,155 140,150 190,138 240,120 290,100 340,88 390,76 440,82 490,100 540,124 590,142"
+                  fill="none" stroke="#0071e3" stroke-width="2" stroke-linejoin="round"/>
+                <circle cx="390" cy="76" r="3.2" fill="#fff" stroke="#0071e3" stroke-width="2"/>
+                <g font-size="8.5" fill="#aeb4bc">
+                  <text x="40" y="178" text-anchor="middle">00</text><text x="140" y="178" text-anchor="middle">04</text>
+                  <text x="240" y="178" text-anchor="middle">08</text><text x="340" y="178" text-anchor="middle">12</text>
+                  <text x="440" y="178" text-anchor="middle">16</text><text x="540" y="178" text-anchor="middle">20</text>
+                  <text x="590" y="178" text-anchor="middle" fill="#0071e3" font-weight="600">现在</text>
+                </g>
+              </svg>
+            </div>
+            <div class="card-ft" style="padding:7px 16px"><span>今日累计查询 1,284 次 · 查阅档案 216 次 · 走访回填 126 条 · 导出 9 次（均已留痕）</span></div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><div class="card-title">实时动态 <span class="sub">近 90 分钟</span></div>
+              <div class="right"><span class="tag tag-green">运行中</span></div>
+            </div>
+            <div class="card-bd" style="padding:4px 16px 8px">
+              <div class="feed" id="feedList"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split-64">
+          <div class="card">
+            <div class="card-hd"><div class="card-title">今日分时操作热力 <span class="sub">08:00—20:00 · 每行 1 小时 / 每格 5 分钟</span></div>
+              <div class="right"><div class="map-scale"><span>少</span><i style="background:#e9f2fc"></i><i style="background:#92bce5"></i><i style="background:#4d8fd2"></i><i style="background:#1e6cbf"></i><span>多</span></div></div>
+            </div>
+            <div class="card-bd" style="padding:10px 16px 12px">
+              <div class="cal" id="rtHeat"></div>
+              <div class="foot-note" style="padding-top:7px">每格 5 分钟；数值为操作次数（查询 + 查阅 + 回填）· 10:00—10:30 为当日高峰，12:00—13:00 为午间低谷</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hd"><div class="card-title">待我处理 <span class="sub">按角色过滤 · 陈志远</span></div>
+              <div class="right"><a class="btn btn-sm btn-ghost" href="alerts.html">全部待办 ›</a></div>
+            </div>
+            <div class="card-bd" style="padding:8px 16px 10px" id="todoList">
+              
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><div class="card-title">系统与任务状态 <span class="sub">近 1 小时</span></div>
+              <div class="right"><span class="tiny dim">全部正常</span></div>
+            </div>
+            <div class="card-bd" style="padding:10px 16px 12px">
+              <div class="grid g2" style="gap:8px">
+                <div class="mini-stat"><div class="v">6/6</div><div class="l">采集任务成功 · 最近 10:50</div></div>
+                <div class="mini-stat"><div class="v">2</div><div class="l">比对任务运行中 · 公安 / 卫健</div></div>
+                <div class="mini-stat"><div class="v">218<span style="font-size:10px;color:var(--t3)">ms</span></div><div class="l">接口平均响应 · 超时 2 次</div></div>
+                <div class="mini-stat"><div class="v">0</div><div class="l">越权成功 · 拦截 1 次已留痕</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 人员流动 ===== -->
+      <div data-panel="move" style="display:none">
+        <div class="grid g5 mb10">
+          <div class="card kpi k-green"><div class="kpi-label">本月净增</div><div class="kpi-val">+31<span class="unit">人</span></div><div class="kpi-meta">新增 43 · 消减 12</div></div>
+          <div class="card kpi"><div class="kpi-label">流入</div><div class="kpi-val">43<span class="unit">人</span></div><div class="kpi-meta">公安 26 · 卫健 9 · 信访 5 · 司法 3</div></div>
+          <div class="card kpi k-slate"><div class="kpi-label">流出</div><div class="kpi-val">12<span class="unit">人</span></div><div class="kpi-meta">撤管 6 · 迁出 3 · 死亡 2 · 其他 1</div></div>
+          <div class="card kpi k-amber"><div class="kpi-label">区内迁移</div><div class="kpi-val">27<span class="unit">人次</span></div><div class="kpi-meta">跨镇街 18 · 同镇街 9</div></div>
+          <div class="card kpi k-orange"><div class="kpi-label">流动率</div><div class="kpi-val">0.72<span class="unit">%</span></div><div class="kpi-meta">月均 · 高于上月 0.08 个百分点</div></div>
+        </div>
+
+        <div class="split-64 mb10">
+          <div class="card c-chart">
+            <div class="card-hd">
+              <div class="card-title">近 12 个月流入 / 流出 <span class="sub">含区内迁移</span></div>
+              <div class="right"><div class="trend-legend"><span><i class="sq" style="background:#1f8a53"></i>流入</span><span><i class="sq" style="background:#d92d20"></i>流出</span><span><i style="background:#0071e3"></i>净流动</span></div></div>
+            </div>
+            <div class="card-bd" style="padding:10px 14px 6px">
+              <svg id="mvChart" viewBox="0 0 600 180" width="100%" height="180" preserveAspectRatio="none" style="display:block">
+                <line x1="30" y1="144" x2="586" y2="144" stroke="#e7eaee"/>
+                <g fill="#aeb4bc" font-size="8.5"><text x="4" y="147">0</text><text x="4" y="107">20</text><text x="4" y="67">40</text><text x="4" y="27">60</text></g>
+                <g fill="#1f8a53" opacity=".78">
+                  <rect x="42" y="112" width="12" height="32" rx="2"/><rect x="87" y="104" width="12" height="40" rx="2"/>
+                  <rect x="132" y="96" width="12" height="48" rx="2"/><rect x="177" y="120" width="12" height="24" rx="2"/>
+                  <rect x="222" y="88" width="12" height="56" rx="2"/><rect x="267" y="100" width="12" height="44" rx="2"/>
+                  <rect x="312" y="92" width="12" height="52" rx="2"/><rect x="357" y="108" width="12" height="36" rx="2"/>
+                  <rect x="402" y="84" width="12" height="60" rx="2"/><rect x="447" y="96" width="12" height="48" rx="2"/>
+                  <rect x="492" y="76" width="12" height="68" rx="2"/><rect x="537" y="86" width="12" height="58" rx="2"/>
+                </g>
+                <g fill="#d92d20" opacity=".6">
+                  <rect x="56" y="130" width="12" height="14" rx="2"/><rect x="101" y="134" width="12" height="10" rx="2"/>
+                  <rect x="146" y="128" width="12" height="16" rx="2"/><rect x="191" y="136" width="12" height="8" rx="2"/>
+                  <rect x="236" y="126" width="12" height="18" rx="2"/><rect x="281" y="132" width="12" height="12" rx="2"/>
+                  <rect x="326" y="130" width="12" height="14" rx="2"/><rect x="371" y="136" width="12" height="8" rx="2"/>
+                  <rect x="416" y="128" width="12" height="16" rx="2"/><rect x="461" y="134" width="12" height="10" rx="2"/>
+                  <rect x="506" y="126" width="12" height="18" rx="2"/><rect x="551" y="132" width="12" height="12" rx="2"/>
+                </g>
+                <polyline points="66,96 111,92 156,84 201,100 246,74 291,84 336,78 381,90 426,70 471,80 516,62 561,70"
+                  fill="none" stroke="#0071e3" stroke-width="2" stroke-linejoin="round"/>
+                <circle cx="561" cy="70" r="3" fill="#fff" stroke="#0071e3" stroke-width="2"/>
+                <g font-size="8.5" fill="#aeb4bc">
+                  <text x="60" y="162" text-anchor="middle">25-12</text><text x="150" y="162" text-anchor="middle">26-02</text>
+                  <text x="240" y="162" text-anchor="middle">26-04</text><text x="330" y="162" text-anchor="middle">26-06</text>
+                  <text x="420" y="162" text-anchor="middle">26-08</text><text x="510" y="162" text-anchor="middle">26-10</text>
+                  <text x="561" y="162" text-anchor="middle" fill="#0071e3" font-weight="600">26-11</text>
+                </g>
+              </svg>
+            </div>
+            <div class="card-ft" style="padding:7px 16px"><span>近 12 个月累计流入 <b>604</b> 人、流出 <b>139</b> 人，净增 <b>465</b> 人；区内迁移不计入净增</span></div>
+          </div>
+
+          <div class="card c-src">
+            <div class="card-hd"><div class="card-title">流入来源与认定类别 <span class="sub">本月 43 人</span></div></div>
+            <div class="card-bd" style="padding:9px 16px 10px">
+              <div id="srcCat"><div class="cat-row"><span class="nm">公安 · 新列管</span><span class="bar"><i style="width:100%;background:#0071e3"></i></span><span class="vl">26</span></div>
+              <div class="cat-row"><span class="nm">卫健 · 新增评估</span><span class="bar"><i style="width:35%;background:#e8830c"></i></span><span class="vl">9</span></div>
+              <div class="cat-row"><span class="nm">信访 · 新登记</span><span class="bar"><i style="width:19%;background:#6b56c9"></i></span><span class="vl">5</span></div>
+              <div class="cat-row"><span class="nm">司法 · 新接收</span><span class="bar"><i style="width:12%;background:#1f8a53"></i></span><span class="vl">3</span></div></div>
+              <div class="divider" style="margin:8px 0 6px"></div>
+              <div class="sect-title">流出原因（12 人）</div>
+              <div class="dv-bar">
+                <i style="width:50%;background:var(--t3)"></i><i style="width:25%;background:var(--slate)"></i><i style="width:17%;background:var(--t4)"></i><i style="width:8%;background:var(--line-3)"></i>
+              </div>
+              <div class="legend" style="margin-top:6px;gap:4px 10px">
+                <span><i style="background:var(--t3)"></i>撤管 6</span>
+                <span><i style="background:var(--slate)"></i>迁出本区 3</span>
+                <span><i style="background:var(--t4)"></i>死亡 2</span>
+                <span><i style="background:var(--line-3)"></i>其他 1</span>
+              </div>
+              <div class="foot-note" style="padding-top:6px">撤管与迁出须有审批或迁出证明，未附材料不计入流出</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split-64">
+          <div class="card c-cat">
+            <div class="card-hd"><div class="card-title">分类别流动 <span class="sub">本月 · 按标签</span></div>
+              <div class="right"><button class="btn btn-sm btn-ghost" id="btnCatDetail">明细 ›</button></div>
+            </div>
+            <div class="card-bd flush">
+              <table class="tb compact mini-tb">
+                <thead><tr><th>类别</th><th class="r">期初</th><th class="r">流入</th><th class="r">流出</th><th class="r">期末</th><th class="r">净变化</th><th style="width:92px">趋势</th></tr></thead>
+                <tbody id="catFlowBody"></tbody>
+              </table>
+            </div>
+            <div class="card-ft" style="padding:7px 16px"><span>合计期初 <b>7,087</b> 人次 → 期末 <b>7,118</b> 人次 · 净流增 <b>+31</b>（= 流入 43 − 流出 12；区内迁移 27 人次不计入区级净增）</span></div>
+          </div>
+
+          <div class="card c-alert">
+            <div class="card-hd"><div class="card-title">流动预警 <span class="sub">异常流动自动提示</span></div>
+              <div class="right"><span class="tag tag-orange">3 条</span></div>
+            </div>
+            <div class="card-bd" style="padding:9px 16px 10px">
+                <div id="moveAlertList"></div>
+              <div class="divider" style="margin:8px 0 6px"></div>
+              <div class="row" style="font-size:11.5px;color:var(--t2)"><span>流动异常判定</span><span class="spacer"></span><span class="tiny dim">单镇街月流动 &gt; 6 人 或 30 日内重复迁移</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split-46">
+          <div class="card c-cross">
+            <div class="card-hd"><div class="card-title">跨镇街流动明细 <span class="sub">本月 TOP 7 对属地 · 18 人（27 人次）</span></div>
+              <div class="right"><button class="btn btn-sm btn-ghost" id="btnCrossAll">全量明细 ›</button></div>
+            </div>
+            <div class="card-bd flush">
+              <table class="tb compact mini-tb">
+                <thead><tr><th>迁出属地</th><th>迁入属地</th><th class="r">人数</th><th>主要事由</th><th class="c">移交状态</th></tr></thead>
+                <tbody id="crossBody"></tbody>
+              </table>
+            </div>
+            <div class="card-ft" style="padding:7px 16px"><span>迁移须经原属地与新属地双向确认，移交中 / 待确认期间由原属地继续负责走访，不得出现责任空档</span></div>
+          </div>
+
+          <div class="card c-insight">
+            <div class="card-hd"><div class="card-title">流动倾向洞察 <span class="sub">按近 3 个月趋势自动归纳</span></div>
+              <div class="right"><span class="tag tag-line">规则生成</span></div>
+            </div>
+            <div class="card-bd" style="padding:10px 16px 12px">
+              <div class="grid g3" style="gap:8px">
+                <div class="mini-stat"><div class="v">1.42</div><div class="l">城区吸聚指数</div></div>
+                <div class="mini-stat"><div class="v">4.2<span style="font-size:10px;color:var(--t3)">天</span></div><div class="l">迁移平均间隔</div></div>
+                <div class="mini-stat"><div class="v">100<span style="font-size:10px;color:var(--t3)">%</span></div><div class="l">事由可解释度</div></div>
+              </div>
+              <div class="divider" style="margin:9px 0 6px"></div>
+              <div id="insightList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 区域迁徙 ===== -->
+      <div data-panel="region" style="display:none">
+        <div class="banner banner-info mb10">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v.1M12 11.4v4.2"/></svg>
+          <span>近 30 天区内迁移 <b>18 人</b>（27 人次），集中在城区两街道与檀营之间 · 迁移不改变区级管控等级，但会触发属地责任移交与走访任务重派</span>
+          <a class="act" href="persons.html">查迁移记录 ›</a>
+        </div>
+
+        <div class="split-46 mb10">
+          <div class="card">
+            <div class="card-hd"><div class="card-title">区域间流动倾向 <span class="sub">近 30 天 · 前 6 位镇街</span></div>
+              <div class="right"><div class="legend"><span><i style="background:#0071e3"></i>流向净流入属地</span><span><i style="background:#e8830c"></i>流向净流出属地</span></div></div>
+            </div>
+            <div class="card-bd" style="padding:6px 14px 10px">
+              <svg id="flowSvg" viewBox="0 0 420 336" width="100%" height="336" style="display:block">
+                <text x="84" y="12" font-size="9.5" fill="#8b9199" text-anchor="middle">迁出地</text>
+                <text x="340" y="12" font-size="9.5" fill="#8b9199" text-anchor="middle">迁入地</text>
+                <g fill="none" opacity=".42" stroke-linecap="round">
+                  <!-- 鼓楼 → 果园 5（蓝） -->
+                  <path d="M112,42 C188,42 232,52 308,52" stroke="#0071e3" stroke-width="3.2"/>
+                  <!-- 鼓楼 → 西田各庄 2（蓝） -->
+                  <path d="M112,42 C188,42 232,260 308,260" stroke="#0071e3" stroke-width="2"/>
+                  <!-- 檀营 → 鼓楼 3（橙） -->
+                  <path d="M112,94 C188,94 232,104 308,104" stroke="#e8830c" stroke-width="2.6"/>
+                  <!-- 密云镇 → 檀营 2（橙） -->
+                  <path d="M112,146 C188,146 232,156 308,156" stroke="#e8830c" stroke-width="2"/>
+                  <!-- 果园 → 密云镇 2（灰：持平） -->
+                  <path d="M112,198 C188,198 232,208 308,208" stroke="#8f9aa8" stroke-width="2"/>
+                  <!-- 十里堡 → 鼓楼 2（橙） -->
+                  <path d="M112,250 C188,250 232,106 308,106" stroke="#e8830c" stroke-width="2"/>
+                  <!-- 河南寨 → 巨各庄 2（蓝） -->
+                  <path d="M112,302 C188,302 232,312 308,312" stroke="#0071e3" stroke-width="2"/>
+                </g>
+
+                <g font-size="10.5" text-anchor="end">
+                  <text x="102" y="40" fill="#14161a" font-weight="600">鼓楼街道</text><text x="102" y="51" fill="#8b9199" font-size="9">迁出 7</text>
+                  <text x="102" y="92" fill="#14161a" font-weight="600">檀营地区</text><text x="102" y="103" fill="#8b9199" font-size="9">迁出 3</text>
+                  <text x="102" y="144" fill="#14161a" font-weight="600">密云镇</text><text x="102" y="155" fill="#8b9199" font-size="9">迁出 2</text>
+                  <text x="102" y="196" fill="#14161a" font-weight="600">果园街道</text><text x="102" y="207" fill="#8b9199" font-size="9">迁出 2</text>
+                  <text x="102" y="248" fill="#14161a" font-weight="600">十里堡镇</text><text x="102" y="259" fill="#8b9199" font-size="9">迁出 2</text>
+                  <text x="102" y="300" fill="#14161a" font-weight="600">河南寨镇</text><text x="102" y="311" fill="#8b9199" font-size="9">迁出 2</text>
+                </g>
+                <g font-size="10.5" text-anchor="start">
+                  <text x="318" y="50" fill="#14161a" font-weight="600">果园街道</text><text x="318" y="61" fill="#8b9199" font-size="9">迁入 5</text>
+                  <text x="318" y="102" fill="#14161a" font-weight="600">鼓楼街道</text><text x="318" y="113" fill="#8b9199" font-size="9">迁入 5</text>
+                  <text x="318" y="154" fill="#14161a" font-weight="600">檀营地区</text><text x="318" y="165" fill="#8b9199" font-size="9">迁入 2</text>
+                  <text x="318" y="206" fill="#14161a" font-weight="600">密云镇</text><text x="318" y="217" fill="#8b9199" font-size="9">迁入 2</text>
+                  <text x="318" y="258" fill="#14161a" font-weight="600">西田各庄镇</text><text x="318" y="269" fill="#8b9199" font-size="9">迁入 2</text>
+                  <text x="318" y="310" fill="#14161a" font-weight="600">巨各庄镇</text><text x="318" y="321" fill="#8b9199" font-size="9">迁入 2</text>
+                </g>
+                <g fill="#0071e3">
+                  <circle cx="112" cy="42" r="2.8"/><circle cx="112" cy="94" r="2.8"/><circle cx="112" cy="146" r="2.8"/>
+                  <circle cx="112" cy="198" r="2.8"/><circle cx="112" cy="250" r="2.8"/><circle cx="112" cy="302" r="2.8"/>
+                  <circle cx="308" cy="52" r="2.8"/><circle cx="308" cy="104" r="2.8"/><circle cx="308" cy="156" r="2.8"/>
+                  <circle cx="308" cy="208" r="2.8"/><circle cx="308" cy="260" r="2.8"/><circle cx="308" cy="312" r="2.8"/>
+                </g>
+              </svg>
+              <div class="foot-note" style="padding-top:2px">线宽表示迁移人数；颜色按迁入属地净流动方向区分 · 城区片（两街道一地区）内部流动 12 人，占全部迁移 66.7%</div>
+              <div class="divider" style="margin:7px 0 6px"></div>
+              <div class="row" style="font-size:11px;color:var(--t2);margin-bottom:4px"><span>近 12 周迁移人数</span><span class="spacer"></span><span class="tiny dim">合计 18 人 · 峰值 3 人（W2 / W9）</span></div>
+              <div class="mm">
+                <div class="mm-c"><b>1</b><i style="height:10px"></i><span>1 周</span></div>
+                <div class="mm-c"><b>3</b><i style="height:24px"></i><span>2 周</span></div>
+                <div class="mm-c"><b>0</b><i style="height:0"></i><span>3 周</span></div>
+                <div class="mm-c"><b>2</b><i style="height:16px"></i><span>4 周</span></div>
+                <div class="mm-c"><b>1</b><i style="height:10px"></i><span>5 周</span></div>
+                <div class="mm-c"><b>2</b><i style="height:16px"></i><span>6 周</span></div>
+                <div class="mm-c"><b>1</b><i style="height:10px"></i><span>7 周</span></div>
+                <div class="mm-c"><b>0</b><i style="height:0"></i><span>8 周</span></div>
+                <div class="mm-c"><b>3</b><i style="height:24px"></i><span>9 周</span></div>
+                <div class="mm-c"><b>2</b><i style="height:16px"></i><span>10 周</span></div>
+                <div class="mm-c"><b>1</b><i style="height:10px"></i><span>11 周</span></div>
+                <div class="mm-c"><b>2</b><i style="height:16px"></i><span>12 周</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="card">
+              <div class="card-hd"><div class="card-title">净流动排行 <span class="sub">迁入 − 迁出</span></div>
+                <div class="right"><span class="tag tag-line">近 30 天</span></div>
+              </div>
+              <div class="card-bd" style="padding:9px 16px 10px">
+                <div class="rank-row"><span class="rank-no">1</span><span class="rank-nm"><span class="nm">果园街道</span><span class="rank-bar"><i style="width:50%;background:transparent"></i><i style="width:28%;background:var(--green);margin-left:auto"></i></span></span><span class="rank-val" style="color:var(--green)">+3</span></div>
+                <div class="rank-row"><span class="rank-no">2</span><span class="rank-nm"><span class="nm">西田各庄镇</span><span class="rank-bar"><i style="width:50%;background:transparent"></i><i style="width:20%;background:var(--green);margin-left:auto"></i></span></span><span class="rank-val" style="color:var(--green)">+2</span></div>
+                <div class="rank-row"><span class="rank-no">3</span><span class="rank-nm"><span class="nm">巨各庄镇</span><span class="rank-bar"><i style="width:50%;background:transparent"></i><i style="width:20%;background:var(--green);margin-left:auto"></i></span></span><span class="rank-val" style="color:var(--green)">+2</span></div>
+                <div class="rank-row"><span class="rank-no">4</span><span class="rank-nm"><span class="nm">檀营地区</span><span class="rank-bar"><i style="width:50%;background:transparent"></i><i style="width:10%;background:var(--red)"></i></span></span><span class="rank-val" style="color:var(--red)">−1</span></div>
+                <div class="rank-row"><span class="rank-no">5</span><span class="rank-nm"><span class="nm">鼓楼街道</span><span class="rank-bar"><i style="width:50%;background:transparent"></i><i style="width:20%;background:var(--red)"></i></span></span><span class="rank-val" style="color:var(--red)">−2</span></div>
+                <div class="rank-row"><span class="rank-no">6</span><span class="rank-nm"><span class="nm">十里堡镇</span><span class="rank-bar"><i style="width:50%;background:transparent"></i><i style="width:20%;background:var(--red)"></i></span></span><span class="rank-val" style="color:var(--red)">−2</span></div>
+                <div class="divider" style="margin:7px 0 6px"></div>
+                <div class="tiny dim">城区两街道互为主要流向；鼓楼净流出主要转向果园（5）与西田各庄（2），密云镇进出持平</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd"><div class="card-title">迁移类型与去向 <span class="sub">18 人</span></div></div>
+              <div class="card-bd" style="padding:9px 16px 10px">
+                <div id="migCat"><div class="cat-row"><span class="nm">城区内部流动</span><span class="bar"><i style="width:100%"></i></span><span class="vl">12</span></div>
+                <div class="cat-row"><span class="nm">城区 → 乡镇</span><span class="bar"><i style="width:17%"></i></span><span class="vl">2</span></div>
+                <div class="cat-row"><span class="nm">乡镇 → 城区</span><span class="bar"><i style="width:17%"></i></span><span class="vl">2</span></div>
+                <div class="cat-row"><span class="nm">乡镇之间</span><span class="bar"><i style="width:17%"></i></span><span class="vl">2</span></div></div>
+                <div class="divider" style="margin:8px 0 6px"></div>
+                <div class="row" style="font-size:11.5px;color:var(--t2)"><span>迁移后属地移交完成率</span><span class="spacer"></span><b style="color:var(--green)">94.4%</b></div>
+                <div class="row mt6" style="font-size:11.5px;color:var(--t2)"><span>移交超 3 日未确认</span><span class="spacer"></span><b style="color:var(--red)">1 人次</b></div>
+                <div class="foot-note" style="padding-top:6px">迁移须由迁出地发起、迁入地确认，未确认前仍由迁出地负责</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid g3">
+          <div class="card pad" style="padding:12px 14px">
+            <div class="sect-title">城区吸聚指数</div>
+            <div class="row" style="gap:10px;align-items:flex-end"><b style="font-size:22px;letter-spacing:-.6px">1.42</b><span class="tiny dim" style="padding-bottom:3px">＞1 表示净吸聚</span></div>
+            <div class="bar mt6" style="height:5px"><i style="width:67%;background:var(--blue)"></i></div>
+            <div class="tiny dim" style="margin-top:5px">城区片承接迁移 12 人次（占 66.7%），高于其人口占比 47%，指数 1.42；主要受保障房交付与户政迁移影响</div>
+          </div>
+          <div class="card pad" style="padding:12px 14px">
+            <div class="sect-title">跨镇街流动强度</div>
+            <div class="row" style="gap:10px;align-items:flex-end"><b style="font-size:22px;letter-spacing:-.6px">18</b><span class="tiny dim" style="padding-bottom:3px">人 / 30 天</span></div>
+            <div class="bar mt6" style="height:5px"><i style="width:34%;background:var(--orange)"></i></div>
+            <div class="tiny dim" style="margin-top:5px">占在册总数 0.30%，低于去年同期 0.41%</div>
+          </div>
+          <div class="card pad" style="padding:12px 14px">
+            <div class="sect-title">流动可解释度</div>
+            <div class="row" style="gap:10px;align-items:flex-end"><b style="font-size:22px;letter-spacing:-.6px">100%</b><span class="tiny dim" style="padding-bottom:3px">附材料比例</span></div>
+            <div class="bar mt6" style="height:5px"><i style="width:100%;background:var(--green)"></i></div>
+            <div class="tiny dim" style="margin-top:5px">18 人均附迁出证明或属地确认单，可在审计日志追溯</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 风险变化 ===== -->
+            <div data-panel="risk" style="display:none">
+        <div class="grid g5 mb10">
+          <div class="card kpi k-red"><div class="kpi-label">上调</div><div class="kpi-val">19<span class="unit">人</span></div><div class="kpi-meta">本月 · 全部经审批</div></div>
+          <div class="card kpi k-green"><div class="kpi-label">下调</div><div class="kpi-val">27<span class="unit">人</span></div><div class="kpi-meta">本月 · 附评估材料</div></div>
+          <div class="card kpi"><div class="kpi-label">净风险变化</div><div class="kpi-val">−8<span class="unit">人</span></div><div class="kpi-meta">高风险净减少</div></div>
+          <div class="card kpi k-amber"><div class="kpi-label">待核实转入</div><div class="kpi-val">43<span class="unit">人</span></div><div class="kpi-meta">新增入库未定级</div></div>
+          <div class="card kpi k-slate"><div class="kpi-label">审批平均时长</div><div class="kpi-val">1.8<span class="unit">天</span></div><div class="kpi-meta">时限 3—7 天</div></div>
+        </div>
+
+        <div class="split-64 mb10">
+          <div class="card">
+            <div class="card-hd">
+              <div class="card-title">近 12 个月等级升降 <span class="sub">按审批通过时间</span></div>
+              <div class="right"><div class="trend-legend"><span><i class="sq" style="background:#d92d20"></i>上调</span><span><i class="sq" style="background:#1f8a53"></i>下调</span></div></div>
+            </div>
+            <div class="card-bd" style="padding:10px 14px 6px">
+              <svg id="lvlChart" viewBox="0 0 600 132" width="100%" height="132" preserveAspectRatio="none" style="display:block"></svg>
+            </div>
+            <div class="card-ft" style="padding:7px 16px"><span>本月上调 19、下调 27，为近 12 个月净下调最多月份 · 下调主要来自评估结论更新（18 人）</span></div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><div class="card-title">风险序迁移 <span class="sub">上月 → 本月</span></div>
+              <div class="right"><a class="btn btn-sm btn-ghost" href="risk.html">审批台账 ›</a></div>
+            </div>
+            <div class="card-bd" style="padding:10px 16px 10px">
+              <div id="riskMig"></div>
+              <div class="foot-note" style="padding-top:4px">条内分段：转入高 / 中 / 低风险与待核实；悬浮分段可看人数 · 待核实新增 43 人多为新入库未评估</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split-64 mb10">
+          <div class="card">
+            <div class="card-hd"><div class="card-title">高风险新增来源 <span class="sub">本月 19 人上调构成 · 全部附评估或审批材料</span></div></div>
+            <div class="card-bd cat-wide" style="padding:10px 16px 12px">
+              <div id="hiSrcCat"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><div class="card-title">风险变化告警 <span class="sub">需关注</span></div>
+              <div class="right"><span class="tag tag-red">3 条</span></div>
+            </div>
+            <div class="card-bd" style="padding:9px 16px 10px">
+              <div id="riskAlertList"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split-46">
+          <div class="card c-lvlchg">
+            <div class="card-hd"><div class="card-title">等级调整明细 <span class="sub">与审批台账「待我审批」同源 · 待审批优先</span></div>
+              <div class="right"><a class="btn btn-sm btn-ghost" href="risk.html">审批台账 ›</a></div>
+            </div>
+            <div class="card-bd flush">
+              <table class="tb compact mini-tb">
+                <thead><tr><th>人员 / 属地</th><th>申请部门 · 时间</th><th class="c">等级变化</th><th>调整依据</th><th class="c">状态</th></tr></thead>
+                <tbody id="lvlChgBody"></tbody>
+              </table>
+            </div>
+            <div class="card-ft" style="padding:7px 16px"><span>上调须经政法委主管审批、下调须附评估材料；审批中不计入统计，未通过自动回退并留痕</span></div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><div class="card-title">调整后 30 日跟踪 <span class="sub">生效即纳入走访核查</span></div>
+              <div class="right"><span class="tag tag-line">自动</span></div>
+            </div>
+            <div class="card-bd" style="padding:10px 16px 12px">
+              <div class="grid g3" style="gap:8px">
+                <div class="mini-stat"><div class="v">89.5<span style="font-size:10px;color:var(--t3)">%</span></div><div class="l">上调后首访完成</div></div>
+                <div class="mini-stat"><div class="v">92.6<span style="font-size:10px;color:var(--t3)">%</span></div><div class="l">下调后频次调整</div></div>
+                <div class="mini-stat"><div class="v">0</div><div class="l">未审批先变更</div></div>
+              </div>
+              <div id="trackList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 重点盯控 ===== -->
+      <div data-panel="watch" style="display:none">
+        <div class="grid g5 mb10" id="watchKpis"></div>
+
+        <div class="split-73 mb10">
+          <div class="card">
+            <div class="card-hd">
+              <div class="card-title">20 镇街见面进度 <span class="sub">应见 / 已见 / 见面率</span></div>
+              <div class="right"><a class="btn btn-sm btn-ghost" href="wartime.html">回填台账 ›</a></div>
+            </div>
+            <div class="card-bd flush">
+              <div class="table-wrap">
+                <table class="tb compact mini-tb">
+                  <thead><tr><th style="width:96px">镇街</th><th class="r" style="width:56px">应见</th><th class="r" style="width:56px">已见</th><th style="width:140px">进度</th><th class="r" style="width:58px">见面率</th><th class="r" style="width:58px">未报</th><th style="width:74px">零报告</th></tr></thead>
+                  <tbody id="watchTownBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card-ft" style="padding:7px 16px"><span id="watchFoot">全区应见 412 / 已见 368 / 未报 44 · 见面率 89.3%</span></div>
+          </div>
+
+          <div class="stack">
+            <div class="card">
+              <div class="card-hd"><div class="card-title">今日零报告 <span class="sub" id="zgSub">已提交 14 / 20</span></div>
+                <div class="right"><span class="tag tag-red" id="zgTag">6 镇街未报</span></div>
+              </div>
+              <div class="card-bd" style="padding:9px 12px 10px">
+                <div class="zg" id="zgGrid"></div>
+                <div class="foot-note" style="padding-top:6px">零报告为「无异常也须报」，未提交将触发 RG-06 并计入月度通报</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-hd"><div class="card-title">最久未见面 <span class="sub">应见未见 · 前 5</span></div>
+                <div class="right"><a class="btn btn-sm btn-ghost" href="wartime.html">清单 ›</a></div>
+              </div>
+              <div class="card-bd" style="padding:8px 16px 10px">
+                <div id="longestList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 报送质量 ===== -->
+      <div data-panel="quality" style="display:none">
+        <div class="grid g5 mb10">
+          <div class="card kpi k-green"><div class="kpi-label">本期及时率</div><div class="kpi-val">93.8<span class="unit">%</span></div><div class="kpi-meta">较上期 +1.2pp</div></div>
+          <div class="card kpi"><div class="kpi-label">完整率</div><div class="kpi-val">95.8<span class="unit">%</span></div><div class="kpi-meta">必填缺失 5 项</div></div>
+          <div class="card kpi k-amber"><div class="kpi-label">查重并档</div><div class="kpi-val">26<span class="unit">人</span></div><div class="kpi-meta">查重率 1.2%</div></div>
+          <div class="card kpi k-red"><div class="kpi-label">拦截记录</div><div class="kpi-val">1<span class="unit">条</span></div><div class="kpi-meta">身份证校验位错误</div></div>
+          <div class="card kpi k-slate"><div class="kpi-label">数据时效</div><div class="kpi-val"><span style="font-size:19px">次日</span></div><div class="kpi-meta">06:00 完成同步</div></div>
+        </div>
+
+        <div class="split-64 mb10">
+          <div class="card">
+            <div class="card-hd"><div class="card-title">四部门报送质量 <span class="sub">本期批次 · 11-10</span></div>
+              <div class="right"><a class="btn btn-sm btn-ghost" href="import.html">导入批次 ›</a></div>
+            </div>
+            <div class="card-bd" style="padding:10px 16px 10px">
+              <div style="display:grid;grid-template-columns:78px 1fr 1fr 1fr 62px;gap:8px;font-size:10.5px;color:var(--t3);padding-bottom:5px;border-bottom:1px solid var(--line)">
+                <span>部门</span><span>及时率</span><span>完整率</span><span>字段合规</span><span class="r" style="text-align:right">条数</span>
+              </div>
+              <div style="display:grid;grid-template-columns:78px 1fr 1fr 1fr 62px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:11.5px">
+                <span style="font-weight:600">公安分局</span>
+                <div><div class="bar thin"><i style="width:99%"></i></div><span class="tiny dim">99%</span></div>
+                <div><div class="bar thin"><i style="width:98%"></i></div><span class="tiny dim">98%</span></div>
+                <div><div class="bar thin"><i style="width:99%"></i></div><span class="tiny dim">99%</span></div>
+                <span style="text-align:right" class="tiny dim">2,914</span>
+              </div>
+              <div style="display:grid;grid-template-columns:78px 1fr 1fr 1fr 62px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:11.5px">
+                <span style="font-weight:600">区卫健委</span>
+                <div><div class="bar thin"><i style="width:92%;background:var(--orange)"></i></div><span class="tiny dim">92%</span></div>
+                <div><div class="bar thin"><i style="width:95%"></i></div><span class="tiny dim">95%</span></div>
+                <div><div class="bar thin"><i style="width:93%"></i></div><span class="tiny dim">93%</span></div>
+                <span style="text-align:right" class="tiny dim">1,204</span>
+              </div>
+              <div style="display:grid;grid-template-columns:78px 1fr 1fr 1fr 62px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:11.5px">
+                <span style="font-weight:600">区信访办</span>
+                <div><div class="bar thin"><i style="width:96%"></i></div><span class="tiny dim">96%</span></div>
+                <div><div class="bar thin"><i style="width:97%"></i></div><span class="tiny dim">97%</span></div>
+                <div><div class="bar thin"><i style="width:97%"></i></div><span class="tiny dim">97%</span></div>
+                <span style="text-align:right" class="tiny dim">1,568</span>
+              </div>
+              <div style="display:grid;grid-template-columns:78px 1fr 1fr 1fr 62px;gap:8px;align-items:center;padding:8px 0;border-bottom:0;font-size:11.5px">
+                <span style="font-weight:600">区司法局</span>
+                <div><div class="bar thin"><i style="width:88%;background:var(--red)"></i></div><span class="tiny dim">88%</span></div>
+                <div><div class="bar thin"><i style="width:93%"></i></div><span class="tiny dim">93%</span></div>
+                <div><div class="bar thin"><i style="width:91%"></i></div><span class="tiny dim">91%</span></div>
+                <span style="text-align:right" class="tiny dim">1,426</span>
+              </div>
+              <div class="divider" style="margin:9px 0 7px"></div>
+              <div class="row" style="font-size:11.5px;color:var(--t2)">
+                <span>连续两期低于 90% 的部门</span><span class="spacer"></span><b style="color:var(--red)">区司法局（本期 88%）</b>
+              </div>
+              <div class="foot-note" style="padding-top:5px">已生成督办单 1 份，按《数据报送管理办法》第 9 条办理</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><div class="card-title">字段缺失 TOP <span class="sub">本期必填缺失 5 项</span></div></div>
+            <div class="card-bd" style="padding:10px 16px 12px">
+              <div class="cat-row"><span class="nm">现住址（门牌）</span><span class="bar"><i style="width:100%;background:var(--orange)"></i></span><span class="vl">3</span></div>
+              <div class="cat-row"><span class="nm">联系电话</span><span class="bar"><i style="width:67%;background:var(--orange)"></i></span><span class="vl">2</span></div>
+              <div class="cat-row"><span class="nm">监护人信息</span><span class="bar"><i style="width:33%;background:var(--slate)"></i></span><span class="vl">1</span></div>
+              <div class="cat-row"><span class="nm">评估结论日期</span><span class="bar"><i style="width:33%;background:var(--slate)"></i></span><span class="vl">1</span></div>
+              <div class="cat-row"><span class="nm">列入原因</span><span class="bar"><i style="width:33%;background:var(--slate)"></i></span><span class="vl">1</span></div>
+              <div class="divider" style="margin:8px 0 7px"></div>
+              <div class="sect-title">本期导入批次</div>
+              <div class="li" style="padding:5px 0"><span class="mono tiny">B-20261110-01</span><span class="tiny">公安分局</span><span class="spacer"></span><span class="tag tag-green">成功</span></div>
+              <div class="li" style="padding:5px 0"><span class="mono tiny">B-20261110-02</span><span class="tiny">区卫健委</span><span class="spacer"></span><span class="tag tag-green">成功</span></div>
+              <div class="li" style="padding:5px 0"><span class="mono tiny">B-20261110-03</span><span class="tiny">区信访办</span><span class="spacer"></span><span class="tag tag-amber">部分拦截</span></div>
+              <div class="li" style="padding:5px 0"><span class="mono tiny">B-20261110-04</span><span class="tiny">区司法局</span><span class="spacer"></span><span class="tag tag-green">成功</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split-46">
+          <div class="card">
+            <div class="card-hd"><div class="card-title">报送及时率趋势 <span class="sub">近 8 期</span></div>
+              <div class="right"><span class="tag tag-line">目标 ≥ 95%</span></div>
+            </div>
+            <div class="card-bd" style="padding:10px 16px 10px">
+              <svg viewBox="0 0 420 140" width="100%" height="140" style="display:block">
+                <g stroke="#eef0f3"><line x1="28" y1="20" x2="404" y2="20"/><line x1="28" y1="58" x2="404" y2="58"/><line x1="28" y1="96" x2="404" y2="96"/></g>
+                <g fill="#aeb4bc" font-size="8.5"><text x="4" y="23">100%</text><text x="4" y="61">95%</text><text x="4" y="99">90%</text></g>
+                <line x1="28" y1="58" x2="404" y2="58" stroke="#1f8a53" stroke-dasharray="4 3" stroke-width="1"/>
+                <polyline points="40,84 90,76 140,70 190,66 240,62 290,70 340,64 390,54"
+                  fill="none" stroke="#0071e3" stroke-width="2" stroke-linejoin="round"/>
+                <g fill="#0071e3"><circle cx="390" cy="54" r="3.2" fill="#fff" stroke="#0071e3" stroke-width="2"/></g>
+                <g fill="#aeb4bc" font-size="8.5">
+                  <text x="40" y="128" text-anchor="middle">9-15</text><text x="140" y="128" text-anchor="middle">9-29</text>
+                  <text x="240" y="128" text-anchor="middle">10-13</text><text x="340" y="128" text-anchor="middle">10-27</text>
+                  <text x="390" y="128" text-anchor="middle" fill="#0071e3" font-weight="600">11-10</text>
+                </g>
+              </svg>
+              <div class="foot-note" style="padding-top:4px">近 8 期均值 94.1%，11-10 期 93.8%（受司法局迟报影响）</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><div class="card-title">数据质量规则 <span class="sub">自动校验 · 每日 12:00</span></div>
+              <div class="right"><a class="btn btn-sm btn-ghost" href="system.html?tab=config">规则参数 ›</a></div>
+            </div>
+            <div class="card-bd flush">
+              <table class="tb compact mini-tb">
+                <thead><tr><th style="width:60px">规则</th><th>校验内容</th><th style="width:64px">本期命中</th><th style="width:56px">状态</th></tr></thead>
+                <tbody id="dqBody"></tbody>
+              </table>
+            </div>
+            <div class="card-ft" style="padding:7px 16px"><span>校验不通过记录进入待修正队列，未修正不影响存量数据，但不能参与统计</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 自定义看板 ===== -->
+      <div data-panel="custom" style="display:none">
+        <div class="split-37 mb10" id="组件库">
+          <div class="stack">
+          <div class="card c-lib">
+            <div class="card-hd"><div class="card-title">组件库 <span class="sub">18 类 · 点击添加</span></div></div>
+            <div class="card-bd" style="padding:10px 14px 12px">
+              <div class="sect-title">指标卡</div>
+              <div class="row wrap" style="gap:6px">
+                <span class="chip-select">在册总数</span><span class="chip-select">高风险人数</span><span class="chip-select">双在册</span>
+                <span class="chip-select">多标人数</span><span class="chip-select">待核实</span><span class="chip-select">本月净增</span>
+              </div>
+              <div class="sect-title mt12">图表</div>
+              <div class="row wrap" style="gap:6px">
+                <span class="chip-select">镇街热力地图</span><span class="chip-select">镇街排名</span><span class="chip-select">风险结构环形</span>
+                <span class="chip-select">趋势折线</span><span class="chip-select">升降柱状</span><span class="chip-select">热力日历</span>
+                <span class="chip-select">迁移矩阵</span><span class="chip-select">流向图</span>
+              </div>
+              <div class="sect-title mt12">清单</div>
+              <div class="row wrap" style="gap:6px">
+                <span class="chip-select">待办清单</span><span class="chip-select">超期未走访</span><span class="chip-select">应见未见</span><span class="chip-select">报送批次</span>
+              </div>
+              <div class="divider" style="margin:11px 0 9px"></div>
+              <div class="tiny dim" style="line-height:1.6">从组件库挑选卡片拖入画布，设定数据范围后保存为个人看板，可一键订阅推送。<br>组件数据范围受角色权限约束：区领导仅见汇总，部门经办仅见本部门，属地经办仅见本辖区；越权组件添加时置灰。</div>
+            </div>
+          </div>
+
+          <div class="card c-tpl">
+            <div class="card-hd"><div class="card-title">模板库 <span class="sub">3 个 · 一键套用</span></div></div>
+            <div class="card-bd" style="padding:8px 14px 10px">
+              <div class="li" style="padding:7px 0"><div style="min-width:0"><div style="font-size:12px;font-weight:600">日常盯控模板</div><div class="tiny dim">6 个组件 · 区级汇总 · 适用每日班前会</div></div><span class="spacer"></span><button class="btn btn-sm">套用</button></div>
+              <div class="li" style="padding:7px 0"><div style="min-width:0"><div style="font-size:12px;font-weight:600">重点时期日报模板</div><div class="tiny dim">8 个组件 · 含见面进度与零报告 · 适用专班调度</div></div><span class="spacer"></span><button class="btn btn-sm">套用</button></div>
+              <div class="li" style="padding:7px 0"><div style="min-width:0"><div style="font-size:12px;font-weight:600">领导简报模板</div><div class="tiny dim">4 个组件 · 仅汇总口径 · 无个人明细</div></div><span class="spacer"></span><button class="btn btn-sm">套用</button></div>
+              <div class="foot-note" style="padding-top:6px">模板由区级管理员维护；套用后仅覆盖画布布局，数据范围仍按使用人角色重新计算</div>
+            </div>
+          </div>
+          </div>
+
+          <div class="card c-canvas">
+            <div class="card-hd"><div class="card-title">我的看板 · 周一调度 <span class="sub">草稿 · 未保存</span></div>
+              <div class="right"><button class="btn btn-sm">清空</button><button class="btn btn-sm btn-primary">保存看板</button></div>
+            </div>
+            <div class="card-bd" style="padding:10px;background:var(--surface-2)">
+              <div class="grid g4" style="gap:8px">
+                <div class="card pad" style="padding:6px 10px"><div class="tiny dim">在册总数</div><div style="font-size:20px;font-weight:650;letter-spacing:-.6px" data-metric="inRegister">6,028</div></div>
+                <div class="card pad" style="padding:10px 12px"><div class="tiny dim">高风险</div><div style="font-size:20px;font-weight:650;letter-spacing:-.6px;color:var(--red)" data-metric="highPlus">486</div></div>
+                <div class="card pad" style="padding:10px 12px"><div class="tiny dim">双在册</div><div style="font-size:20px;font-weight:650;letter-spacing:-.6px;color:var(--orange)">127</div></div>
+                <div class="card pad" style="padding:10px 12px"><div class="tiny dim">本月净增</div><div style="font-size:20px;font-weight:650;letter-spacing:-.6px;color:var(--green)">+31</div></div>
+              </div>
+              <div class="card mt10" style="padding:8px 11px;margin-top:8px">
+                <div class="row" style="margin-bottom:6px"><span class="tiny dim">镇街排名（前 4）</span><span class="spacer"></span><span class="legend" style="gap:8px"><span><i style="background:#d92d20"></i>高风险</span><span><i style="background:#e8830c"></i>中风险</span></span></div>
+                <div class="rank-row" style="padding:3px 0"><span class="rank-no">1</span><span class="rank-nm"><span class="nm">鼓楼街道</span><span class="rank-bar"><i style="width:71%;background:#d92d20"></i><i style="width:26%;background:#e8830c"></i></span></span><span class="rank-val">812</span></div>
+                <div class="rank-row" style="padding:3px 0"><span class="rank-no">2</span><span class="rank-nm"><span class="nm">果园街道</span><span class="rank-bar"><i style="width:66%;background:#d92d20"></i><i style="width:29%;background:#e8830c"></i></span></span><span class="rank-val">756</span></div>
+                <div class="rank-row" style="padding:3px 0"><span class="rank-no">3</span><span class="rank-nm"><span class="nm">檀营地区</span><span class="rank-bar"><i style="width:57%;background:#d92d20"></i><i style="width:36%;background:#e8830c"></i></span></span><span class="rank-val">402</span></div>
+                <div class="rank-row" style="padding:3px 0"><span class="rank-no">4</span><span class="rank-nm"><span class="nm">密云镇</span><span class="rank-bar"><i style="width:52%;background:#d92d20"></i><i style="width:38%;background:#e8830c"></i></span></span><span class="rank-val">388</span></div>
+              </div>
+              <div class="row mt8" style="gap:8px;align-items:stretch">
+                <div class="card" style="flex:1 1 56%;padding:10px 12px;min-width:0">
+                  <div class="row" style="margin-bottom:2px"><span class="tiny dim">近 14 日新增 / 高风险</span><span class="spacer"></span><span class="tiny dim">峰值 11-09</span></div>
+                  <svg viewBox="0 0 300 48" width="100%" height="48" style="display:block">
+                    <g fill="#c6ddf5"><rect x="10" y="33.8" width="12" height="7.8" rx="2"/><rect x="30" y="29.9" width="12" height="11.7" rx="2"/><rect x="50" y="32.4" width="12" height="9.1" rx="2"/><rect x="70" y="27.2" width="12" height="14.2" rx="2"/><rect x="90" y="31.1" width="12" height="10.3" rx="2"/><rect x="110" y="26.0" width="12" height="15.6" rx="2"/><rect x="130" y="28.6" width="12" height="13.0" rx="2"/><rect x="150" y="23.3" width="12" height="18.1" rx="2"/><rect x="170" y="27.2" width="12" height="14.2" rx="2"/><rect x="190" y="22.0" width="12" height="19.4" rx="2"/><rect x="210" y="24.7" width="12" height="16.9" rx="2"/><rect x="230" y="19.4" width="12" height="22.0" rx="2"/><rect x="250" y="23.3" width="12" height="18.1" rx="2"/><rect x="270" y="20.8" width="12" height="20.8" rx="2"/></g>
+                    <polyline points="16,40 36,32 56,36 76,28 96,36 116,24 136,28 156,20 176,24 196,16 216,20 236,12 256,16 276,8" fill="none" stroke="#d92d20" stroke-width="1.8" stroke-linejoin="round"/>
+                    <circle cx="276" cy="5.2" r="2.6" fill="#fff" stroke="#d92d20" stroke-width="1.6"/>
+                  </svg>
+                </div>
+                <div class="card" style="flex:1 1 44%;padding:10px 12px;min-width:0">
+                  <div class="tiny dim" style="margin-bottom:3px">待办清单 · 4 项</div>
+                  <div class="li" style="padding:3px 0;font-size:11px"><span class="tag tag-red">超期</span><span style="margin-left:6px">双在册确认 9 条</span></div>
+                  <div class="li" style="padding:3px 0;font-size:11px"><span class="tag tag-orange">待办</span><span style="margin-left:6px">预警待处置 18 条</span></div>
+                  <div class="li" style="padding:3px 0;font-size:11px"><span class="tag tag-blue">审批</span><span style="margin-left:6px">等级调整 5 条</span></div>
+                  <div class="li" style="padding:3px 0;font-size:11px"><span class="tag tag-amber">督办</span><span style="margin-left:6px">未零报告 1 个</span></div>
+                </div>
+              </div>
+                          </div>
+            <div class="card-ft" style="padding:8px 16px"><span>看板可保存为个人模板或科室共享模板 · 订阅推送支持每日 08:30 / 每周一 08:30</span></div>
+          </div>
+        </div>
+
+        <div class="card c-saved">
+          <div class="card-hd"><div class="card-title">已保存看板 <span class="sub">4 个 · 含共享与订阅状态</span></div>
+            <div class="right"><a class="btn btn-sm btn-ghost" href="system.html?tab=account">权限与共享设置 ›</a></div>
+          </div>
+          <div class="card-bd flush">
+            <table class="tb compact mini-tb">
+              <thead><tr><th>看板名称</th><th>负责人</th><th class="c">共享范围</th><th class="c">订阅推送</th><th class="c">组件数</th><th>最近更新</th><th class="c">操作</th></tr></thead>
+              <tbody>
+                <tr><td class="cell-main">周一调度看板</td><td class="dim">陈志远 · 指挥中心</td><td class="c"><span class="tag tag-blue">科室共享</span></td><td class="c"><span class="tag tag-green">每周一 08:30</span></td><td class="c num">6</td><td class="dim num">11-10 09:20</td><td class="c"><a class="tiny" style="color:var(--blue)" href="#">预览</a> <a class="tiny dim" href="#">编辑</a></td></tr>
+                <tr><td class="cell-main">重点时期日报</td><td class="dim">王海峰 · 政法委</td><td class="c"><span class="tag tag-blue">部门共享</span></td><td class="c"><span class="tag tag-green">每日 08:30</span></td><td class="c num">8</td><td class="dim num">11-10 08:05</td><td class="c"><a class="tiny" style="color:var(--blue)" href="#">预览</a> <a class="tiny dim" href="#">编辑</a></td></tr>
+                <tr><td class="cell-main">山区镇街盯控</td><td class="dim">李国栋 · 指挥中心</td><td class="c"><span class="tag tag-slate">仅本人</span></td><td class="c"><span class="tag tag-slate">未订阅</span></td><td class="c num">5</td><td class="dim num">11-08 16:40</td><td class="c"><a class="tiny" style="color:var(--blue)" href="#">预览</a> <a class="tiny dim" href="#">编辑</a></td></tr>
+                <tr><td class="cell-main">领导简报（周）</td><td class="dim">陈志远 · 指挥中心</td><td class="c"><span class="tag tag-purple">区领导可见</span></td><td class="c"><span class="tag tag-green">每周一 08:30</span></td><td class="c num">4</td><td class="dim num">11-07 17:10</td><td class="c"><a class="tiny" style="color:var(--blue)" href="#">预览</a> <a class="tiny dim" href="#">编辑</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-ft" style="padding:7px 16px"><span>共享范围变更须经数据主管部门审批并留痕；「区领导可见」看板自动剔除个人明细字段</span></div>
+        </div>
+      </div>
+
+      <div class="foot-note">
+        口径说明：① 看板数据 5 分钟增量刷新，日终 23:30 定格，历史快照可追溯；② 人员流动按「流入 / 流出 / 区内迁移」三类拆分，区内迁移不计入净增；③ 区域迁徙为属地责任变更，不改变区级管控等级；④ 风险变化以审批通过的等级调整为准，未审批不计；⑤「重点盯控」零报告为无异常也须报，未提交触发 RG-06；⑥ 本页为虚拟演示数据，不含真实公民个人信息。
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/page-board.js"></script>
+<script>
+(function () {
+  var nav = document.getElementById("subnav");
+  var tabs = nav.querySelectorAll("button[data-tab]");
+  var panels = document.querySelectorAll("[data-panel]");
+  function go(key) {
+    tabs.forEach(function (b) { b.classList.toggle("on", b.dataset.tab === key); });
+    panels.forEach(function (p) { p.style.display = p.dataset.panel === key ? "" : "none"; });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  tabs.forEach(function (b) { b.addEventListener("click", function () { go(b.dataset.tab); }); });
+  var q = new URLSearchParams(location.search).get("tab");
+  if (q) go(q);
+
+  /* 迷你 sparkline */
+  function spark(id, n, color) {
+    var box = document.getElementById(id);
+    if (!box) return;
+    var h = "", seed = id.charCodeAt(id.length - 1) * 7 + 3;
+    for (var i = 0; i < n; i++) {
+      seed = (seed * 9301 + 49297) % 233280;
+      var v = 22 + (seed / 233280) * 78;
+      h += '<i style="height:' + v.toFixed(0) + '%;background:' + color + '"></i>';
+    }
+    box.innerHTML = h;
+  }
+  spark("spark1", 14, "#c6ddf5");
+  spark("spark2", 14, "#c6ddf5");
+  spark("spark3", 14, "#f7c9c4");
+  spark("spark4", 14, "#bfe3cd");
+  spark("spark5", 14, "#c6ddf5");
+
+  /* 分时热力 */
+  var heat = document.getElementById("rtHeat");
+  if (heat) {
+    var prof = [6, 14, 17, 13, 4, 5, 13, 15, 11, 7, 4, 2];
+    var colsLabels = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+    var html = '<div class="wk"></div>' + colsLabels.map(function (c) { return '<div class="wd">' + c + "</div>"; }).join("");
+    var seed2 = 17;
+    prof.forEach(function (base, ri) {
+      html += '<div class="wk">' + (8 + ri < 10 ? "0" : "") + (8 + ri) + "</div>";
+      for (var i = 0; i < 12; i++) {
+        seed2 = (seed2 * 9301 + 49297) % 233280;
+        var v = base + Math.round(seed2 / 233280 * 7) - 3;
+        if (v < 0) v = 0;
+        var b = v >= 17 ? 4 : v >= 13 ? 3 : v >= 9 ? 2 : v >= 5 ? 1 : 0;
+        html += '<div class="cl" style="background:' + ["#e9f2fc", "#c6ddf5", "#92bce5", "#4d8fd2", "#1e6cbf"][b] + ";color:" + (b >= 3 ? "#fff" : "#123c66") + '">' + v + "</div>";
+      }
+    });
+    heat.innerHTML = html;
+  }
+})();
+</script>
+<script>
+/* ---------- 已保存看板：预览 / 编辑 / 订阅推送 / 导出 ---------- */
+(function(){
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const savedTb = document.querySelector('.c-saved tbody');
+  const SHARE = ['仅本人', '科室共享', '部门共享', '区领导可见'];
+  const PUSH = ['未订阅', '每日 08:30', '每周一 08:30'];
+
+  function shareTag(t) {
+    const cls = t === '区领导可见' ? 'tag-purple' : t === '仅本人' ? 'tag-slate' : 'tag-blue';
+    return '<span class="tag ' + cls + '">' + esc(t) + '</span>';
+  }
+  function pushTag(t) {
+    const cls = t === '未订阅' ? 'tag-slate' : 'tag-green';
+    return '<span class="tag ' + cls + '">' + esc(t) + '</span>';
+  }
+
+  if (savedTb) savedTb.addEventListener('click', e => {
+    const a = e.target.closest('a');
+    if (!a) return;
+    e.preventDefault();
+    const tr = a.closest('tr');
+    const name = tr.querySelector('.cell-main').textContent;
+    const owner = tr.children[1].textContent;
+    const widgets = tr.children[4].textContent;
+
+    if (a.textContent.trim() === '预览') {
+      UI.modal({
+        title: '看板预览 · ' + name,
+        sub: owner + ' · 共 ' + widgets + ' 个组件 · 只读预览，不泄露个人明细',
+        width: 520,
+        okText: null,
+        cancelText: '关闭',
+        body: (() => {
+          const n = parseInt(widgets, 10) || 4;
+          const comps = ['镇街在册总数（KPI）', '高风险占比趋势（折线）', '未走访 TOP 10（表格）', '双在册未确认清单（表格）', '重点时期见面进度（进度条）', '预警命中分布（条形）', '流动热力图（日历）', '等级调整台账（明细）'];
+          return '<div class="tiny dim" style="margin-bottom:8px">组件清单（按保存时顺序）：</div><div class="table-wrap" style="border:1px solid var(--line);border-radius:9px;max-height:230px;overflow:auto"><table class="tb compact"><tbody>' +
+            comps.slice(0, n).map((c, i) => '<tr><td class="dim num" style="width:30px">' + (i + 1) + '</td><td>' + esc(c) + '</td><td class="c tiny dim" style="width:70px">已配置</td></tr>').join('') +
+            '</tbody></table></div><div class="tiny dim" style="margin-top:9px">演示环境仅展示组件构成；正式环境中此处渲染完整看板画布。</div>';
+        })()
+      });
+    } else {
+      if (!window.guard('config', '编辑看板配置')) return;
+      const cur = tr.children[2].textContent.trim();
+      const curPush = tr.children[3].textContent.trim();
+      UI.modal({
+        title: '编辑看板 · ' + name,
+        sub: '共享范围变更须经数据主管部门审批并留痕',
+        width: 460,
+        okText: '保存变更',
+        body: `
+          <div class="field mb8"><label>看板名称</label><input id="ebName" value="${esc(name)}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit;outline:none"></div>
+          <div class="field mb8"><label>共享范围</label><div class="select" id="ebShare" style="height:32px">${esc(cur)}</div></div>
+          <div class="field"><label>订阅推送</label><div class="select" id="ebPush" style="height:32px">${esc(curPush)}</div></div>
+          <div class="tiny dim" style="margin-top:9px">修改后即时生效，并记入审计日志；「区领导可见」将自动剔除个人明细字段。</div>`,
+        onMount: dlg => {
+          UI.select(dlg.querySelector('#ebShare'), { items: SHARE.map(v => ({ v, t: v })) });
+          UI.select(dlg.querySelector('#ebPush'), { items: PUSH.map(v => ({ v, t: v })) });
+        },
+        onOk: dlg => {
+          const nm = dlg.querySelector('#ebName').value.trim();
+          if (nm.length < 2) { UI.toast.err('看板名称至少 2 字'); return false; }
+          const share = dlg.querySelector('#ebShare').textContent;
+          const push = dlg.querySelector('#ebPush').textContent;
+          tr.children[0].textContent = nm;
+          tr.children[2].innerHTML = shareTag(share);
+          tr.children[3].innerHTML = pushTag(push);
+          STORE.audit('编辑看板配置', name + ' → ' + nm + ' · 共享 ' + share + ' · ' + push, '数据看板');
+          UI.toast.ok('看板「' + nm + '」已保存' + (share !== cur || push !== curPush ? '，共享/订阅变更待审批生效' : ''));
+        }
+      });
+    }
+  });
+
+  /* 页头：订阅推送 / 导出看板 */
+  const btnSub = document.querySelector('.page-actions .btn:not(.btn-primary)');
+  if (btnSub) btnSub.onclick = () => {
+    if (!window.guard('exportPlain', '配置订阅推送')) return;
+    UI.modal({
+      title: '订阅推送设置',
+      sub: '将看板摘要定时推送至指定对象（站内 + 短信）',
+      width: 470,
+      okText: '保存订阅',
+      body: `
+        <div class="field mb8"><label>推送频率</label><div class="select" id="sbFreq" style="height:32px">每日 08:30</div></div>
+        <div class="field mb8"><label>推送对象</label><div class="select" id="sbTo" style="height:32px">区委政法委 · 陈志远（副书记）</div></div>
+        <div class="field"><label>摘要内容</label>
+          <label class="tiny" style="display:flex;align-items:center;gap:6px;margin-top:4px"><input type="checkbox" checked style="accent-color:var(--blue)"> 关键指标卡（在册 / 高风险 / 未走访）</label>
+          <label class="tiny" style="display:flex;align-items:center;gap:6px;margin-top:4px"><input type="checkbox" checked style="accent-color:var(--blue)"> 预警命中 TOP 5</label>
+          <label class="tiny" style="display:flex;align-items:center;gap:6px;margin-top:4px"><input type="checkbox" style="accent-color:var(--blue)"> 重点盯控未提交镇街名单</label>
+        </div>`,
+      onMount: dlg => {
+        UI.select(dlg.querySelector('#sbFreq'), { items: PUSH.slice(1).map(v => ({ v, t: v })) });
+        UI.select(dlg.querySelector('#sbTo'), { items: [{ v: 'leader', t: '区领导 · 全区汇总' }, { v: 'cw', t: '区委政法委 · 陈志远（副书记）' }, { v: 'dept', t: '各委办局经办（按数据范围）' }] });
+      },
+      onOk: () => { STORE.audit('配置订阅推送', '看板摘要定时推送', '数据看板'); UI.toast.ok('订阅已保存，明日 08:30 首次推送'); }
+    });
+  };
+
+  const btnExp = document.querySelector('.page-actions .btn-primary');
+  if (btnExp) btnExp.onclick = () => {
+    if (!window.guard('exportPlain', '导出看板')) return;
+    UI.confirm({
+      title: '导出当前看板',
+      sub: '导出为 PDF 快照（含水印与导出留痕）',
+      body: '<div class="tiny dim">导出内容：当前标签页全部组件的当日快照。导出动作将记入审计日志并通知数据管理员。',
+      okText: '确认导出',
+      onOk: () => { STORE.audit('导出看板', '实时总览 · PDF 快照', '数据看板'); UI.toast.ok('已生成看板快照（演示环境不产出真实文件）'); }
+    });
+  };
+})();
+</script>
+</body>
+</html>

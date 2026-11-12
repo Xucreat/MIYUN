@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>预警待办 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  /* 规则卡一排放置：列数由 page-alerts.js 按实际展示条数写入（不再固定 9 列两排） */
+  .rule-grid { display: grid; grid-template-columns: repeat(8, minmax(0,1fr)); gap: 7px; }
+  .rule-card { border-radius: 10px; border: 1px solid var(--line); background: #fff; padding: 8px 9px; position: relative; overflow: hidden; min-width: 0; }
+  .rule-card .rc-t { font-size: 10.5px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rule-card .rc-t .tiny { display: none; }
+  .rule-card .rc-v { font-size: 18px; font-weight: 650; letter-spacing: -.5px; line-height: 1.2; margin-top: 1px; }
+  .rule-card .rc-d { font-size: 9.5px; color: var(--t4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rule-card.hot { border-color: rgba(217,45,32,.22); background: #fffafa; }
+  .alert-item {
+    padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer;
+    border-left: 2.5px solid transparent; transition: background .13s;
+  }
+  .alert-item:hover { background: #f9fbff; }
+  .alert-item.on { background: var(--blue-soft); border-left-color: var(--blue); }
+  .alert-item:last-child { border-bottom: 0; }
+  .ai-top { display: flex; align-items: center; gap: 7px; }
+  .ai-top b { font-size: 12.5px; }
+  .ai-desc { font-size: 11.5px; color: var(--t2); margin-top: 3px; line-height: 1.5; }
+  .ai-meta { display: flex; gap: 12px; font-size: 10.5px; color: var(--t3); margin-top: 4px; }
+  .lvl { width: 4px; height: 28px; border-radius: 2px; background: var(--line-2); flex: 0 0 4px; }
+  .lvl.high { background: var(--red); }
+  .lvl.mid { background: var(--orange); }
+  .lvl.low { background: var(--slate); }
+  .opt-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .opt {
+    display: inline-flex; align-items: center; gap: 5px; height: 27px; padding: 0 10px;
+    border: 1px solid var(--line-2); border-radius: 7px; font-size: 11.5px; color: var(--t2); background: #fff;
+    white-space: nowrap;
+  }
+  .opt.on { border-color: var(--blue); background: var(--blue-soft); color: var(--blue-ink); font-weight: 600; }
+  .textarea {
+    border: 1px solid var(--line-2); border-radius: 9px; padding: 9px 11px; font-size: 12px;
+    color: var(--t3); min-height: 62px; background: #fff; line-height: 1.6;
+  }
+  .split-64 { align-items: start; }
+
+  /* ===== 一屏填满（body.fit） ===== */
+  body.fit .content > .rule-grid { flex: 0 0 auto; margin-bottom: 0 !important; }
+  body.fit .content > .split-64 { flex: 1 1 0; min-height: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
+  body.fit .content > .split-64 > .card { min-height: 0; }
+  body.fit .alert-list { flex: 1 1 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+  /* 条目固定行高：2 条时不拉伸、18 条时不压缩，始终与图 3 的比例一致 */
+  body.fit .alert-item { padding: 9px 13px; flex: 0 0 auto; display: flex; align-items: center; }
+  body.fit .alert-item > .row { flex: 1 1 auto; }
+  body.fit .stack > .card > .card-bd { display: flex; flex-direction: column; }
+  body.fit .stack .textarea { flex: 1 1 auto; }
+  body.fit .ai-desc { margin-top: 2px; }
+  body.fit .pager { flex: 0 0 auto; padding: 7px 13px; }
+  body.fit .rule-card { padding: 7px 9px 6px; }
+  body.fit .rule-card .rc-v { font-size: 17px; letter-spacing: -.4px; }
+  body.fit .rule-card .rc-d { font-size: 9.5px; }
+  body.fit .content > .split-64 > .stack {
+    display: grid; grid-template-rows: minmax(0,1fr) auto auto; gap: var(--gap); min-height: 0;
+  }
+  body.fit .content > .split-64 > .stack > .card { min-height: 0; }
+  body.fit .foot-note br { display: none; }
+  body.fit .stack .card-hd { padding: 8px 13px 7px; }
+  body.fit .stack .card-bd { padding: 9px 13px; }
+  body.fit .kv { font-size: 11.5px; }
+  body.fit .opt { height: 24px; font-size: 11px; }
+  body.fit .opt-row { gap: 5px; }
+  body.fit .textarea { min-height: 44px; font-size: 11.5px; padding: 7px 9px; }
+  body.fit .mini-stat { padding: 5px 9px; }
+  body.fit .mini-stat .v { font-size: 14px; }
+  body.fit .divider { margin: 8px 0; }
+</style>
+</head>
+<body class="fit" data-page="alerts" data-crumb="风险与预警" data-title="预警待办">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head">
+        <div class="ph-t">
+          <h1>预警待办 <span class="tag tag-red" id="hdrCount">18 待处置</span></h1>
+          <p>七类规则自动扫描（每日 06:00）· 生成待办并指派至责任人 · 处置过程闭环留痕，主动暴露「该管未管」</p>
+        </div>
+        <div class="page-actions">
+          <div class="seg" id="statusSeg"><button class="on" data-v="待处置">待处置 18</button><button data-v="处置中">处置中 0</button><button data-v="已闭环">已闭环 0</button><button data-v="">全部 18</button></div>
+          <button class="btn" id="btnRules">规则配置</button>
+          <button class="btn btn-primary" id="btnAssign">批量指派</button>
+        </div>
+      </div>
+
+      <!-- 规则统计 -->
+      <div class="rule-grid mb10" id="ruleGrid"></div>
+
+      <div class="split-64">
+        <!-- 列表 -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">预警列表 <span class="sub" id="listSub">按紧急度 · 处置时限排序</span></div>
+            <div class="right">
+              <div class="select" id="fTown" style="height:26px;font-size:11.5px;width:96px">全部镇街</div>
+              <div class="select" id="fRule" style="height:26px;font-size:11.5px;width:100px">全部规则</div>
+            </div>
+          </div>
+          <div class="card-bd flush alert-list" id="alertList"></div>
+          <div class="pager" id="alertPager"></div>
+        </div>
+
+        <!-- 详情 / 处置 -->
+        <div class="stack" id="detailPane"></div>
+      </div>
+
+      <div class="foot-note">
+        · 预警规则阈值与开关由政法委主管维护，变更留痕；规则只做提示，不自动调整等级、不自动处置。<br>
+        · 关键词提示（本地规则词典 + 本地模型）仅作为走访记录上的辅助标记，需人工确认，可关闭。
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/page-alerts.js"></script>
+</body>
+</html>

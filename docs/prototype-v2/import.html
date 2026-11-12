@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>数据导入 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .steps { display: flex; align-items: center; gap: 0; padding: 4px 2px 14px; }
+  .step { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+  .step .no {
+    width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 11px; font-weight: 650; background: var(--surface-3); color: var(--t3);
+    border: 1px solid var(--line-2);
+  }
+  .step .tx { font-size: 12px; color: var(--t3); }
+  .step.done .no { background: var(--blue-soft); color: var(--blue); border-color: var(--blue-soft-2); }
+  .step.done .tx { color: var(--t2); }
+  .step.on .no { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 0 0 4px rgba(0,113,227,.12); }
+  .step.on .tx { color: var(--t1); font-weight: 650; }
+  .step-line-x { flex: 1 1 auto; height: 1px; background: var(--line-2); margin: 0 12px; min-width: 18px; }
+  .dropzone {
+    border: 1.5px dashed var(--line-3); border-radius: 12px; background: var(--surface-2);
+    padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone:hover { border-color: var(--blue); background: var(--blue-soft); }
+  .dropzone .dz-ico { width: 38px; height: 38px; border-radius: 11px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; color: var(--blue); box-shadow: var(--sh1); }
+  .dropzone .dz-ico svg { width: 18px; height: 18px; }
+  .file-chip {
+    display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 9px;
+    background: #fff; border: 1px solid var(--line); box-shadow: var(--sh1);
+  }
+  .file-chip .fc-ico { width: 28px; height: 28px; border-radius: 7px; background: var(--green-soft); color: var(--green); display: grid; place-items: center; flex: 0 0 28px; }
+  .stat-tile { border-radius: 10px; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); }
+  .stat-tile .v { font-size: 20px; font-weight: 650; letter-spacing: -.6px; line-height: 1.15; }
+  .stat-tile .l { font-size: 10.5px; color: var(--t3); margin-top: 1px; }
+  .match-row { display: flex; align-items: center; gap: 7px; font-size: 11.5px; }
+  .arrow { color: var(--t4); }
+  .err-line { background: var(--red-soft); }
+  /* 左右两栏等高：右栏撑满左栏高度，批次表在卡内滚动，页面不因批次增多而变长 */
+  .split-64 { align-items: stretch; }
+  .split-64 > .stack { min-height: 0; }
+  .split-64 > .stack > .card { flex: 0 0 auto; }
+  .split-64 > .stack > .card.batch-card { flex: 1 1 auto; min-height: 148px; display: flex; flex-direction: column; }
+  .split-64 > .stack > .card.batch-card > .card-bd { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  .batch-scroll { overflow: auto; }
+  /* 返回修改映射：定位并高亮映射卡，避免「点了没反应」的错觉 */
+  .flash-target { animation: flashCard 1.05s ease-out 2; }
+  @keyframes flashCard {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0,113,227,0); }
+    35% { box-shadow: 0 0 0 3px rgba(0,113,227,.24); }
+  }
+  /* 预检结果内的明细区限高滚动，超长数据不再把页面拉长 */
+  #cardCheck .ui-preview { max-height: 240px; }
+
+  /* ===== 一屏填满（body.fit）· 仅「尚未选择文件」的初始态生效 =====
+     一旦解析出文件、映射与预检卡片展开，page-import.js 会移除 body.fit，
+     页面恢复自然高度并允许整页滚动（卡片高度随内容自由变化）。 */
+  body.fit .content > .split-64 {
+    flex: 1 1 0; min-height: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr);
+  }
+  body.fit .split-64 > .stack { min-height: 0; overflow: hidden; }
+  body.fit .split-64 > .stack > .card {
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  }
+  body.fit .split-64 > .stack > .card > .card-hd,
+  body.fit .split-64 > .stack > .card > .card-ft { flex: 0 0 auto; }
+  /* 卡片正文即内部滚动窗：模块被压缩后内容仍可完整查看 */
+  body.fit .split-64 > .stack > .card > .card-bd { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+  /* 左列：步骤条按内容固定，本次导入卡按内容，映射 / 预检卡吸收剩余高度 */
+  body.fit .stack-left > .card:nth-child(1) { flex: 0 0 auto; }
+  body.fit .stack-left > .card:nth-child(1) > .card-bd { overflow: hidden; }
+  body.fit .stack-left > .card:nth-child(2) { flex: 0 1 auto; min-height: 128px; }
+  body.fit .stack-left > .card:nth-child(3),
+  body.fit .stack-left > .card:nth-child(4) { flex: 1 1 0; min-height: 92px; }
+
+  /* 右列：报送进度 / 合并规则 / 性能按内容，导入批次吸收剩余高度并内部滚动 */
+  body.fit .stack-right > .card:nth-child(1) { flex: 0 1 auto; min-height: 0; }
+  body.fit .stack-right > .card.batch-card { flex: 1 1 0; min-height: 116px; }
+  body.fit .stack-right > .card:nth-child(3),
+  body.fit .stack-right > .card:nth-child(4) { flex: 0 1 auto; min-height: 0; }
+
+  /* 压缩态排版：减少内边距与行距，把高度让给内容 */
+  body.fit .steps { padding: 2px 2px 10px; }
+  body.fit .card-hd { padding: 8px 14px 7px; }
+  body.fit .card-bd { padding: 9px 14px; }
+  body.fit .dropzone { padding: 14px; }
+  body.fit .note { font-size: 11px; line-height: 1.65; }
+</style>
+</head>
+<body class="fit" data-page="import" data-crumb="台账管理" data-title="数据导入">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head">
+        <div class="ph-t">
+          <h1>数据导入</h1>
+          <p>四部门 15 类台账模板化接入 · 表块识别 → 列位映射 → 同义转换 → 合并列拆分 → 质量校验 五步归一</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn" id="btnTpl">下载标准模板</button>
+          <button class="btn" id="btnMapCfg">字段映射说明</button>
+          <button class="btn btn-primary" id="btnPick">选择文件导入</button>
+        </div>
+      </div>
+
+      <div class="banner banner-info mb10">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.4"/></svg>
+        <span>查重<b>只按身份证号哈希比对，姓名相同绝不合并</b>；合并只追加标签、不覆盖部门原始判断；源文件与批次全量留档，可回溯到导入人与时刻。</span>
+        <a class="act" href="system.html?tab=audit">导入批次追溯 ›</a>
+      </div>
+
+      <div class="split-64">
+        <!-- 左：导入流程（真实文件解析） -->
+        <div class="stack stack-left">
+          <div class="card">
+            <div class="card-bd" style="padding:14px 16px 6px">
+              <div class="steps" id="steps"></div>
+            </div>
+          </div>
+
+          <div class="card" id="cardFile"></div>
+          <div class="card" id="cardMap"></div>
+          <div class="card" id="cardCheck"></div>
+        </div>
+
+        <!-- 右：批次历史 -->
+        <div class="stack stack-right">
+          <div class="card">
+            <div class="card-hd"><div class="card-title">本月报送进度 <span class="sub">自动生成差异说明</span></div></div>
+            <div class="card-bd" style="padding:11px 14px">
+              <div class="li" style="padding:6px 0"><span class="sm" style="width:74px">区公安分局</span><span class="bar" style="flex:1"><i style="width:100%"></i></span><span class="tag tag-green">已报</span></div>
+              <div class="li" style="padding:6px 0"><span class="sm" style="width:74px">区卫健委</span><span class="bar" style="flex:1"><i style="width:100%"></i></span><span class="tag tag-green">已报</span></div>
+              <div class="li" style="padding:6px 0"><span class="sm" style="width:74px">区信访办</span><span class="bar" style="flex:1"><i style="width:100%"></i></span><span class="tag tag-green">已报</span></div>
+              <div class="li" style="padding:6px 0"><span class="sm" style="width:74px">区司法局</span><span class="bar" style="flex:1"><i style="width:62%;background:var(--amber)"></i></span><span class="tag tag-amber">迟报 3 天</span></div>
+              <div class="divider" style="margin:8px 0"></div>
+              <div class="row" style="font-size:11.5px;color:var(--t2)"><span>本月应报 15 表块</span><span class="spacer"></span><b style="color:var(--t1)">已收 14 / 15</b></div>
+            </div>
+            <div class="card-ft"><span>报送情况将按月推送政法委</span><a class="btn btn-sm btn-ghost" href="#" id="btnUrgent">生成催办单 ›</a></div>
+          </div>
+
+          <div class="card batch-card">
+            <div class="card-hd">
+              <div class="card-title">导入批次 <span class="sub">可回溯源文件</span></div>
+              <div class="right"><span class="tag tag-line" id="batchCnt">近 30 天 5 批</span></div>
+            </div>
+            <div class="card-bd batch-scroll" style="padding:0">
+              <table class="tb compact">
+                <thead><tr><th>批次 / 表块</th><th class="r" style="width:64px">结果</th></tr></thead>
+                <tbody id="batchBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><div class="card-title">合并规则 <span class="sub">提示与拦截</span></div></div>
+            <div class="card-bd" style="padding:11px 14px">
+              <div class="note" style="line-height:1.75">
+                <b style="color:var(--t1)">1. 唯一键：</b>身份证号哈希，姓名相同不合并（同名不同人为常态，错并后果重于漏并）。<br>
+                <b style="color:var(--t1)">2. 同标签重复：</b>按 <span class="mono tiny">(person, category, dept)</span> 唯一约束合并，不追加重复记录。<br>
+                <b style="color:var(--t1)">3. 等级冲突：</b>同人同类别两部门等级不一致时，保留双方原值，管控等级取高。<br>
+                <b style="color:var(--t1)">4. 无身份证号：</b>生成临时编号并标注，不进入去重统计。
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><div class="card-title">导入性能</div></div>
+            <div class="card-bd" style="padding:11px 14px">
+              <div class="row" style="font-size:11.5px"><span class="muted">6,000 行处理</span><span class="spacer"></span><b>约 38 秒</b><span class="tag tag-green" style="margin-left:6px">≤60s</span></div>
+              <div class="bar mt6"><i style="width:63%"></i></div>
+              <div class="row mt10" style="font-size:11.5px"><span class="muted">本次 88 行</span><span class="spacer"></span><b>1.8 秒</b></div>
+              <div class="bar mt6"><i style="width:8%"></i></div>
+              <div class="foot-note" style="padding-top:8px">导入为异步任务，进度实时回显；失败自动回滚，不产生半成品档案。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/page-import.js"></script>
+</body>
+</html>

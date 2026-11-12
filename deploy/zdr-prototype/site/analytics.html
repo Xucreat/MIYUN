@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>统计分析 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .heat td { text-align: center; font-variant-numeric: tabular-nums; }
+  .heat td.nm { text-align: left; }
+  .c1 { background: #fbe9e7; color: #9c1f16; font-weight: 600; }
+  .c2 { background: #fdf1e0; color: #8a5200; font-weight: 600; }
+  .c3 { background: #eef3f8; color: #3e5f80; font-weight: 600; }
+  .c4 { background: #fdf8e8; color: #7a5600; font-weight: 600; }
+  .c0 { background: #fff; color: var(--t3); }
+  .tot { background: var(--surface-2); font-weight: 650; }
+  .bar-pair { display: flex; align-items: flex-end; gap: 8px; height: auto; min-height: 96px; flex: 1 1 auto; }
+  .bar-pair .bp { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .bar-pair .bs { display: flex; align-items: flex-end; gap: 3px; height: 100%; }
+  .bar-pair .bs i { width: 10px; border-radius: 2px 2px 0 0; display: block; }
+  .bar-pair .bl { font-size: 9.5px; color: var(--t3); }
+  /* 可下钻行 / 格 */
+  .heat tbody tr[data-tag] { cursor: pointer; }
+  .heat tbody tr[data-tag]:hover td { background: var(--blue-soft) !important; }
+  #comboBody .rank-row { cursor: pointer; }
+  #comboBody .rank-row:hover .rank-nm .nm { color: var(--blue); }
+  #comboBody .rank-row:hover .rank-no { background: var(--blue); }
+  .bar-pair .bp { cursor: pointer; }
+  /* 卡片内容吃满高度：柱图区自适应、镇街表格撑满，消除卡片底部大片留白 */
+  .chg-bd { display: flex; flex-direction: column; }
+  /* 类别矩阵：行高均分撑满卡片，与左卡等高对齐、不留空白 */
+  .mx-bd { display: flex; flex-direction: column; }
+  .mx-bd table.heat { flex: 1 1 auto; height: 100%; }
+  .chg-bd #chgBars { flex: 1 1 auto; min-height: 96px; }
+</style>
+</head>
+<body data-page="analytics" data-crumb="查询统计" data-title="统计分析">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head">
+        <div class="ph-t">
+          <h1>统计分析</h1>
+          <p>口径依据《07-业务规则与风险分级口径说明》· 可按月生成报送报表</p>
+        </div>
+        <div class="page-actions">
+          <div class="seg"><button>近 30 天</button><button class="on">近 12 月</button><button>累计</button></div>
+          <button class="btn" id="btnExportRpt">导出报表</button>
+          <button class="btn btn-primary" id="btnMonthly">月度报送预览</button>
+        </div>
+      </div>
+
+      <div class="grid g4 mb10">
+        <div class="card kpi">
+          <div class="kpi-label">在册总数</div>
+          <div class="kpi-val">6,028<span class="unit">人</span></div>
+        </div>
+        <div class="card kpi k-red">
+          <div class="kpi-label">高风险及以上</div>
+          <div class="kpi-val">486<span class="unit">人</span></div>
+          <div class="kpi-meta">按管控等级 · 占 8.1%</div>
+        </div>
+        <div class="card kpi k-orange">
+          <div class="kpi-label">重点时期见面率</div>
+          <div class="kpi-val"><span id="kpiRate">89.2</span><span class="unit">%</span></div>
+          <div class="kpi-meta" id="kpiRateMeta">应见 408 · 已见 364</div>
+        </div>
+        <div class="card kpi k-amber">
+          <div class="kpi-label">数据完整率</div>
+          <div class="kpi-val">94.1<span class="unit">%</span></div>
+          <div class="kpi-meta">依据缺失 358 · 未定级 612</div>
+        </div>
+      </div>
+
+      <div class="split-64 mb10">
+        <!-- 镇街对比 -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">镇街对比 <span class="sub">20 个镇街 · 全量</span></div>
+            <div class="right"><button class="btn btn-sm" id="btnSortRisk">按高风险排序</button></div>
+          </div>
+          <div class="table-wrap" style="flex:1 1 auto;min-height:220px;overflow:auto">
+            <table class="tb compact">
+              <thead><tr><th style="width:96px">镇街</th><th class="r" style="width:52px">在册</th><th class="r" style="width:52px">高风险</th><th class="r" style="width:52px">双在册</th><th class="r" style="width:48px">多标</th><th class="r" style="width:56px">见面率</th><th style="width:64px">趋势</th></tr></thead>
+              <tbody id="townBody">
+              </tbody>
+              <tfoot>
+                <tr class="tot"><td>全区合计</td><td class="r num">6,028</td><td class="r num" style="color:var(--red)">486</td><td class="r num">127</td><td class="r num">214</td><td class="r num">89.3%</td><td></td></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- 类别 × 等级矩阵 -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">类别 × 管控等级 <span class="sub" id="matrixSub">人员台账 486 人 · 728 人次</span></div>
+            <div class="right"><span class="tag tag-line">点击任一格看人</span></div>
+          </div>
+          <div class="card-bd mx-bd" style="padding:0">
+            <table class="tb compact heat">
+              <thead><tr><th class="nm">类别</th><th>极高</th><th>高</th><th>中</th><th>低</th><th>待核</th><th>合计</th></tr></thead>
+              <tbody id="matrixBody"></tbody>
+            </table>
+          </div>
+          <div class="card-ft"><span>本表统计口径为「人员台账」（高风险及以上 486 人 / 728 人次），按标签人次计、多标人员在各标签行重复计入；与全站「四部门报送 7,112 人次」不是同一基数，两者不混用。台账只收录高风险及以上，故「中 / 低」列为 0 属口径事实。</span></div>
+        </div>
+      </div>
+
+      <div class="split-64 mb10">
+        <!-- 等级变动趋势 -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">风险等级月度变动 <span class="sub">近 6 个月</span></div>
+            <div class="right">
+              <div class="legend"><span><i style="background:#d92d20"></i>上调</span><span><i style="background:#1f8a53"></i>下调</span></div>
+            </div>
+          </div>
+          <div class="card-bd chg-bd" style="padding:14px 18px 10px">
+            <div class="bar-pair" id="chgBars"></div>
+            <div class="divider" style="margin:12px 0 9px"></div>
+            <div class="grid g3" style="gap:8px">
+              <div class="mini-stat"><div class="v" id="chgUp">19</div><div class="l" id="chgUpMeta">本月上调 · 环比 -2</div></div>
+              <div class="mini-stat"><div class="v" id="chgDown">27</div><div class="l" id="chgDownMeta">本月下调 · 环比 +1</div></div>
+              <div class="mini-stat"><div class="v">1.4<span class="tiny">天</span></div><div class="l">平均审批时长</div></div>
+            </div>
+            <div class="note mt10" id="chgNote">下调多于上调，说明多数人员风险趋于稳定；上调 19 人中 12 人因新增标签或危险性评估升级，7 人因出现扬言、失联等情形。</div>
+          </div>
+        </div>
+
+        <!-- 标签组合 -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">标签组合前十 <span class="sub" id="comboSub">多标人员</span></div>
+            <div class="right"><span class="tag tag-purple" id="comboTag">3 标 28 人</span></div>
+          </div>
+          <div class="card-bd" style="padding:10px 16px 12px">
+            <div id="comboBody"></div>
+            <div class="foot-note" style="padding-top:8px" id="comboFoot"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split-64">
+        <div class="card">
+          <div class="card-hd"><div class="card-title">数据质量 <span class="sub">导入后自动校验</span></div>
+            <div class="right"><span class="tag tag-amber">完整率 94.1%</span></div>
+          </div>
+          <div class="card-bd" style="padding:12px 16px 14px">
+            <div class="grid g5" style="gap:9px">
+              <div class="mini-stat"><div class="v" style="color:var(--amber)">358</div><div class="l">依据缺失 · 5.9%</div></div>
+              <div class="mini-stat"><div class="v" style="color:var(--amber)">612</div><div class="l">未定级 · 10.2%</div></div>
+              <div class="mini-stat"><div class="v">46</div><div class="l">住址缺失</div></div>
+              <div class="mini-stat"><div class="v">3</div><div class="l">身份证异常</div></div>
+              <div class="mini-stat"><div class="v" style="color:var(--green)">121</div><div class="l">已合并记录</div></div>
+            </div>
+            <div class="divider" style="margin:11px 0 9px"></div>
+            <div class="row" style="font-size:11.5px;color:var(--t2)"><span>身份证号唯一性</span><span class="spacer"></span><b style="color:var(--green)">100%（6,028/6,028）</b></div>
+            <div class="bar mt6"><i style="width:100%;background:var(--green)"></i></div>
+            <div class="row mt10" style="font-size:11.5px;color:var(--t2)"><span>主干字段必填完成度</span><span class="spacer"></span><b>96.8%</b></div>
+            <div class="bar mt6"><i style="width:96.8%"></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><div class="card-title">月度报送情况 <span class="sub" id="mReportSub">2026-11</span></div>
+            <div class="right"><button class="btn btn-sm" id="btnDiffReport">生成差异说明</button></div>
+          </div>
+          <div class="card-bd" style="padding:0">
+            <table class="tb compact">
+              <thead><tr><th>部门</th><th class="r">应报表块</th><th class="r">实报</th><th class="r">迟报</th><th class="r">状态</th></tr></thead>
+              <tbody id="mReportBody"></tbody>
+            </table>
+          </div>
+          <div class="card-ft"><span>「谁报了、谁没报、报得全不全」每月自动生成，供政法委督办</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/page-analytics.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# 临时解包目录
+.tmp_extract/
+
+# 临时验证产物（探针脚本、截图、注入页）
+_*.html
+docs/prototype-v2/tools/probe-*.js
+docs/prototype-v2/tools/regress*.js
+docs/prototype-v2/tools/shots/
+docs/prototype-v2/tools/_*.txt
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini

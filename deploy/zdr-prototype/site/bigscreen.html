@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920">
+<title>大屏模式 · 密云区重点风险人员态势</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  html, body { height: 100%; overflow: hidden; background: #eef2f7; }
+  .screen {
+    height: 100vh; display: flex; flex-direction: column; padding: 10px 14px 12px;
+    background:
+      radial-gradient(1200px 500px at 12% -10%, #e2edfa 0%, rgba(226,237,250,0) 60%),
+      radial-gradient(900px 420px at 92% 0%, #e6f0fb 0%, rgba(230,240,251,0) 55%),
+      #f3f6fa;
+    gap: 9px;
+  }
+  /* 顶栏 */
+  .sc-head {
+    display: flex; align-items: center; gap: 16px; flex: 0 0 52px;
+    padding: 0 6px; border-bottom: 1px solid rgba(13,58,104,.1);
+  }
+  .sc-title { display: flex; align-items: center; gap: 11px; }
+  .sc-mark {
+    width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+    background: linear-gradient(150deg,#1a6fe0,#0b4a91); box-shadow: 0 3px 10px rgba(11,74,145,.3);
+  }
+  .sc-mark svg { width: 18px; height: 18px; }
+  .sc-title h1 { font-size: 21px; font-weight: 650; letter-spacing: -.3px; color: #0c2b4d; }
+  .sc-title .sub { font-size: 10.5px; color: var(--t3); letter-spacing: .6px; margin-top: 1px; }
+  .sc-center { margin: 0 auto; display: flex; align-items: center; gap: 9px; }
+  .sc-badge {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px;
+    background: #fff; border: 1px solid rgba(217,45,32,.22); color: #9c1f16; font-size: 11.5px; font-weight: 600;
+    box-shadow: var(--sh1);
+  }
+  .sc-badge i { width: 5px; height: 5px; border-radius: 50%; background: #d92d20; box-shadow: 0 0 0 3px rgba(217,45,32,.16); }
+  .sc-right { display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--t2); }
+  .sc-clock { font-family: var(--mono); font-size: 14px; color: #0c2b4d; font-weight: 600; letter-spacing: .5px; }
+  .sc-demo { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: #fdf6e3; color: #8a6100; border: 1px solid #f0e2bd; font-weight: 600; }
+  /* 指标 */
+  .kpi-strip { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 9px; flex: 0 0 86px; }
+  .sk {
+    background: rgba(255,255,255,.9); border: 1px solid rgba(13,58,104,.08); border-radius: 10px;
+    padding: 9px 14px; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(13,58,104,.05);
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .sk::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--blue); }
+  .sk.r::before { background: #d92d20; } .sk.o::before { background: #e8830c; }
+  .sk.p::before { background: #6b56c9; } .sk.a::before { background: #b07d00; } .sk.g::before { background: #1f8a53; }
+  .sk .l { font-size: 11.5px; color: var(--t2); }
+  .sk .v { font-size: 34px; font-weight: 680; letter-spacing: -1.4px; line-height: 1.1; color: #0c2b4d; margin-top: 1px; }
+  .sk .v span { font-size: 12px; font-weight: 500; color: var(--t3); letter-spacing: 0; margin-left: 3px; }
+  .sk .d { font-size: 10.5px; color: var(--t3); }
+  /* 主体 */
+  .sc-body { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0,1.42fr) minmax(0,1fr); gap: 9px; min-height: 0; }
+  .sc-col { display: flex; flex-direction: column; gap: 9px; min-height: 0; }
+  .panel {
+    background: rgba(255,255,255,.92); border: 1px solid rgba(13,58,104,.08); border-radius: 10px;
+    display: flex; flex-direction: column; min-height: 0; box-shadow: 0 1px 3px rgba(13,58,104,.05);
+  }
+  .panel-hd {
+    display: flex; align-items: center; gap: 8px; padding: 9px 14px 7px; flex: 0 0 auto;
+    border-bottom: 1px solid rgba(13,58,104,.07);
+  }
+  .panel-hd b { font-size: 13px; font-weight: 650; color: #0c2b4d; letter-spacing: -.1px; }
+  .panel-hd .sm { font-size: 10.5px; color: var(--t3); }
+  .panel-hd .right { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 10.5px; color: var(--t3); }
+  .panel-bd { flex: 1 1 auto; padding: 9px 14px 11px; min-height: 0; overflow: hidden; }
+  /* 地图 */
+  /* 真实边界地图（一级镇街 / 二级村域拼块） */
+  .bs-map { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; min-height: 0; }
+  .bs-map svg { flex: 1 1 auto; min-height: 0; width: 100%; display: block; }
+  .bs-map svg path.gd-cell { cursor: pointer; transition: filter .18s ease; }
+  .bs-map svg path.gd-cell:hover { filter: brightness(1.06) drop-shadow(0 2px 7px rgba(10,60,110,.3)); }
+  .gd-val { font-weight: 680; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
+  .gd-lbl { font-weight: 550; letter-spacing: -.1px; }
+  .bs-map-hd { display: flex; align-items: center; gap: 8px; padding-top: 5px; flex: 0 0 auto; }
+  .bs-crumb { font-size: 10.5px; color: #0a58b8; font-weight: 600; }
+  .bs-rot { margin-left: auto; font-size: 10px; color: var(--t3); font-variant-numeric: tabular-nums; }
+  .bs-map-tip {
+    position: fixed; z-index: 9500; max-width: 285px; background: #fff; border: 1px solid rgba(13,58,104,.14);
+    border-radius: 9px; box-shadow: 0 12px 30px rgba(13,58,104,.2); padding: 8px 11px;
+    font-size: 11px; color: var(--t2); line-height: 1.62; pointer-events: none;
+    opacity: 0; transition: opacity .12s ease;
+  }
+  .bs-map-tip.on { opacity: 1; }
+  .bs-map-tip .tt { font-size: 11.5px; font-weight: 650; color: #0c2b4d; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+  .bs-map-tip .gd-chip { font-size: 9px; font-weight: 600; background: #eaf2fb; color: #2f537a; border-radius: 3px; padding: 1px 4px; }
+  .bs-map-tip .tr { display: flex; justify-content: space-between; gap: 12px; }
+  .bs-map-tip .tr b { color: #0c2b4d; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .bs-map-tip .th { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line); font-size: 10px; color: var(--t3); }
+  /* 排名 */
+  .sc-rank { display: flex; flex-direction: column; gap: 3px; }
+  .sc-rank .rr { display: grid; grid-template-columns: 16px 58px 1fr 40px; gap: 6px; align-items: center; font-size: 11px; }
+  .sc-rank .rr .no { color: #aeb4bc; font-weight: 650; font-size: 10px; text-align: center; }
+  .sc-rank .rr .nm { color: var(--t2); white-space: nowrap; }
+  .sc-rank .rr .br { height: 10px; background: #eef2f7; border-radius: 2px; display: flex; overflow: hidden; }
+  .sc-rank .rr .br i { height: 100%; }
+  .sc-rank .rr .vl { text-align: right; color: #0c2b4d; font-weight: 600; font-variant-numeric: tabular-nums; }
+  /* 环形 */
+  .legend-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 5px 18px; font-size: 11.5px; color: var(--t2); }
+  .legend-2 span { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .legend-2 i { width: 6px; height: 6px; border-radius: 2px; flex: 0 0 auto; }
+  .legend-2 b { margin-left: auto; color: #0c2b4d; font-variant-numeric: tabular-nums; padding-left: 6px; }
+  /* 重点时期 */
+  .war-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+  .ws { background: #f7fbff; border: 1px solid rgba(0,113,227,.12); border-radius: 8px; padding: 6px 9px; }
+  .ws .v { font-size: 20px; font-weight: 680; letter-spacing: -.6px; color: #0c2b4d; }
+  .ws .l { font-size: 9.5px; color: var(--t3); }
+
+  /* ===== 巡览条 + 地图下钻轮播（会议室演示） ===== */
+  .screen { padding-bottom: 56px; }
+  .panel { position: relative; transition: box-shadow .45s cubic-bezier(.22,.8,.24,1), border-color .45s, transform .45s cubic-bezier(.22,.8,.24,1); }
+  .panel.spot {
+    border-color: rgba(0,113,227,.5);
+    box-shadow: 0 0 0 1.5px rgba(0,113,227,.5), 0 12px 30px rgba(0,113,227,.13);
+    transform: translateY(-1px);
+  }
+  .panel.spot > .panel-hd { background: linear-gradient(90deg, rgba(0,113,227,.07), rgba(0,113,227,0) 62%); }
+  .panel.spot > .panel-hd b { color: #0a58b8; }
+  .panel.spot::after {
+    content: ""; position: absolute; inset: 0; border-radius: 10px; pointer-events: none;
+    background: radial-gradient(340px 110px at 50% 0%, rgba(0,113,227,.06), rgba(0,113,227,0) 72%);
+  }
+  .sc-rank .rr .br i { transition: width .62s cubic-bezier(.22,.8,.24,1); }
+
+  .sc-tour {
+    position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%);
+    width: min(1180px, calc(100vw - 36px)); box-sizing: border-box; z-index: 60;
+    display: flex; align-items: center; gap: 16px;
+    padding: 7px 12px 7px 15px; border-radius: 12px;
+    background: rgba(255,255,255,.94); border: 1px solid rgba(13,58,104,.12);
+    box-shadow: 0 10px 30px rgba(13,58,104,.16);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .tt-cap { display: flex; align-items: center; gap: 9px; flex: 1 1 auto; min-width: 0; }
+  .tt-cap b {
+    font-size: 12px; font-weight: 650; color: #0a58b8; white-space: nowrap;
+    display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  }
+  .tt-cap b::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%; background: #0071e3;
+    box-shadow: 0 0 0 3px rgba(0,113,227,.16); animation: tt-blink 1.6s ease-in-out infinite;
+  }
+  @keyframes tt-blink { 0%,100% { opacity: 1 } 50% { opacity: .22 } }
+  .tt-cap span {
+    font-size: 11px; color: var(--t2); line-height: 1.4; min-width: 0; flex: 1 1 auto;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .tt-ctl { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+  .tt-idx { font-family: var(--mono); font-size: 10.5px; color: var(--t3); letter-spacing: .5px; }
+  .tt-dots { display: flex; gap: 5px; align-items: center; }
+  .tt-dots i { width: 6px; height: 6px; border-radius: 50%; background: #cfd8e3; transition: all .3s ease; }
+  .tt-dots i.on { background: #0071e3; width: 16px; border-radius: 3px; }
+  .tt-btn {
+    height: 23px; min-width: 23px; padding: 0 8px; border-radius: 6px; cursor: pointer;
+    border: 1px solid rgba(13,58,104,.14); background: #fff; color: var(--t2);
+    font-size: 11.5px; line-height: 1; font-family: inherit;
+  }
+  .tt-btn:hover { background: #f3f7fc; color: #0a58b8; border-color: rgba(0,113,227,.35); }
+  .tt-btn.on { background: #0a58b8; border-color: #0a58b8; color: #fff; }
+</style>
+</head>
+<body>
+<div class="screen">
+  <!-- 顶栏 -->
+  <div class="sc-head">
+    <div class="sc-title">
+      <div class="sc-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z"/><path d="M9.2 11.8l2.1 2.1 3.6-3.9"/></svg>
+      </div>
+      <div>
+        <h1>密云区重点风险人员态势</h1>
+        <div class="sub">重点风险人员台账管理与风险预警系统 · 区委政法委</div>
+      </div>
+    </div>
+    <div class="sc-center">
+      <span class="sc-badge"><i></i>重点时期一级响应 · 第 10 天</span>
+      <span class="tag tag-line">应见 412 · 已见 368 · 见面率 89.3%</span>
+    </div>
+    <div class="sc-right">
+      <span class="sc-demo">演示数据 · 虚拟</span>
+      <span id="scAsOf">数据截至 2026-11-10 09:45</span>
+      <span class="sc-clock">09:52:14</span>
+      <a class="btn btn-sm" href="dashboard.html">返回工作台</a>
+    </div>
+  </div>
+
+  <!-- 指标 -->
+  <div class="kpi-strip">
+    <div class="sk"><div class="l">在册总数</div><div class="v">6,028<span>人</span></div><div class="d">台账 7,112 人次去重</div></div>
+    <div class="sk r"><div class="l">高风险及以上</div><div class="v">486<span>人</span></div><div class="d">占 8.1% · 较上月 +6</div></div>
+    <div class="sk o"><div class="l">双在册人员</div><div class="v">127<span>人</span></div><div class="d">公安卫健 103 · 公安信访 24</div></div>
+    <div class="sk p"><div class="l">多重标签</div><div class="v">214<span>人</span></div><div class="d">2 标 186 · 3 标 28</div></div>
+    <div class="sk a"><div class="l">待核实</div><div class="v">612<span>人</span></div><div class="d">未定级 · 风险不详</div></div>
+    <div class="sk g"><div class="l">本月变动</div><div class="v">+31<span>人</span></div><div class="d">新增 43 · 消减 12</div></div>
+  </div>
+
+  <!-- 主体 -->
+  <div class="sc-body">
+    <div class="sc-col">
+      <div class="panel" style="flex:1.32 1 0">
+        <div class="panel-hd">
+          <b>镇街分布</b><span class="sm">按责任镇街 · 色深人密</span>
+          <div class="right"><span>城区两街道占 26.0%</span></div>
+        </div>
+        <div class="panel-bd">
+          <!-- 真实边界地图：一级 20 镇街按在册人数着色，二级下钻到社区/村（村域拼块） -->
+          <div class="bs-map">
+            <svg id="bsMapSvg" viewBox="0 0 600 462" preserveAspectRatio="xMidYMid meet">
+              <g id="bsMapCells"></g>
+            </svg>
+            <div class="bs-map-hd">
+              <span class="bs-crumb" id="bsCrumb">全区 20 个镇街</span>
+              <span class="bs-rot" id="bsRot">轮播中</span>
+              <button class="tt-btn" id="bsRotBtn" title="暂停 / 继续下钻轮播">暂停</button>
+            </div>
+            <div class="bs-map-tip" id="bsMapTip"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="flex:.86 1 0">
+        <div class="panel-hd"><b>近 12 个月总量趋势</b>
+          <div class="right">
+            <span><i style="display:inline-block;width:10px;height:2px;background:#0071e3;vertical-align:middle;margin-right:4px"></i>在册总量</span>
+            <span><i style="display:inline-block;width:7px;height:7px;background:#1f8a53;border-radius:1px;vertical-align:middle;margin-right:4px"></i>新增</span>
+            <span><i style="display:inline-block;width:7px;height:7px;background:#d92d20;border-radius:1px;vertical-align:middle;margin-right:4px"></i>消减</span>
+          </div>
+        </div>
+        <div class="panel-bd" style="padding-bottom:6px">
+          <svg viewBox="0 0 700 150" width="100%" height="100%" preserveAspectRatio="none">
+            <defs><linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0071e3" stop-opacity=".2"/><stop offset="100%" stop-color="#0071e3" stop-opacity="0"/></linearGradient></defs>
+            <g stroke="#eaeef3" stroke-width="1"><line x1="34" y1="14" x2="688" y2="14"/><line x1="34" y1="46" x2="688" y2="46"/><line x1="34" y1="78" x2="688" y2="78"/><line x1="34" y1="110" x2="688" y2="110"/></g>
+            <g fill="#aeb4bc" font-size="8.5" font-family="-apple-system,sans-serif"><text x="6" y="17">6100</text><text x="6" y="49">5950</text><text x="6" y="81">5800</text><text x="6" y="113">5650</text></g>
+            <path d="M50 116 L108 112 L166 108 L224 104 L282 100 L340 96 L398 92 L456 87 L514 82 L572 76 L630 70 L686 58 L686 126 L50 126 Z" fill="url(#gb)"/>
+            <polyline points="50,116 108,112 166,108 224,104 282,100 340,96 398,92 456,87 514,82 572,76 630,70 686,58" fill="none" stroke="#0071e3" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+            <g fill="#1f8a53" opacity=".6">
+              <rect x="47" y="121" width="8" height="6" rx="1"/><rect x="105" y="119" width="8" height="8" rx="1"/><rect x="163" y="120" width="8" height="7" rx="1"/><rect x="221" y="118" width="8" height="9" rx="1"/>
+              <rect x="279" y="121" width="8" height="6" rx="1"/><rect x="337" y="117" width="8" height="10" rx="1"/><rect x="395" y="119" width="8" height="8" rx="1"/><rect x="453" y="116" width="8" height="11" rx="1"/>
+              <rect x="511" y="118" width="8" height="9" rx="1"/><rect x="569" y="115" width="8" height="12" rx="1"/><rect x="627" y="117" width="8" height="10" rx="1"/><rect x="683" y="113" width="6" height="14" rx="1"/>
+            </g>
+            <g fill="#d92d20" opacity=".45">
+              <rect x="56" y="124" width="8" height="3" rx="1"/><rect x="114" y="125" width="8" height="2" rx="1"/><rect x="172" y="124" width="8" height="3" rx="1"/><rect x="230" y="125" width="8" height="2" rx="1"/>
+              <rect x="288" y="123" width="8" height="4" rx="1"/><rect x="346" y="125" width="8" height="2" rx="1"/><rect x="404" y="124" width="8" height="3" rx="1"/><rect x="462" y="125" width="8" height="2" rx="1"/>
+              <rect x="520" y="124" width="8" height="3" rx="1"/><rect x="578" y="125" width="8" height="2" rx="1"/><rect x="636" y="124" width="8" height="3" rx="1"/>
+            </g>
+            <circle cx="686" cy="58" r="3.5" fill="#fff" stroke="#0071e3" stroke-width="2"/>
+            <g font-size="9" fill="#5b6169" font-family="-apple-system,sans-serif">
+              <text x="50" y="142" text-anchor="middle">25-12</text><text x="166" y="142" text-anchor="middle">26-02</text>
+              <text x="282" y="142" text-anchor="middle">26-04</text><text x="398" y="142" text-anchor="middle">26-06</text>
+              <text x="514" y="142" text-anchor="middle">26-08</text><text x="630" y="142" text-anchor="middle">26-10</text>
+              <text x="686" y="142" text-anchor="middle" fill="#0071e3" font-weight="600">26-11</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-col">
+      <div class="panel" style="flex:1 1 0">
+        <div class="panel-hd"><b>镇街排名</b><span class="sm">按在册人数</span>          <div class="right">
+            <span><i style="display:inline-block;width:6px;height:6px;background:#d92d20;border-radius:1px;vertical-align:middle;margin-right:3px"></i>高</span>
+            <span><i style="display:inline-block;width:6px;height:6px;background:#e8830c;border-radius:1px;vertical-align:middle;margin-right:3px"></i>中</span>
+            <span><i style="display:inline-block;width:6px;height:6px;background:#8fb0cd;border-radius:1px;vertical-align:middle;margin-right:3px"></i>低</span>
+          </div>
+        </div>
+        <div class="panel-bd">
+          <div class="sc-rank">
+            <div class="rr"><span class="no">1</span><span class="nm">鼓楼街道</span><span class="br"><i style="width:71%;background:#d92d20"></i><i style="width:26%;background:#e8830c"></i><i style="width:3%;background:#8fb0cd"></i></span><span class="vl">812</span></div>
+            <div class="rr"><span class="no">2</span><span class="nm">果园街道</span><span class="br"><i style="width:66%;background:#d92d20"></i><i style="width:29%;background:#e8830c"></i><i style="width:5%;background:#8fb0cd"></i></span><span class="vl">756</span></div>
+            <div class="rr"><span class="no">3</span><span class="nm">檀营地区</span><span class="br"><i style="width:57%;background:#d92d20"></i><i style="width:36%;background:#e8830c"></i><i style="width:7%;background:#8fb0cd"></i></span><span class="vl">402</span></div>
+            <div class="rr"><span class="no">4</span><span class="nm">密云镇</span><span class="br"><i style="width:52%;background:#d92d20"></i><i style="width:38%;background:#e8830c"></i><i style="width:10%;background:#8fb0cd"></i></span><span class="vl">388</span></div>
+            <div class="rr"><span class="no">5</span><span class="nm">溪翁庄镇</span><span class="br"><i style="width:44%;background:#d92d20"></i><i style="width:42%;background:#e8830c"></i><i style="width:14%;background:#8fb0cd"></i></span><span class="vl">342</span></div>
+            <div class="rr"><span class="no">6</span><span class="nm">十里堡镇</span><span class="br"><i style="width:41%;background:#d92d20"></i><i style="width:45%;background:#e8830c"></i><i style="width:14%;background:#8fb0cd"></i></span><span class="vl">336</span></div>
+            <div class="rr"><span class="no">7</span><span class="nm">河南寨镇</span><span class="br"><i style="width:38%;background:#d92d20"></i><i style="width:46%;background:#e8830c"></i><i style="width:16%;background:#8fb0cd"></i></span><span class="vl">318</span></div>
+            <div class="rr"><span class="no">8</span><span class="nm">巨各庄镇</span><span class="br"><i style="width:34%;background:#d92d20"></i><i style="width:48%;background:#e8830c"></i><i style="width:18%;background:#8fb0cd"></i></span><span class="vl">296</span></div>
+            <div class="rr"><span class="no">9</span><span class="nm">穆家峪镇</span><span class="br"><i style="width:31%;background:#d92d20"></i><i style="width:50%;background:#e8830c"></i><i style="width:19%;background:#8fb0cd"></i></span><span class="vl">284</span></div>
+            <div class="rr"><span class="no">10</span><span class="nm">太师屯镇</span><span class="br"><i style="width:28%;background:#d92d20"></i><i style="width:51%;background:#e8830c"></i><i style="width:21%;background:#8fb0cd"></i></span><span class="vl">276</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="flex:.64 1 0">
+        <div class="panel-hd"><b>风险等级结构</b><span class="sm">按管控等级</span></div>
+        <div class="panel-bd" style="display:flex;gap:12px;align-items:center">
+          <div style="position:relative;width:118px;height:118px;flex:0 0 118px">
+            <svg viewBox="0 0 160 160" width="118" height="118">
+              <circle cx="80" cy="80" r="62" fill="none" stroke="#eef2f7" stroke-width="17"/>
+              <g transform="rotate(-90 80 80)">
+                <circle cx="80" cy="80" r="62" fill="none" stroke="#d92d20" stroke-width="17" stroke-dasharray="30 359.6"/>
+                <circle cx="80" cy="80" r="62" fill="none" stroke="#e8830c" stroke-width="17" stroke-dasharray="108.6 281" stroke-dashoffset="-31.4"/>
+                <circle cx="80" cy="80" r="62" fill="none" stroke="#8fb0cd" stroke-width="17" stroke-dasharray="206.9 182.6" stroke-dashoffset="-141.5"/>
+                <circle cx="80" cy="80" r="62" fill="none" stroke="#c9a227" stroke-width="17" stroke-dasharray="38 351.6" stroke-dashoffset="-349.9"/>
+              </g>
+            </svg>
+            <div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center">
+              <div><div style="font-size:21px;font-weight:680;letter-spacing:-.8px;color:#0c2b4d;line-height:1.1">6,028</div><div style="font-size:9.5px;color:var(--t3)">在册</div></div>
+            </div>
+          </div>
+          <div class="legend-2" style="flex:1">
+            <span><i style="background:#d92d20"></i>第一档 高<b>486</b></span>
+            <span><i style="background:#e8830c"></i>第二档 中<b>1,704</b></span>
+            <span><i style="background:#8fb0cd"></i>第三档 低<b>3,226</b></span>
+            <span><i style="background:#c9a227"></i>待核实<b>612</b></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="flex:.68 1 0">
+        <div class="panel-hd"><b>重点时期盯控</b><span class="sm">2026-11-01 至 12-31</span>
+          <div class="right"><span class="tag tag-red" style="height:16px;font-size:10px">一级响应</span></div>
+        </div>
+        <div class="panel-bd">
+          <div class="war-strip">
+            <div class="ws"><div class="v">412</div><div class="l">应见名单</div></div>
+            <div class="ws"><div class="v" style="color:#1f8a53">368</div><div class="l">已见面</div></div>
+            <div class="ws"><div class="v" style="color:#d92d20">44</div><div class="l">未报告</div></div>
+            <div class="ws"><div class="v" style="color:#e8830c">31</div><div class="l">应见未见</div></div>
+          </div>
+          <div style="margin-top:8px">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-bottom:3px"><span>今日零报告提交</span><span>14 / 20 镇街</span></div>
+            <div class="bar" style="height:5px"><i style="width:70%;background:#0071e3"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/geo-drill.js"></script>
+<script src="assets/page-bigscreen.js"></script>
+</body>
+</html>

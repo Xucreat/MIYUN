@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>原型总览 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  body { background: #f4f5f7; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 0 28px 40px; }
+  .top {
+    background: linear-gradient(150deg, #0a2d52 0%, #0d3a68 50%, #12467c 100%);
+    color: #fff; padding: 34px 0 30px; position: relative; overflow: hidden; margin-bottom: 24px;
+  }
+  .top::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(120% 100% at 15% 0%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(120% 100% at 15% 0%, #000 30%, transparent 75%);
+  }
+  .top .wrap { position: relative; z-index: 2; }
+  .top h1 { font-size: 27px; font-weight: 650; letter-spacing: -.6px; }
+  .top p { font-size: 12.5px; color: rgba(255,255,255,.72); margin-top: 8px; max-width: 720px; line-height: 1.75; }
+  .top-meta { display: flex; gap: 22px; margin-top: 18px; flex-wrap: wrap; }
+  .top-meta div { font-size: 11px; color: rgba(255,255,255,.6); }
+  .top-meta b { display: block; font-size: 17px; color: #fff; font-weight: 650; letter-spacing: -.3px; }
+  .sec-h { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; }
+  .sec-h h2 { font-size: 16px; font-weight: 650; letter-spacing: -.2px; }
+  .sec-h span { font-size: 11.5px; color: var(--t3); }
+  .sec-h .line { flex: 1 1 auto; height: 1px; background: var(--line-2); }
+  .pg-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+  .pg {
+    background: #fff; border-radius: var(--r-md); box-shadow: var(--sh1), var(--sh-in);
+    padding: 14px 15px 12px; display: flex; flex-direction: column; gap: 7px;
+    transition: transform .16s, box-shadow .16s; position: relative; overflow: hidden;
+  }
+  .pg:hover { transform: translateY(-2px); box-shadow: var(--sh2), var(--sh-in); }
+  .pg .no {
+    position: absolute; right: 12px; top: 10px; font-size: 30px; font-weight: 700;
+    color: #eef2f7; letter-spacing: -2px; line-height: 1;
+  }
+  .pg-t { display: flex; align-items: center; gap: 7px; }
+  .pg-t .ico { width: 24px; height: 24px; border-radius: 7px; background: var(--blue-soft); color: var(--blue); display: grid; place-items: center; flex: 0 0 24px; }
+  .pg-t .ico svg { width: 13px; height: 13px; }
+  .pg-t b { font-size: 13.5px; font-weight: 650; letter-spacing: -.1px; }
+  .pg-d { font-size: 11.5px; color: var(--t2); line-height: 1.65; min-height: 38px; padding-right: 22px; position: relative; z-index: 2; }
+  .pg-f { display: flex; flex-wrap: wrap; gap: 4px; }
+  .pg-a { margin-top: 2px; display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--blue); font-weight: 600; }
+  .pg-a svg { width: 12px; height: 12px; }
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .sw { border-radius: 9px; overflow: hidden; border: 1px solid var(--line); background: #fff; }
+  .sw i { display: block; height: 44px; }
+  .sw div { padding: 5px 7px; font-size: 10px; color: var(--t3); line-height: 1.4; }
+  .sw b { display: block; font-size: 10.5px; color: var(--t1); font-weight: 600; }
+  .type-row { display: flex; align-items: baseline; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .type-row:last-child { border-bottom: 0; }
+  .type-row .lb { width: 96px; flex: 0 0 96px; font-size: 10.5px; color: var(--t4); font-family: var(--mono); }
+  .comp-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .comp-row:last-child { border-bottom: 0; }
+  .comp-row .cl { width: 76px; flex: 0 0 76px; font-size: 10.5px; color: var(--t4); }
+  .flow-map { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .fm-item { background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; }
+  .fm-item .st { font-size: 10px; color: var(--t4); font-weight: 600; letter-spacing: .3px; }
+  .fm-item b { display: block; font-size: 12px; margin-top: 2px; }
+  .fm-item span { font-size: 10.5px; color: var(--t3); }
+  .fm-item a { color: var(--blue); }
+  .data-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+  .di { background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; }
+  .di .v { font-size: 19px; font-weight: 650; letter-spacing: -.5px; }
+  .di .l { font-size: 10.5px; color: var(--t3); }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="wrap">
+    <h1>密云区重点风险人员台账管理与风险预警系统 · 原型</h1>
+    <p>依据 docs/deliverable 方案文档（00 产品方案 / 01 需求规格 / 07 业务规则 / 08 权限矩阵 / 09 详细设计 / 06 演示脚本）绘制。视觉采用苹果设计语言 × 政务使用习惯：蓝白主色、卡片化信息密度、口径可追溯、敏感字段默认脱敏。</p>
+    <div class="top-meta">
+      <div><b>14</b> 个页面</div>
+      <div><b>6,028</b> 人虚拟数据集</div>
+      <div><b>11</b> 类人员 · 8 套分级</div>
+      <div><b>9</b> 个角色 · 43 权限码</div>
+      <div><b>V2.2</b> 一屏化 · 蓝白版</div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="sec-h"><h2>入口与态势</h2><span>演示动线 0—2</span><div class="line"></div></div>
+  <div class="pg-grid">
+    <a class="pg" href="login.html">
+      <span class="no">01</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 118 0v3.5"/></svg></span>
+        <b>登录</b>
+      </div>
+      <div class="pg-d">政务内网双因子（口令 + 政务通动态码）、CA 证书入口、三种演示角色一键切换、登录即留痕声明。</div>
+      <div class="pg-f"><span class="tag tag-line">等保三级标识</span><span class="tag tag-line">数据不出域</span><span class="tag tag-amber">虚拟数据声明</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+
+    <a class="pg" href="dashboard.html">
+      <span class="no">02</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg></span>
+        <b>态势驾驶舱</b>
+      </div>
+      <div class="pg-d">六项核心指标 + 20 镇街热力地图 + 镇街排名（分层色）+ 风险结构环形 + 12 月趋势 + 11 类构成 + 重点时期提示。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-KS-01~06</span><span class="tag tag-line">口径脚注</span><span class="tag tag-line">指标可下钻</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+
+    <a class="pg" href="bigscreen.html" target="_blank">
+      <span class="no">03</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M9 20.5h6M12 17v3.5"/></svg></span>
+        <b>大屏模式</b>
+      </div>
+      <div class="pg-d">1920×1080 投屏版式：指标条 + 地图 + 排名 + 结构 + 重点时期盯控，浅色底保证会议室亮度下的可读性。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-KS-07</span><span class="tag tag-line">专用大屏账号</span><span class="tag tag-line">无下钻到人</span></div>
+      <div class="pg-a">新窗口打开 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+  </div>
+
+  <div class="sec-h"><h2>台账管理</h2><span>演示动线 3—5</span><div class="line"></div></div>
+  <div class="pg-grid">
+    <a class="pg" href="persons.html">
+      <span class="no">04</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.6 6-5.6s6 2.3 6 5.6"/><path d="M16 4.6a3 3 0 010 5.8"/></svg></span>
+        <b>人员台账</b>
+      </div>
+      <div class="pg-d">页内二级导航切换两个视图：台账列表（7 项筛选 + 8 个快捷视图 + 掩码列表 + 批量操作 + 统一分页）、组合查询（标签交集/差集语义 + 命中回显 + 脱敏与明文导出授权 + 导出流水）。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-TZ-01/07</span><span class="tag tag-line">字段密级</span><span class="tag tag-line">导出留痕</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+
+    <a class="pg" href="person.html">
+      <span class="no">05</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z"/><path d="M14 3v5h5M9 13h6"/></svg></span>
+        <b>一人一档</b>
+      </div>
+      <div class="pg-d">三个标签卡各带部门原等级 + 就高不就低计算可视化 + 22 项主干字段 + 走访时间线 + 等级变动 + 双在册确认任务 + 访问留痕。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-TZ-01/06</span><span class="tag tag-orange">FR-FX-05</span><span class="tag tag-line">故事人物 A</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+
+    <a class="pg" href="import.html">
+      <span class="no">06</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg></span>
+        <b>数据导入</b>
+      </div>
+      <div class="pg-d">五步归一流程：模板 → 映射 → 预检（新增 86 / 合并 1 / 拦截 1）→ 确认 → 报告；字段映射 17 列、错误行回显、批次追溯。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-CX-05</span><span class="tag tag-orange">查重并档</span><span class="tag tag-line">原始表留档</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+  </div>
+
+  <div class="sec-h"><h2>风险与预警</h2><span>演示动线 6—7</span><div class="line"></div></div>
+  <div class="pg-grid">
+    <a class="pg" href="alerts.html">
+      <span class="no">07</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 9a6 6 0 10-12 0c0 5-2 6-2 6h16s-2-1-2-6z"/><path d="M10.5 19.5a2 2 0 003 0"/></svg></span>
+        <b>预警待办</b>
+      </div>
+      <div class="pg-d">七类规则统计条 + 待办列表（按紧急度）+ 处置面板（方式 / 说明 / 附件 / 转派）+ 本月处置时效 91.6% 闭环率。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-YJ-01/02</span><span class="tag tag-red">该管未管</span><span class="tag tag-line">规则可配置</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+
+    <a class="pg" href="risk.html">
+      <span class="no">08</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12.5l4.5 4.5L20 6"/><path d="M3 20h18" opacity=".35"/></svg></span>
+        <b>调整审批</b>
+      </div>
+      <div class="pg-d">待办列表 + 前后等级对比 + 依据材料 + 四段审批链 + 审批层级规则表 + 本月变动台账（上调 19 / 下调 27）。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-FX-02/03</span><span class="tag tag-orange">分级路由</span><span class="tag tag-line">故事人物 C</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+
+    <a class="pg" href="wartime.html">
+      <span class="no">09</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z"/></svg></span>
+        <b>重点时期管控</b>
+      </div>
+      <div class="pg-d">时期横幅（一级响应 / 第 10 天）+ 20 镇街见面回填（应见 412 / 已见 368）+ 未见面原因 + 今日零报告 + 应见未见清单。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-KS-06</span><span class="tag tag-red">每日零报告</span><span class="tag tag-line">应见未见</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+  </div>
+
+  <div class="sec-h"><h2>查询统计</h2><span>演示动线 7</span><div class="line"></div></div>
+  <div class="pg-grid">
+    
+
+    <a class="pg" href="analytics.html">
+      <span class="no">10</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
+        <b>统计分析</b>
+      </div>
+      <div class="pg-d">镇街全量对比（20 行）+ 类别×等级矩阵（7,112 人次）+ 月度变动 + 标签组合前十 + 统一风险序映射表 + 数据质量 + 报送情况。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-FX-04</span><span class="tag tag-line">口径基石</span><span class="tag tag-line">报送督办</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+
+  </div>
+
+  <div class="sec-h"><h2>系统管理</h2><span>演示动线 8</span><div class="line"></div></div>
+  <div class="pg-grid" style="grid-template-columns:repeat(2, minmax(0,1fr))">
+    <a class="pg" href="system.html?tab=account">
+      <span class="no">11</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 11-4 0v-.1A1.6 1.6 0 007 19.4l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.6 1.6 0 003 15H3a2 2 0 110-4h.1A1.6 1.6 0 004.6 8.7l-.1-.1a2 2 0 112.8-2.8l.1.1A1.6 1.6 0 0010 4.6V4a2 2 0 114 0v.1A1.6 1.6 0 0016.7 5.6l.1-.1a2 2 0 112.8 2.8l-.1.1A1.6 1.6 0 0021 11h.1a2 2 0 010 4H21z"/></svg></span>
+        <b>系统管理</b>
+      </div>
+      <div class="pg-d">一个入口、四个标签横向切换：<b>账号与角色</b>（一级区领导 / 二级区级管理含科长 · 主任 / 三级部门属地执行 + 三员分立 · 48 权限码 · 字段密级矩阵 · 47 账号）、<b>数据字典</b>（12 部 · 461 项 · 部门原等级映射 · 行政区划）、<b>规则与参数</b>（RG-01~09 + 阈值 + 审批路由 + 脱敏策略）、<b>审计日志</b>（12 类操作留痕 + 哈希链校验 + 安全事件）。</div>
+      <div class="pg-f"><span class="tag tag-blue">FR-XT-02/03/05</span><span class="tag tag-red">三员分立</span><span class="tag tag-blue">三级角色</span><span class="tag tag-line">页内四标签</span><span class="tag tag-line">只增不改</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+  </div>
+
+  <!-- V2.1 新增能力 -->
+  <div class="sec-h"><h2>V2.2 新增能力</h2><span>新增 2 页 · 与既有 11 页风格与口径一致</span><div class="line"></div></div>
+  <div class="pg-grid" style="grid-template-columns:repeat(2, minmax(0,1fr))">
+    <a class="pg" href="board.html">
+      <span class="no">12</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18M9 9v11"/></svg></span>
+        <b>数据看板</b>
+      </div>
+      <div class="pg-d">横向二级导航 7 个子看板：实时总览（在线人数 / 24 小时活跃 / 实时动态流 / 分时热力）、人员流动（净增 +31、分类别流动表、跨镇街明细）、区域迁徙（流向图 + 净流动排行 + 迁移类型 + 周分布）、风险变化（升降 + 风险序迁移 + 调整明细）、重点盯控（20 镇街见面进度 + 零报告宫格）、报送质量（及时率 / 完整率 / 并档 / 拦截 + DQ 规则）、自定义看板（组件库 + 模板库 + 已保存看板）。</div>
+      <div class="pg-f"><span class="tag tag-line">实时 5 分钟增量</span><span class="tag tag-line">7 个子看板</span><span class="tag tag-blue">可订阅推送</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+    <a class="pg" href="blind.html">
+      <span class="no">13</span>
+      <div class="pg-t">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 12s3.6-6 9.5-6 9.5 6 9.5 6-3.6 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/><path d="M4.5 20L19.5 4"/></svg></span>
+        <b>盲区人群</b>
+      </div>
+      <div class="pg-d">单列的三类盲区：双在册 127 人、多重标签 214 人、未定级 / 待核实 612 人，去重合计 887 人。含四部门比对来源、盲区成因分布、核查任务闭环（61.4%）、识别规则 RG-01~06、本月盲区化解。明确「只提示不自动改变等级」。</div>
+      <div class="pg-f"><span class="tag tag-line">只提示不改等级</span><span class="tag tag-line">887 人去重</span><span class="tag tag-blue">核查闭环</span></div>
+      <div class="pg-a">打开页面 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></div>
+    </a>
+    
+    
+  </div>
+
+  <!-- 设计规范 -->
+  <div class="sec-h"><h2>设计规范</h2><span>全站一致 · WCAG AA（正文对比度 ≥ 4.5:1）</span><div class="line"></div></div>
+  <div class="card mb10">
+    <div class="card-hd"><div class="card-title">色板 <span class="sub">蓝白主色 + 语义风险色，风险色不用于装饰</span></div></div>
+    <div class="card-bd" style="padding:14px 16px">
+      <div class="swatches">
+        <div class="sw"><i style="background:#0c2b4d"></i><div><b>政务深蓝</b>#0C2B4D 头部</div></div>
+        <div class="sw"><i style="background:#0071e3"></i><div><b>系统蓝</b>#0071E3 主操作</div></div>
+        <div class="sw"><i style="background:#eaf3ff"></i><div><b>蓝底</b>#EAF3FF 选中态</div></div>
+        <div class="sw"><i style="background:#f4f5f7"></i><div><b>背景</b>#F4F5F7 画布</div></div>
+        <div class="sw"><i style="background:#d92d20"></i><div><b>第一档</b>#D92D20 高风险</div></div>
+        <div class="sw"><i style="background:#e8830c"></i><div><b>第二档</b>#E8830C 中风险</div></div>
+        <div class="sw"><i style="background:#8fb0cd"></i><div><b>第三档</b>#8FB0CD 低风险</div></div>
+        <div class="sw"><i style="background:#c9a227"></i><div><b>第四档</b>#C9A227 待核实</div></div>
+      </div>
+      <div class="divider" style="margin:12px 0 8px"></div>
+      <div class="row wrap" style="gap:16px;font-size:11.5px;color:var(--t2)">
+        <span>正文 #14161A on #FFFFFF · 对比度 15.8:1</span>
+        <span>次级 #5B6169 · 8.2:1</span>
+        <span>辅助 #8B9199 · 4.6:1（仅用于 ≥11px 说明文字）</span>
+        <span>风险色均配浅底 + 深字，不使用纯色大面积填充</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid g2 mb10" style="gap:12px">
+    <div class="card">
+      <div class="card-hd"><div class="card-title">字号层级</div><div class="right"><span class="tiny dim">基准 13px · 政务高密度</span></div></div>
+      <div class="card-bd" style="padding:10px 16px">
+        <div class="type-row"><span class="lb">19-21 / 650</span><span style="font-size:19px;font-weight:650;letter-spacing:-.35px">页面标题 · 全区重点人员态势总览</span></div>
+        <div class="type-row"><span class="lb">16 / 600</span><span style="font-size:16px;font-weight:600">区块标题 · 镇街分布</span></div>
+        <div class="type-row"><span class="lb">13.5 / 650</span><span style="font-size:13.5px;font-weight:650">卡片标题 · 风险等级结构</span></div>
+        <div class="type-row"><span class="lb">13 / 400</span><span style="font-size:13px">正文与表格默认 · 台账 7,112 人次经去重后 6,028 人</span></div>
+        <div class="type-row"><span class="lb">11.5 / 500</span><span style="font-size:11.5px;color:var(--t2)">辅助说明 · 数据截至 2026-11-10 09:45，来源四部门报送</span></div>
+        <div class="type-row"><span class="lb">10.5 / 400</span><span style="font-size:10.5px;color:var(--t3)">口径脚注与时间戳 · 按身份证号去重，台账人次与自然人数不混用</span></div>
+        <div class="type-row"><span class="lb">27-34 / 640</span><span style="font-size:27px;font-weight:640;letter-spacing:-1px">6,028<span style="font-size:12px;color:var(--t3);font-weight:500"> 人</span></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><div class="card-title">组件状态</div><div class="right"><span class="tiny dim">按钮 / 标签 / 风险 / 标识</span></div></div>
+      <div class="card-bd" style="padding:10px 16px">
+        <div class="comp-row"><span class="cl">按钮</span>
+          <button class="btn btn-primary btn-sm">确认导入</button>
+          <button class="btn btn-sm">导出</button>
+          <button class="btn btn-sm btn-ghost">全部 ›</button>
+          <button class="btn btn-sm" disabled>不可用</button>
+        </div>
+        <div class="comp-row"><span class="cl">风险等级</span>
+          <span class="risk risk-1">高风险</span><span class="risk risk-2">中风险</span>
+          <span class="risk risk-3">低风险</span><span class="risk risk-4">未定级</span>
+        </div>
+        <div class="comp-row"><span class="cl">标识位</span>
+          <span class="flag dual">双在册</span><span class="flag multi">3 标</span>
+          <span class="flag">重点关注</span><span class="flag check">依据缺失</span>
+        </div>
+        <div class="comp-row"><span class="cl">标签</span>
+          <span class="tag tag-blue">涉访 B 类</span><span class="tag tag-red">精障</span>
+          <span class="tag tag-slate">六失一偏</span><span class="tag tag-line">归一 2</span>
+        </div>
+        <div class="comp-row"><span class="cl">掩码</span>
+          <span class="mask">110228<span class="o">**********</span>2417</span>
+          <span class="mask">138<span class="o">****</span>6621</span>
+          <span class="tag tag-amber">申请明文</span>
+        </div>
+        <div class="comp-row"><span class="cl">提示条</span>
+          <span class="banner banner-info" style="padding:4px 9px;font-size:11px">已记录导出流水</span>
+          <span class="banner banner-warn" style="padding:4px 9px;font-size:11px">依据缺失</span>
+          <span class="banner banner-error" style="padding:4px 9px;font-size:11px">双在册未确认</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 演示动线 -->
+  <div class="sec-h"><h2>演示动线映射</h2><span>06 文档 14 分钟脚本 → 页面</span><div class="line"></div></div>
+  <div class="flow-map mb10">
+    <div class="fm-item"><div class="st">环节 0—1</div><b>登录与权限</b><span>区领导掩码视图 → 公安经办受限视图 · <a href="login.html">登录</a></span></div>
+    <div class="fm-item"><div class="st">环节 2</div><b>全局态势</b><span>六项底数 + 地图 + 排名 + 趋势 · <a href="dashboard.html">态势驾驶舱</a></span></div>
+    <div class="fm-item"><div class="st">环节 3</div><b>盲区下钻</b><span>多标 214 → 3 标 28 → 打开 A 档案 · <a href="persons.html">人员台账</a></span></div>
+    <div class="fm-item"><div class="st">环节 4</div><b>一人一档</b><span>三标签 + 就高不就低 + 依据 · <a href="person.html">一人一档</a></span></div>
+    <div class="fm-item"><div class="st">环节 5</div><b>查重并档</b><span>预检「新增 86 · 合并 1」· <a href="import.html">数据导入</a></span></div>
+    <div class="fm-item"><div class="st">环节 6</div><b>等级调整留痕</b><span>中→低 + 审批链 + 变动记录 · <a href="risk.html">调整审批</a></span></div>
+    <div class="fm-item"><div class="st">环节 7</div><b>名单与导出</b><span>条件组合 37 人 + 水印导出 · <a href="persons.html?tab=query">组合查询</a></span></div>
+    <div class="fm-item"><div class="st">环节 8</div><b>安全留痕收尾</b><span>刚才每一步都在日志里 · <a href="system.html?tab=audit">审计日志</a></span></div>
+    <div class="fm-item"><div class="st">环节 9</div><b>盲区识别</b><span>三类盲区去重 887 → 核查任务派发 · <a href="blind.html">盲区人群</a></span></div>
+    <div class="fm-item"><div class="st">环节 10</div><b>实时看变化</b><span>实时总览 → 人员流动 → 区域迁徙 · <a href="board.html">数据看板</a></span></div>
+    <div class="fm-item"><div class="st">环节 11</div><b>规则可配置</b><span>阈值 / 审批路由 / 脱敏策略 · <a href="system.html?tab=config">规则与参数</a></span></div>
+  </div>
+
+  <!-- 数据口径 -->
+  <div class="sec-h"><h2>虚拟数据口径</h2><span>与 06 文档演示数据集逐项对齐，页面之间不打架</span><div class="line"></div></div>
+  <div class="data-grid mb10">
+    <div class="di"><div class="v">6,028</div><div class="l">在册（去重后）· 台账 7,112 人次</div></div>
+    <div class="di"><div class="v" style="color:var(--red)">486</div><div class="l">高风险及以上 · 占 8.1%</div></div>
+    <div class="di"><div class="v" style="color:var(--orange)">127</div><div class="l">双在册 · 公安卫健 103 / 公安信访 24</div></div>
+    <div class="di"><div class="v" style="color:var(--purple)">214</div><div class="l">多重标签 · 2 标 186 / 3 标 28</div></div>
+    <div class="di"><div class="v" style="color:var(--amber)">612</div><div class="l">待核实 · 未定级与风险不详</div></div>
+    <div class="di"><div class="v">412 / 368</div><div class="l">重点时期应见 / 已见 · 见面率 89.3%</div></div>
+    <div class="di"><div class="v">37</div><div class="l">城区未走访高风险 · 盯控名单</div></div>
+    <div class="di"><div class="v" style="color:var(--green)">19 / 27</div><div class="l">本月上调 / 下调等级</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-bd" style="padding:13px 16px">
+      <div class="note" style="line-height:1.85">
+        <b style="color:var(--t1)">使用说明：</b>全部页面为纯静态 HTML + CSS，无外部 CDN、无字体外链、无联网依赖，双击即可在任意浏览器打开（建议 1440px 以上宽度，大屏页建议 1920×1080 全屏）。侧边栏与顶栏由 <span class="mono tiny">assets/shell.js</span> 统一注入，所有页面共用 <span class="mono tiny">assets/app.css</span> 设计令牌，修改一处即全站生效。<br>
+        <b style="color:var(--t1)">数据声明：</b>页面中所有姓名、身份证号、地址、联系方式均为虚构，仅用于验证流程与口径；不包含任何真实人员信息。<br>
+        <b style="color:var(--t1)">对应方案：</b>00 产品方案（功能特性）· 01 需求规格（FR 编号）· 06 演示脚本（动线）· 07 业务规则（统一风险序 / 就高不就低 / 双在册）· 08 权限矩阵（9 角色 / 43 权限码 / 字段密级）· 09 详细设计（路由表 / 驾驶舱布局 / 核心组件）。
+      </div>
+    </div>
+  </div>
+
+  <div class="foot-note" style="text-align:center;padding-top:18px">中共北京市密云区委政法委员会 · 重点风险人员台账管理与风险预警系统原型 V2.0 · 2026-11</div>
+</div>
+</body>
+</html>

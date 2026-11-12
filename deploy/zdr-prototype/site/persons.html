@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>人员台账 · 密云区重点风险人员台账管理与风险预警系统</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+
+  .quick-views { display: flex; gap: 6px; flex-wrap: wrap; }
+  .qv {
+    display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px;
+    border-radius: 7px; border: 1px solid var(--line-2); background: #fff;
+    font-size: 11.5px; color: var(--t2); font-weight: 500; white-space: nowrap;
+  }
+  .qv:hover { border-color: var(--blue); color: var(--blue); }
+  .qv.on { background: var(--blue-soft); border-color: var(--blue-soft-2); color: var(--blue-ink); font-weight: 650; }
+  .qv .n { font-size: 10.5px; padding: 0 4px; border-radius: 4px; background: rgba(0,0,0,.05); color: var(--t2); }
+  .qv.on .n { background: rgba(0,113,227,.12); color: var(--blue-ink); }
+  .result-bar { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--line); font-size: 11.5px; color: var(--t2); }
+  .result-bar b { color: var(--t1); font-weight: 650; }
+  .name-cell { display: flex; align-items: center; gap: 7px; }
+  .name-cell .ava { width: 22px; height: 22px; border-radius: 50%; flex: 0 0 22px; display: grid; place-items: center; font-size: 10px; font-weight: 650; background: var(--blue-soft); color: var(--blue-ink); }
+  .tagstack { display: flex; gap: 3px; flex-wrap: wrap; max-width: 200px; }
+  .rowlink { color: var(--blue); font-weight: 600; }
+  .rowlink:hover { text-decoration: underline; }
+  .warn-txt { color: var(--red); font-weight: 600; }
+  .col-setup { display: flex; gap: 6px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-size: 11px; color: var(--t3); }
+
+
+
+  .split-q { display: grid; grid-template-columns: 296px minmax(0,1fr); gap: 12px; }
+  .cond-group { margin-bottom: 12px; }
+  .cond-group > .cg-t { font-size: 11px; font-weight: 650; color: var(--t3); letter-spacing: .3px; margin-bottom: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .sem-box { display: flex; flex-direction: column; gap: 5px; }
+  .sem {
+    display: flex; align-items: center; gap: 7px; padding: 7px 9px; border-radius: 8px;
+    border: 1px solid var(--line-2); background: #fff; font-size: 11.5px; color: var(--t2);
+  }
+  .sem.on { border-color: var(--blue); background: var(--blue-soft); color: var(--blue-ink); font-weight: 600; }
+  .sem .radio { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--line-3); flex: 0 0 13px; position: relative; }
+  .sem.on .radio { border-color: var(--blue); }
+  .sem.on .radio::after { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--blue); }
+  .echo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .echo .ec {
+    display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px;
+    background: var(--blue-soft); color: var(--blue-ink); border-radius: 6px; font-size: 11.5px; font-weight: 550;
+    white-space: nowrap;
+  }
+  .echo .ec b { font-weight: 650; }
+  .echo .ec .x { opacity: .55; font-size: 13px; line-height: 1; }
+  .saved-item { display: flex; align-items: center; gap: 7px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 11.5px; color: var(--t2); }
+  .saved-item:last-child { border-bottom: 0; }
+  .saved-item:hover { color: var(--blue); }
+  /* 常用方案：方案变多时卡片内部滚动，避免整页被撑长 */
+  #qSaved { max-height: 182px; overflow-y: auto; overscroll-behavior: contain; }
+  #qSaved::-webkit-scrollbar { width: 6px; }
+  #qSaved::-webkit-scrollbar-thumb { background: var(--line-3); border-radius: 3px; }
+  #qSaved::-webkit-scrollbar-track { background: transparent; }
+  body.fit #qSaved { max-height: 136px; }
+  .export-card { border: 1px solid rgba(0,113,227,.2); background: linear-gradient(120deg,#f7fbff,#fff); }
+  .gate { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
+  /* 常用方案条（存为常用后出现在台账顶部，localStorage 持久化） */
+  .scheme-bar { display: flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 9px; background: #f7f9fb; flex-wrap: wrap; }
+  .scheme-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 7px; border: 1px solid var(--line-2); background: #fff; font-size: 11.5px; color: var(--t1); cursor: pointer; }
+  .scheme-chip:hover { border-color: var(--blue); color: var(--blue); }
+  .scheme-chip .n { font-size: 10.5px; padding: 0 5px; border-radius: 4px; background: rgba(0,113,227,.10); color: var(--blue-ink); }
+  .scheme-chip .del { font-size: 14px; line-height: 1; color: var(--t3); font-weight: 400; }
+  .scheme-chip .del:hover { color: var(--red); }
+  body.fit [data-panel="list"] > .scheme-bar { flex: 0 0 auto; }
+  
+
+
+
+  /* ===== 人员台账 / 组合查询：一屏布局 ===== */
+  .split-q { grid-template-columns: 268px minmax(0,1fr); }
+  body.fit [data-panel] { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: var(--gap); }
+  body.fit [data-panel] > * { margin-bottom: 0 !important; }
+  body.fit [data-panel] > .banner,
+  body.fit [data-panel] > .page-head,
+  body.fit [data-panel] > .foot-note { flex: 0 0 auto; }
+  body.fit [data-panel] > .card { flex: 1 1 0; min-height: 0; }
+  body.fit [data-panel="list"] > .filter-card { flex: 0 0 auto; }
+  body.fit [data-panel="list"] > .card { display: flex; flex-direction: column; }
+  body.fit [data-panel="list"] > .card > .result-bar { flex: 0 0 auto; }
+  body.fit [data-panel="list"] > .card > .table-wrap { flex: 1 1 0; min-height: 0; overflow: auto; }
+  body.fit [data-panel="list"] > .card > .pager { flex: 0 0 auto; padding: 8px 16px; border-top: 1px solid var(--line); }
+  body.fit [data-panel="query"] .split-q .stack > .card:last-child { flex: 0 0 auto; }
+  body.fit [data-panel] > .split-q { flex: 1 1 0; min-height: 0; align-items: stretch; }
+  body.fit [data-panel] > .split-q > .stack { min-height: 0; }
+  body.fit .filter-bar .field > label { font-size: 10.5px; }
+  body.fit .qv { height: 23px; font-size: 11px; }
+  body.fit .cond-group { margin-bottom: 8px; }
+  body.fit .cond-group > .cg-t { margin-bottom: 4px; font-size: 10.5px; }
+  body.fit .sem { padding: 5px 8px; font-size: 11px; }
+  body.fit .chip-select { height: 23px; font-size: 11px; }
+  body.fit .saved-item { padding: 5px 0; }
+  body.fit .split-q .card-bd { padding: 8px 12px 10px; }
+  body.fit .foot-note br { display: none; }
+
+</style>
+</head>
+<body class="fit" data-page="persons" data-crumb="台账管理" data-title="人员台账">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div data-panel="list">
+              <div class="banner banner-info">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.4"/></svg>
+                <span>本页导出与明文查看均写入审计日志并加盖水印。单次明文导出 &gt; 50 条需<b>双人复核</b>（申请人 ≠ 审批人）。</span>
+                <a class="act" href="system.html?tab=audit">查看我的审计记录 ›</a>
+              </div>
+
+              <!-- 常用方案（存为常用后出现） -->
+              <div class="scheme-bar" id="schemeBar" style="display:none"></div>
+
+              <!-- 筛选 -->
+              <div class="card filter-card">
+                <div class="card-bd" style="padding:14px 16px 12px">
+                  <div class="filter-bar" id="filterBar"></div>
+                  <div class="divider" style="margin:12px 0 10px"></div>
+                  <div class="row wrap" style="gap:8px">
+                    <span class="tiny dim" style="width:52px">快捷视图</span>
+                    <div class="quick-views" id="quickViews"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 列表 -->
+              <div class="card">
+                <div class="result-bar" id="resultBar"></div>
+
+                <div class="table-wrap">
+                  <table class="tb" id="listTable">
+                    <thead>
+                      <tr>
+                        <th style="width:34px"><span class="cb" id="cbAll"></span></th>
+                        <th style="width:190px">姓名 / 档案号</th>
+                        <th style="width:158px">身份证号</th>
+                        <th>类别标签</th>
+                        <th style="width:92px">管控等级</th>
+                        <th style="width:100px">责任镇街</th>
+                        <th style="width:104px">包联干部</th>
+                        <th style="width:96px">最近走访</th>
+                        <th style="width:112px">标识</th>
+                        <th style="width:104px" class="r">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="listBody"></tbody>
+                  </table>
+                </div>
+
+                <div class="pager" id="listPager"></div>
+              </div>
+
+              <div class="foot-note" id="listFoot">
+                · 姓名与身份证号按当前角色密级展示；<b>区领导</b>视图下姓名为掩码、身份证号仅显示前六后四，查看明文需发起申请并留痕。<br>
+                · 列表默认按「管控风险序」升序（风险高在前）；管控等级为「就高不就低」计算结果，点击表头可切换排序。<br>
+                · 「依据缺失」「走访超期」等标识由系统按规则自动生成，不作为定级依据，仅提示补录。
+              </div>
+
+      </div>
+
+      <div data-panel="query" style="display:none">
+              <div class="page-head compact" data-topact="query">
+                <div class="ph-t">
+                  <h1>组合查询</h1>
+                  <p>多条件同时满足（全部条件均需命中） · 标签支持交集 / 仅含 / 差集 · 结果按权限脱敏 · 导出留痕并加盖水印</p>
+                </div>
+                <div class="page-actions">
+                  <button class="btn" id="qBtnCols">列设置</button>
+                  <button class="btn" id="qBtnExports">查看我的导出记录</button>
+                  <button class="btn btn-primary" id="qBtnSave">存为常用方案</button>
+                </div>
+              </div>
+
+              <div class="split-q">
+                <!-- 条件 -->
+                <div class="stack">
+                  <div class="card" style="min-height:0;display:flex;flex-direction:column">
+                    <div class="card-hd" style="padding-bottom:8px">
+                      <div class="card-title">查询条件</div>
+                      <div class="right"><span class="tiny dim" id="qCondCount">未设条件</span></div>
+                    </div>
+                    <div class="card-bd" style="padding:10px 14px 12px;overflow:auto;min-height:0">
+
+                      <div class="cond-group">
+                        <div class="cg-t">姓名 / 身份证后四位 / 档案号</div>
+                        <div class="input" style="height:28px">
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--t3);flex:0 0 13px"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+                          <input id="qKw" placeholder="如 任玉荣 / 2417 / MY-2026-000118" autocomplete="off"
+                                 style="border:0;background:transparent;outline:0;font:inherit;font-size:11.5px;flex:1 1 auto;min-width:0;color:var(--t1)">
+                        </div>
+                      </div>
+
+                      <div class="cond-group">
+                        <div class="cg-t">类别标签（多选）</div>
+                        <div class="chips" id="qTagBox"></div>
+                        <a href="javascript:;" class="tiny" id="qTagMore" style="color:var(--blue);margin-top:5px;display:inline-block">展开全部 11 类 ›</a>
+                      </div>
+
+                      <div class="cond-group">
+                        <div class="cg-t">标签组合语义</div>
+                        <div class="sem-box" id="qSem">
+                          <div class="sem on" data-v="and"><span class="radio"></span>同时含所选全部标签（交集）</div>
+                          <div class="sem" data-v="only"><span class="radio"></span>仅含所选标签（不含其他）</div>
+                          <div class="sem" data-v="diff"><span class="radio"></span>含 A 不含 B（差集）</div>
+                        </div>
+                        <div id="qDiffWrap" style="display:none;margin-top:5px">
+                          <div class="select" id="qDiffTag" style="height:26px;font-size:11.5px"></div>
+                        </div>
+                      </div>
+
+                      <div class="cond-group">
+                        <div class="cg-t">管控等级</div>
+                        <div class="chips" id="qLevelBox"></div>
+                      </div>
+
+                      <div class="cond-group">
+                        <div class="cg-t">责任镇街</div>
+                        <div class="chips" id="qTownBox"></div>
+                        <a href="javascript:;" class="tiny" id="qTownMore" style="color:var(--blue);margin-top:5px;display:inline-block">展开全部 20 个镇街 ›</a>
+                      </div>
+
+                      <div class="grid g2" style="gap:8px;margin-bottom:10px">
+                        <div class="field"><label>主责单位</label><div class="select" id="qDept" style="height:28px"></div></div>
+                        <div class="field"><label>列管状态</label><div class="select" id="qStatus" style="height:28px"></div></div>
+                      </div>
+
+                      <div class="cond-group">
+                        <div class="cg-t">走访状态</div>
+                        <div class="chips" id="qVisitBox"></div>
+                      </div>
+
+                      <div class="cond-group" style="margin-bottom:6px">
+                        <div class="cg-t">其他标识</div>
+                        <div class="chips" id="qFlagBox"></div>
+                      </div>
+
+                      <div class="row mt12" style="gap:7px">
+                        <button class="btn btn-primary" id="qRun" style="flex:1">查询</button>
+                        <button class="btn" id="qReset" style="flex:0 0 74px">重置</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="card">
+                    <div class="card-hd" style="padding-bottom:6px"><div class="card-title">常用方案</div>
+                      <div class="right"><span class="tiny dim" id="qSavedCount"></span></div></div>
+                    <div class="card-bd" style="padding:6px 14px 10px" id="qSaved"></div>                  </div>
+                </div>
+
+                <!-- 结果 -->
+                <div class="stack">
+                  <div class="card" style="min-height:0;display:flex;flex-direction:column">
+                    <div class="card-bd" style="padding:11px 14px 6px;flex:0 0 auto">
+                      <div class="echo" id="qEcho"></div>
+                    </div>
+                    <div class="card-hd" style="border-bottom:1px solid var(--line);padding-top:8px;flex:0 0 auto">
+                      <div class="card-title">命中 <span id="qCount" style="color:var(--blue);font-size:15px">0</span> 人 <span class="sub" id="qSub"></span></div>
+                      <div class="right">
+                        <button class="btn btn-sm" id="qAssign">批量指派走访</button>
+                        <button class="btn btn-sm" id="qWatch">生成盯控名单</button>
+                        <button class="btn btn-sm btn-primary" id="qExport">脱敏导出</button>
+                      </div>
+                    </div>
+                    <div class="table-wrap" style="flex:1 1 0;min-height:0;overflow:auto">
+                      <table class="tb">
+                        <thead>
+                          <tr id="qHead">
+                            <th style="width:32px"><span class="cb" id="qCheckAll"></span></th>
+                            <th style="width:170px" data-col="name">姓名 / 档案号</th>
+                            <th data-col="tags">类别标签</th>
+                            <th style="width:88px" data-col="level">管控等级</th>
+                            <th style="width:96px" data-col="town">责任镇街</th>
+                            <th style="width:96px" data-col="officer">包联干部</th>
+                            <th style="width:88px" data-col="visit">最近走访</th>
+                            <th style="width:150px" data-col="idNo">身份证号</th>
+                          </tr>
+                        </thead>
+                        <tbody id="qBody"></tbody>
+                      </table>
+                    </div>
+                    <div class="pager" id="qPager" style="flex:0 0 auto;padding:8px 16px;border-top:1px solid var(--line)"></div>
+                  </div>
+
+                  <!-- 导出授权 -->
+                  <div class="grid g2" style="gap:12px">
+                    <div class="card export-card">
+                      <div class="card-hd" style="border-bottom-color:rgba(0,113,227,.14)">
+                        <div class="card-title">导出授权 <span class="sub">明文导出需审批</span></div>
+                        <div class="right"><span class="tag tag-blue" id="qGateTag">脱敏默认</span></div>
+                      </div>
+                      <div class="card-bd" style="padding:12px 14px">
+                        <div class="gate" style="color:var(--green)"><span class="cb on" id="qGateMask"></span>脱敏导出（身份证掩码、住址脱门牌）· 可直接执行</div>
+                        <div class="gate mt10" style="color:var(--t2)"><span class="cb" id="qGatePlain"></span>明文导出 <b id="qPlainN">0</b> 条 · 需填用途并提交审批</div>
+                        <div class="grid g2 mt10" style="gap:8px">
+                          <div class="field"><label>用途</label><div class="select" id="qPurpose" style="height:27px"></div></div>
+                          <div class="field"><label>有效期</label><div class="select" id="qValid" style="height:27px"></div></div>
+                        </div>
+                        <div class="banner banner-warn mt10" style="padding:7px 10px;font-size:11px">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v10M12 18.5v.5"/><circle cx="12" cy="12" r="9"/></svg>
+                          <span id="qGateNote">本批次 &lt; 50 条，由政法委主管单人审批；文件含水印（账号 + 时间戳）</span>
+                        </div>
+                        <button class="btn btn-primary mt10" id="qSubmitPlain" style="width:100%">提交明文导出申请</button>
+                        <div class="tiny" id="qReqTip" style="margin-top:7px;line-height:1.7;display:none"></div>
+                      </div>
+                    </div>
+
+                    <div class="card">
+                      <div class="card-hd"><div class="card-title">近期导出流水 <span class="sub">只增不改</span></div>
+                        <div class="right"><a class="btn btn-sm btn-ghost" id="qFlowAll" href="system.html?tab=audit&amp;op=export">全部 ›</a></div>
+                      </div>
+                      <div class="card-bd" style="padding:0">
+                        <table class="tb compact">
+                          <thead><tr><th>时间 / 操作人</th><th>内容</th><th class="r">方式</th></tr></thead>
+                          <tbody id="qFlow"></tbody>
+                        </table>
+                      </div>
+                      <div class="card-ft"><span>导出文件保留 7 天后自动清理，水印可追溯泄露源</span></div>
+                    </div>
+                  </div>
+
+                  <div class="foot-note">
+                    · 标签组合三种语义：交集（同时含所选全部标签）、仅含（只含所选标签、不含其他）、差集（含 A 且不含 B）；结果均按管控风险序升序排列。<br>
+                    · 检索支持姓名模糊、身份证后四位精确、档案号（MY-2026-xxxxxx）精确；拼音检索尚未开放，另行版本提供。<br>
+                    · 查询只重算右侧命中结果与统计，不切换页面布局；「当前条件」随左侧选择实时变化，点 ✕ 可单项移除并重查。
+                  </div>
+                </div>
+              </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="assets/miyun-geo.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/fileparse.js"></script>
+<script src="assets/ui.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/page-persons.js"></script>
+<script src="assets/page-query.js"></script>
+<script>
+(function(){
+  var panels = document.querySelectorAll("[data-panel]");
+  function go(key){
+    panels.forEach(function(p){ p.style.display = p.dataset.panel === key ? "" : "none"; });
+    if (window.showTopActs) window.showTopActs(key === "query" ? "query" : null);
+    var url = new URL(location.href);
+    url.searchParams.set("tab", key);
+    history.replaceState(null, "", url);
+  }
+  var init = new URLSearchParams(location.search).get("tab");
+  go(init && document.querySelector('[data-panel="' + init + '"]') ? init : "list");
+})();
+</script>
+</body>
+</html>
