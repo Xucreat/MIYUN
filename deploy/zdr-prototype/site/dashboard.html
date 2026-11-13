@@ -136,6 +136,16 @@
   .split-73, .split-64, .split-37 { align-items: start; }
   .two-line span { display: block; }
   .two-line span + span { font-size: 10.5px; color: var(--t3); }
+
+  /* 统一风险序映射弹窗（「风险等级结构 · 明细」） */
+  .lvlcell { font-size: 11px; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+  .rank-pill { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #fff; margin-left: 3px; }
+  .rp1 { background: var(--red); }
+  .rp2 { background: var(--orange); }
+  .rp4 { background: var(--orange); opacity: .78; }
+  .rp6 { background: var(--slate); }
+  .rp8 { background: var(--amber); }
+  .rp9 { background: var(--t4); }
 </style>
 </head>
 <body class="fit" data-page="dashboard" data-crumb="态势总览" data-title="态势驾驶舱">
@@ -242,7 +252,7 @@
 
                   <div class="card">
                     <div class="card-hd"><div class="card-title">风险等级结构 <span class="sub">按管控等级（就高不就低）</span></div>
-                      <div class="right"><a class="btn btn-sm btn-ghost" href="analytics.html">明细</a></div>
+                      <div class="right"><button class="btn btn-sm btn-ghost" id="btnRiskMap" type="button">明细</button></div>
                     </div>
                     <div class="card-bd" style="display:flex;gap:10px;align-items:center;padding:8px 13px">
                       <div class="donut-wrap" style="width:98px;height:98px;flex:0 0 98px">
@@ -1060,6 +1070,50 @@ const metricOpt = UI.select(metricNode, {
       onMount: () => { STORE.audit("查看日预警明细", date + " · " + v + " 条", "态势驾驶舱"); }
     });
   }
+
+  /* ---------- 风险等级结构 · 明细：统一风险序映射表（弹窗） ----------
+     与《07-业务规则与风险分级口径说明》一致：11 类部门分级折算为 1—9 风险序，
+     就高不就低；只做口径换算，不产生新数据，也不取消部门原等级。 */
+  const MAP_ROWS = [
+    { name: '涉访关注人员', dept: '信访、公安', ranks: [['A 类', 2], ['B 类', 4], ['C 类', 6]], pending: '' },
+    { name: '扬言类重点人', dept: '公安', ranks: [['高风险', 2], ['中风险', 4], ['低风险', 6], ['一般关注', 6], ['未定级', 8]], pending: '未定级口径待确认' },
+    { name: '政保重点人', dept: '公安', ranks: [['一级', 2], ['二级', 4], ['三级', 6], ['关注对象', 6]], pending: '' },
+    { name: '吸毒人员', dept: '公安', ranks: [['个人极端', 1], ['高风险', 2], ['中风险', 4], ['低风险', 6]], pending: '' },
+    { name: '严重精神障碍患者', dept: '卫健、公安', ranks: [['高风险', 2], ['中风险', 4], ['低风险', 6], ['风险不详', 8]], pending: '「风险不详」是否计入待核实' },
+    { name: '"六失一偏"人员', dept: '政法、民政', ranks: [['高风险', 2], ['中风险', 4], ['低风险', 6], ['一般关注', 6], ['未定级', 8]], pending: '未定级口径待确认' },
+    { name: '社区矫正对象', dept: '司法行政', ranks: [['高风险', 2], ['中风险', 4], ['低风险', 6]], pending: '' },
+    { name: '刑满释放人员', dept: '司法行政', ranks: [['高风险', 2], ['中风险', 4], ['低风险', 6], ['一般关注', 6]], pending: '' },
+    { name: '安置帮教人员', dept: '司法行政', ranks: [['高风险', 2], ['中风险', 4], ['低风险', 6]], pending: '' },
+    { name: '境外关联人员', dept: '公安', ranks: [['一级', 2], ['二级', 4], ['三级', 6], ['关注对象', 6]], pending: '' }
+  ];
+  const rpCls = r => r === 1 ? 'rp1' : r === 2 ? 'rp2' : r === 4 ? 'rp4' : r === 6 ? 'rp6' : r === 8 ? 'rp8' : 'rp9';
+  document.getElementById("btnRiskMap").onclick = () => {
+    const pend = MAP_ROWS.filter(r => r.pending).length;
+    UI.modal({
+      title: "统一风险序映射表",
+      sub: "口径基石 · 11 类部门分级 → 1—9 序号 · 数字越小风险越高",
+      width: 640,
+      okText: null,
+      cancelText: "关闭",
+      body: `
+        <div class="tiny" style="line-height:1.8;background:var(--blue-soft);border:1px solid var(--blue-soft-2);color:var(--blue-ink);border-radius:9px;padding:9px 12px;margin-bottom:10px">
+          各部门的分级话术并不统一（信访用 A/B/C 类、公安用一/二/三级、卫健用高/中/低/不详、司法用高/中/低）。
+          本表把 11 类口径统一折算成 1—9 风险序，作为「就高不就低」合并、判定「高风险及以上」、列表排序的唯一标尺；
+          <b>不产生任何新数据，也不取消部门原等级</b>。
+        </div>
+        <div class="table-wrap" style="border:1px solid var(--line);border-radius:9px;max-height:400px;overflow:auto">
+          <table class="tb compact">
+            <thead><tr><th style="width:132px">类别</th><th>该类的等级（后标注统一风险序）</th><th style="width:96px">主责部门</th></tr></thead>
+            <tbody>${MAP_ROWS.map(r => `<tr>
+              <td class="cell-main">${UI.esc(r.name)}</td>
+              <td>${r.ranks.map(x => `<span class="lvlcell">${UI.esc(x[0])}<span class="rank-pill ${rpCls(x[1])}">${x[1]}</span></span>`).join(' · ')}</td>
+              <td class="tiny">${UI.esc(r.dept)}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>
+        <div class="tiny dim" style="margin-top:9px">部门原始等级完整保留、不取消；仅在计算「就高不就低」「高风险及以上」「排序」时映射。7—9 保留给待核实类状态，不参与高风险统计。当前 ${pend} 项口径待政法委确认。</div>`,
+      onMount: () => { STORE.audit("查看统一风险序映射表", "风险等级结构 · 明细", "态势驾驶舱"); }
+    });
+  };
 
   weeks.forEach((arr, w) => {
     html += `<div class="wk">${w === 0 ? "9/28" : w === 3 ? "10/19" : w === 6 ? "11/9" : ""}</div>`;

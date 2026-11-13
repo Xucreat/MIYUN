@@ -12,6 +12,7 @@ window.STORE = (function () {
 
   const KEY = 'miyun-demo-v2';
   const SYS_KEY = KEY + ':sys';
+  const AUDIT_KEY = KEY + ':audit';
   /* 角色镜像：localStorage 跨标签页共享。
      sessionStorage 不随 target="_blank" 新标签页继承——
      大屏模式（新标签）点「返回工作台」、或从预警/盲区新开系统管理，
@@ -69,10 +70,30 @@ window.STORE = (function () {
         if (rk && D.ROLES[rk]) { state.role = rk; state.loggedIn = true; }
       } catch (e) { /* 隐私模式忽略 */ }
     }
+    /* 审计流水镜像：sessionStorage 按标签页隔离，从别的页面 target="_blank"
+       新开「系统管理 → 审计日志」时本标签页的 audit 是空的，看起来像"操作没记录"。
+       与角色同法：落 localStorage 镜像，load 时合并（按 at+act+detail+target 去重）。 */
+    try {
+      const aRaw = localStorage.getItem(AUDIT_KEY);
+      if (aRaw) {
+        const arr = JSON.parse(aRaw) || [];
+        const seen = {};
+        state.audit.forEach(r => { seen[r.at + '|' + r.act + '|' + (r.detail || '') + '|' + (r.target || '')] = 1; });
+        arr.forEach(r => {
+          const k = r.at + '|' + r.act + '|' + (r.detail || '') + '|' + (r.target || '');
+          if (!seen[k]) state.audit.push(r);
+        });
+        state.audit.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+        if (state.audit.length > 300) state.audit.length = 300;
+      }
+    } catch (e) { /* 隐私模式忽略 */ }
   }
   function save() {
     try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 隐私模式忽略 */ }
     try { localStorage.setItem(SYS_KEY, JSON.stringify(state.sys || {})); } catch (e) { /* 隐私模式忽略 */ }
+  }
+  function saveAuditMirror() {
+    try { localStorage.setItem(AUDIT_KEY, JSON.stringify(state.audit.slice(0, 300))); } catch (e) { /* 隐私模式忽略 */ }
   }
   function clearSysStore() {
     try { localStorage.removeItem(SYS_KEY); } catch (e) { /* ignore */ }
@@ -91,7 +112,14 @@ window.STORE = (function () {
     commit();
   }
   function logout() { state.loggedIn = false; commit(); }
-  function can(perm) { return !!(role().can || {})[perm]; }
+  function can(perm) {
+    /* 权限矩阵覆盖优先（on=允许 / half=受限需审批 / off=禁止）：
+       账号与角色页改了矩阵必须真实生效，否则「配置页关了、业务页还能点」两处口径打架 */
+    const ov = (sysState().rolePerms[state.role] || {})[perm];
+    if (ov === 'off') return false;
+    if (ov === 'on' || ov === 'half') return true;
+    return !!(role().can || {})[perm];
+  }
 
   /* ---- 数据范围视图（scope=dept 时全站收敛到本部门） ----
      persons 页走 D.scoped(roleKey, list)；其余页面统一用本入口：
@@ -122,6 +150,20 @@ window.STORE = (function () {
     });
     if (state.audit.length > 300) state.audit.length = 300;
     commit();   /* 立即落盘 sessionStorage：跳转到系统管理-审计日志后仍可追溯 */
+    /* 同步 localStorage 镜像（合并后再写，其他标签页写入的记录不丢） */
+    try {
+      const aRaw = localStorage.getItem(AUDIT_KEY);
+      const other = aRaw ? (JSON.parse(aRaw) || []) : [];
+      const seen = {};
+      state.audit.forEach(r => { seen[r.at + '|' + r.act + '|' + (r.detail || '') + '|' + (r.target || '')] = 1; });
+      other.forEach(r => {
+        const k = r.at + '|' + r.act + '|' + (r.detail || '') + '|' + (r.target || '');
+        if (!seen[k]) state.audit.push(r);
+      });
+      state.audit.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+      if (state.audit.length > 300) state.audit.length = 300;
+      saveAuditMirror();
+    } catch (e) { /* 隐私模式忽略 */ }
   }
   function auditOf(limit) { return state.audit.slice(0, limit || 30); }
   /* 按操作类型 / 目标模糊匹配取审计流水（供「留痕」深链落地高亮） */

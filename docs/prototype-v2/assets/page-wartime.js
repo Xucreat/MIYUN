@@ -232,7 +232,7 @@
         <td>${esc(r.town)}</td>
         <td class="r" style="color:${over > 0 ? 'var(--red)' : 'var(--t3)'};font-weight:${over > 0 ? 600 : 400}">${over > 0 ? '超期 ' + over + ' 天' : '未超期'}</td>
         <td class="dim">${esc(r.reason.name)} · 距上次见面 ${p.visitGap} 天（时限 ${eff.visitLimit} 天） · 复访 ${esc(r.row.due || '—')}</td>
-        <td class="r"><a class="rowlink" href="javascript:;" data-db="${esc(p.id)}">督办</a></td>
+        <td class="r"><a class="rowlink" href="javascript:;" data-db="${esc(p.id)}" data-perm="edit">督办</a></td>
       </tr>`;
     }).join('') || `<tr><td colspan="7"><div class="ui-empty"><b>本期无未见面人员</b>全部应见人员均已回填为已见面</div></td></tr>`;
 
@@ -583,7 +583,8 @@
     if (!window.guard('edit', '督办未见面人员')) return;
     const row = S.wtAllRows().find(r => r.personId === pid);
     const p = D.personById(pid);
-    if (!row || !p) return;
+    /* 不再静默 return：行数据缺失时给出明确反馈，避免「点了没反应」 */
+    if (!row || !p) { UI.toast.err('该人员的未见面记录已更新，请刷新清单后重试'); return; }
     const reason = D.WT_REASON_OF[row.reason] || D.WT_REASONS[4];
     UI.modal({
       title: '督办 · ' + nmOf(p),

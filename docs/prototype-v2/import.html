@@ -76,11 +76,10 @@
   body.fit .stack-left > .card:nth-child(3),
   body.fit .stack-left > .card:nth-child(4) { flex: 1 1 0; min-height: 92px; }
 
-  /* 右列：报送进度 / 合并规则 / 性能按内容，导入批次吸收剩余高度并内部滚动 */
+  /* 右列：报送进度 / 性能按内容，导入批次吸收剩余高度并内部滚动 */
   body.fit .stack-right > .card:nth-child(1) { flex: 0 1 auto; min-height: 0; }
   body.fit .stack-right > .card.batch-card { flex: 1 1 0; min-height: 116px; }
-  body.fit .stack-right > .card:nth-child(3),
-  body.fit .stack-right > .card:nth-child(4) { flex: 0 1 auto; min-height: 0; }
+  body.fit .stack-right > .card:nth-child(3) { flex: 0 1 auto; min-height: 0; }
 
   /* 压缩态排版：减少内边距与行距，把高度让给内容 */
   body.fit .steps { padding: 2px 2px 10px; }
@@ -154,12 +153,6 @@
                 <thead><tr><th>批次 / 表块</th><th class="r" style="width:64px">结果</th></tr></thead>
                 <tbody id="batchBody"></tbody>
               </table>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-hd"><div class="card-title">合并规则 <span class="sub">提示与拦截</span></div></div>
-            <div class="card-bd" style="padding:11px 14px">
             </div>
           </div>
 

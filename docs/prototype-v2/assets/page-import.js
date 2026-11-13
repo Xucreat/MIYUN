@@ -277,6 +277,7 @@
         bad.map(r => [r.line, r.name, r.idNo, r.reason, r.status])
       );
       UI.downloadCSV('导入错误行_' + parsed.name.replace(/\.[^.]+$/, '') + '.csv', rows);
+      STORE.addExport('导入错误行 ' + parsed.name, bad.length, '脱敏');
       UI.toast.ok('已下载 ' + bad.length + ' 行错误明细');
     };
     const bk = document.getElementById('btnBackMap');
