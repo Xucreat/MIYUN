@@ -12,6 +12,27 @@
   const lvTag = k => `<span class="tag ${TAGCLS[k] || 'tag-slate'}">${SHORT[k] || k}</span>`;
   const fld = (p, f) => D.field(ST.role().key, f, p).text;
 
+  /* ---------- 数据范围：公安经办（scope=dept）仅见本部门数据 ----------
+     leader / admin 走全区口径不变；dept 把人员明细、待办计数、
+     审批单、风险告警等收敛为本部门（与人员台账 / 预警页同一 view 口径）。
+     全区统筹叙事（重点时期进度、跨镇街流动、报送质量）保留并注明口径。 */
+  const SCOPED = ST.role().scope === 'dept';
+  const DEPT_NAME = ST.role().dept || '';
+  const MINE = SCOPED ? ST.view(D.persons) : null;
+  const inScope = p => !SCOPED || (p && p.dept === DEPT_NAME);
+
+  /* dept 视角口径说明条：shell 会把 .page-head 移出 DOM，直接挂到 .content 顶部 */
+  if (SCOPED) {
+    const content = document.querySelector('.content');
+    if (content) {
+      const banner = document.createElement('div');
+      banner.className = 'banner banner-info mb10';
+      banner.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v.2M12 11v5"/></svg>' +
+        '<span>当前以「' + ST.role().roleName + ' · ' + DEPT_NAME + '」身份查看：待办、人员明细、审批单与风险告警为<b>本部门口径</b>；重点时期进度、人员流动与报送质量为全区统筹口径。</span>';
+      content.prepend(banner);
+    }
+  }
+
   /* ---------- 通用浮动 tooltip（fixed，不被卡片裁切） ---------- */
   const tip = document.createElement('div');
   tip.style.cssText = 'position:fixed;z-index:99;pointer-events:none;opacity:0;transition:opacity .08s;' +
@@ -83,14 +104,26 @@
    * ============================================================ */
   function renderTodo() {
     const box = $('todoList'); if (!box) return;
-    const alertN = ST.alertStats().open, apprN = ST.approvalStats().pending;
+    /* dept：预警与审批按本部门人员收敛（口径与预警页 / 审批单一致） */
+    const alertN = SCOPED
+      ? ST.alerts().filter(a => inScope(D.personById(a.personId)) && a.status === '待处置').length
+      : ST.alertStats().open;
+    const apprRows = (() => {
+      const rows = ST.approvals();
+      return SCOPED ? rows.filter(a => inScope(D.personById(a.personId))) : rows;
+    })();
+    const apprN = SCOPED ? apprRows.filter(a => a.status === '待审批').length : ST.approvalStats().pending;
+    const dualOver = SCOPED
+      ? MINE.filter(p => p.dual).length   /* 与盲区页 dept 视角「双在册」口径一致 */
+      : 9; /* 与 blind.html CONF 生成逻辑同参：前 9 条超 7 日未确认 */
     const wts = ST.wtStats();
     const notRep = ST.wtTasks().filter(t => !t.reported);
-    const dualOver = 9; /* 与 blind.html CONF 生成逻辑同参：前 9 条超 7 日未确认 */
     const items = [
-      { c: 'var(--red)', t: `双在册确认超期 ${dualOver} 条`, m: '最长超期 6 天 · 不老屯 3 条', b: '处理', href: 'blind.html?type=dual&st=over' },
-      { c: 'var(--orange)', t: `预警待处置 ${alertN} 条`, m: `超期 7 条 · 今日新增 ${alertN} 条`, b: '处理', href: 'alerts.html' },
-      { c: 'var(--blue)', t: `等级调整待审批 ${apprN} 条`, m: '上调 2 · 下调 3', b: '处理', href: 'risk.html' },
+      { c: 'var(--red)', t: `双在册${SCOPED ? '待确认' : '确认超期'} ${dualOver} 条`, m: SCOPED ? `本部门双在册 · 跨部门责任交叉待确认` : '最长超期 6 天 · 不老屯 3 条', b: '处理', href: 'blind.html?type=dual&st=over' },
+      { c: 'var(--orange)', t: `预警待处置 ${alertN} 条`, m: SCOPED ? `本部门人员相关预警 · 待处置` : `超期 7 条 · 今日新增 ${alertN} 条`, b: '处理', href: 'alerts.html' },
+      SCOPED
+        ? { c: 'var(--blue)', t: `本部门调整申请在途 ${apprN} 条`, m: '审批由「政法委主管」执行，此处跟踪进度', b: '查看', href: 'persons.html?tab=query' }
+        : { c: 'var(--blue)', t: `等级调整待审批 ${apprN} 条`, m: '上调 2 · 下调 3', b: '处理', href: 'risk.html' },
       { c: 'var(--amber)', t: `未零报告镇街 ${notRep.length} 个`, m: `${notRep.slice(0, 2).map(t => t.town.replace(/(街道|地区|镇)$/, '')).join('、')}${notRep.length > 2 ? ' 等 ' + notRep.length + ' 个' : ''} · 20:00 截止`, b: '督办', href: 'wartime.html?push=1' }
     ];
     box.innerHTML = items.map(it => `<div class="li" style="padding:7px 0">
@@ -213,7 +246,7 @@
       }).join('');
     }
     const foot = $('watchFoot');
-    if (foot) foot.innerHTML = `全区应见 <b>${st.should}</b> / 已见 <b>${st.met}</b> / 未报 <b>${st.missing}</b> · 见面率 <b>${(st.met / st.should * 100).toFixed(1)}%</b>（数据与「重点时期管控」同源）`;
+    if (foot) foot.innerHTML = `全区应见 <b>${st.should}</b> / 已见 <b>${st.met}</b> / 未报 <b>${st.missing}</b> / 见面率 <b>${(st.met / st.should * 100).toFixed(1)}%</b>（数据与「重点时期管控」同源${SCOPED ? ' · 全区统筹口径' : ''}）`;
     /* 今日零报告 */
     const zg = $('zgGrid');
     if (zg) {
@@ -223,11 +256,11 @@
       if (sub) sub.textContent = `已提交 ${rep} / ${tasks.length}`;
       if (tag) { tag.textContent = `${tasks.length - rep} 镇街未报`; tag.className = 'tag ' + (rep === tasks.length ? 'tag-green' : 'tag-red'); }
     }
-    /* 最久未见面 TOP5（DATA.wartimeUnseenAll，与 wartime 督办口径一致） */
+    /* 最久未见面 TOP5（DATA.wartimeUnseenAll，与 wartime 督办口径一致；dept 仅本部门） */
     const lg = $('longestList');
     if (lg) {
       const REASONS = ['应见未见面 · 长期拒访', '外出务工 · 电话未接通', '长期住院 · 已协调卫健代访', '居住地存疑 · 正在核查', '已约本周五见面', '家属陪同走访 2 次未接触'];
-      const rows = D.wartimeUnseenAll().slice(0, 5);
+      const rows = D.wartimeUnseenAll().filter(r => inScope(r.person)).slice(0, 5);
       lg.innerHTML = rows.map((r, i) => {
         const p = r.person, gap = p.visitGap;
         const stTag = gap > 30 ? '<span class="tag tag-red">超期</span>' : gap > 14 ? '<span class="tag tag-amber">跟进中</span>' : '<span class="tag tag-blue">已约</span>';
@@ -286,8 +319,8 @@
             title: '流入来源 · ' + SRC_ROWS[i].nm, width: 480,
             body: tipRow('本月流入', SRC_ROWS[i].n + ' 人（' + (SRC_ROWS[i].n / 43 * 100).toFixed(0) + '%）').replace(/opacity/, 'class') +
               `<div class="tiny dim" style="margin:7px 0">${SRC_ROWS[i].detail}</div>
-               <div class="sect-title" style="margin-bottom:4px">代表人员（按角色脱敏）</div>` +
-              D.persons.filter(p => p.dept && p.town).slice(i * 3, i * 3 + 3).map(p => `<div class="li" style="padding:4px 0"><span class="mono tiny">${esc(fld(p, 'idNo'))}</span><span style="margin-left:8px">${esc(fld(p, 'name'))}</span><span class="spacer"></span><span class="tiny dim">${esc(p.town)}</span></div>`).join(''),
+               <div class="sect-title" style="margin-bottom:4px">代表人员（按角色脱敏${SCOPED ? ' · 本部门' : ''}）</div>` +
+              (SCOPED ? MINE.filter(p => p.dept && p.town) : D.persons.filter(p => p.dept && p.town)).slice(i * 3, i * 3 + 3).map(p => `<div class="li" style="padding:4px 0"><span class="mono tiny">${esc(fld(p, 'idNo'))}</span><span style="margin-left:8px">${esc(fld(p, 'name'))}</span><span class="spacer"></span><span class="tiny dim">${esc(p.town)}</span></div>`).join(''),
             okText: null, cancelText: '关闭'
           });
         };
@@ -356,7 +389,7 @@
       const secHtml = r => {
         const m = CAT_META[r[0]] || null;
         if (!m) return '';
-        const ps = D.persons.filter(p => p.level === m.key).slice(0, 3);
+        const ps = (SCOPED ? MINE : D.persons).filter(p => p.level === m.key).slice(0, 3);
         return `<div style="margin:10px 0 0;padding-top:9px;border-top:1px dashed var(--line)">
           <div style="font-size:12.5px;font-weight:650;margin-bottom:5px">${esc(r[0])} · 本月流动构成</div>
           ${tipRow('流入来源', m.inSrc)}${tipRow('流出去向', m.out)}${tipRow('管控动作', m.act)}${tipRow('口径说明', m.req)}
@@ -394,12 +427,12 @@
       });
     }
     function crossModal(r) {
-      const ppl = D.persons.filter(p => p.town === r[0]).slice(0, r[2]);
+      const ppl = (SCOPED ? MINE : D.persons).filter(p => p.town === r[0]).slice(0, r[2]);
       UIx.modal({
         title: `跨镇街流动 · ${r[0]} → ${r[1]}`, width: 500,
         body: tipRow('人数', r[2] + ' 人') + tipRow('主要事由', r[3]) + tipRow('移交状态', r[4]) +
-          `<div class="sect-title" style="margin:9px 0 4px">涉及人员（按角色脱敏）</div>` +
-          ppl.map(p => `<div class="li" style="padding:4px 0"><span>${esc(fld(p, 'name'))}</span><span class="mono tiny" style="margin-left:8px">${esc(fld(p, 'idNo'))}</span><span class="spacer"></span><span class="tiny dim">${D.levelOf(p.level).name}</span></div>`).join('') +
+          `<div class="sect-title" style="margin:9px 0 4px">涉及人员（按角色脱敏${SCOPED ? ' · 本部门' : ''}）</div>` +
+          (ppl.length ? ppl.map(p => `<div class="li" style="padding:4px 0"><span>${esc(fld(p, 'name'))}</span><span class="mono tiny" style="margin-left:8px">${esc(fld(p, 'idNo'))}</span><span class="spacer"></span><span class="tiny dim">${D.levelOf(p.level).name}</span></div>`).join('') : '<div class="tiny dim">本部门暂无涉及该流动的人员记录</div>') +
           `<div class="sect-title" style="margin:9px 0 4px">移交时间线</div>
            <div class="tiny" style="line-height:1.8">① ${r[0]} 发起迁移申请 → ② 材料审核通过 → ③ ${r[1]} ${r[4] === '已完成' ? '已确认接收（走访任务已重派）' : r[4] === '移交中' ? '确认中（确认前仍由 ' + r[0] + ' 负责走访）' : '待确认（超 3 日将升级督办）'}</div>`,
         okText: null, cancelText: '关闭'
@@ -408,12 +441,12 @@
     /* 同一人 30 日内二次迁入：直接展示该预警涉及的逐人跨镇街明细
        —— 数据来自 D.movesOf()，与一人一档「跨镇街迁移」卡完全同源 */
     function secondMoveModal() {
-      const list = D.persons.filter(p => D.hasSecondMove(p)).slice(0, 3);
+      const list = (SCOPED ? MINE : D.persons).filter(p => D.hasSecondMove(p)).slice(0, 3);
       UIx.modal({
         title: '同一人 30 日内二次迁入 · 逐人明细', width: 780,
         sub: '预警口径：同一自然人在 30 天内发生 2 次及以上跨镇街迁入，需确认属地责任划分与并档结果 · 与一人一档「跨镇街迁移」卡同源',
         body: `<table class="tb compact mini-tb"><thead><tr><th>人员 / 属地</th><th>证件号</th><th>迁入链（按时间正序）</th><th class="r">最近间隔</th><th class="c">并档 / 移交</th></tr></thead>
-          <tbody>${list.map(p => {
+          <tbody>${list.length ? list.map(p => {
             const ms = D.movesOf(p);
             const last = ms[ms.length - 1];
             const chain = ms.map(m => `<div class="tiny" style="line-height:1.75;white-space:nowrap"><span class="dim">${esc(m.outDate.slice(5))}</span> ${esc(m.from)} → <b>${esc(m.to)}</b><span class="dim"> · 迁入 ${esc(m.inDate.slice(5))}</span></div>`).join('');
@@ -423,7 +456,7 @@
               <td>${chain}</td>
               <td class="r num">${last.gapFromPrev} 天</td>
               <td class="c"><span class="tag ${last.status === '已并档' ? 'tag-green' : last.status === '移交中' ? 'tag-blue' : 'tag-amber'}">${esc(last.status)}</span></td></tr>`;
-          }).join('')}</tbody></table>
+          }).join('') : '<tr><td colspan="5" class="dim" style="text-align:center;padding:14px 0">本部门暂无 30 日内二次迁入记录</td></tr>'}</tbody></table>
           <div class="tiny dim" style="margin-top:8px;line-height:1.7">并档规则：以身份证号为唯一键，迁入即合并为同一档案，历史走访记录随档迁移；第二次迁入的属地责任由迁入地 3 个工作日内确认，确认前仍由迁出地负责走访。点击姓名进入一人一档，可在「跨镇街迁移」卡查看该人完整迁移链、移交单号与并档结果。</div>`,
         okText: '去人员台账核对', cancelText: '关闭',
         onOk: () => { setTimeout(() => { location.href = 'persons.html'; }, 60); return true; }
@@ -432,10 +465,11 @@
 
     const bca = $('btnCrossAll');
     if (bca) bca.onclick = () => {
-      const all = D.moveRows();
+      const all = SCOPED ? D.moveRows().filter(r => inScope(r.person)) : D.moveRows();
+      if (SCOPED && !all.length) { UIx.toast.ok('本部门暂无跨镇街迁移记录'); return; }
       const rows = all.slice(0, 40);
       UIx.modal({
-        title: `跨镇街流动 · 全量明细（${all.length} 人次）`, width: 800,
+        title: `跨镇街流动 · 全量明细（${all.length} 人次${SCOPED ? ' · 本部门' : ''}）`, width: 800,
         sub: '与一人一档「跨镇街迁移」卡同源 · 姓名与证件号按当前角色脱敏',
         body: `<table class="tb compact mini-tb"><thead><tr><th>人员</th><th>证件号</th><th>迁出属地</th><th>迁出日</th><th>迁入属地</th><th>迁入日</th><th>事由</th><th class="c">移交状态</th></tr></thead>
           <tbody>${rows.map(({ p, m }) => `<tr>
@@ -623,8 +657,8 @@
         });
       });
     }
-    /* 风险变化告警：hover + 点击 + 深链 */
-    const G90_LIST = D.unrated.filter(p => p.visitGap > 90);
+    /* 风险变化告警：hover + 点击 + 深链（dept：未定级 90 天仅本部门） */
+    const G90_LIST = D.unrated.filter(p => p.visitGap > 90 && inScope(p));
         const G90N = G90_LIST.length;
         const G90_DEPT = Object.entries(G90_LIST.reduce((m, p) => { m[p.dept] = (m[p.dept] || 0) + 1; return m; }, {}))
           .sort((a, b) => b[1] - a[1]).map(function (kv) { return kv[0] + ' ' + kv[1]; }).join(' · ') || '\u2014';
@@ -655,6 +689,7 @@
     if (lb) {
       const ORDER = { '待审批': 0, '退回补充': 1, '已通过': 2, '已驳回': 3 };
       const rows = STORE.approvals().slice()
+        .filter(a => inScope(D.personById(a.personId)) || (!SCOPED && !a.personId))
         .sort((a, b) => (ORDER[a.status] - ORDER[b.status]) || b.time.localeCompare(a.time))
         .map(a => {
           const p = D.personById(a.personId);
@@ -737,8 +772,8 @@
         tr.onclick = () => UIx.modal({
           title: r.code + ' ' + r.name, width: 460,
           body: tipRow('校验内容', esc(r.desc)) + tipRow('本期命中', r.hit + ' 条') + tipRow('处置方式', r.act) +
-            `<div class="sect-title" style="margin:8px 0 4px">命中明细（模拟）</div>` +
-            (r.hit ? D.persons.slice(0, r.hit).map(p => `<div class="li" style="padding:4px 0"><span class="mono tiny">${esc(fld(p, 'idNo'))}</span><span class="tiny dim" style="margin-left:8px">${esc(p.town)} · 待修正队列</span></div>`).join('') : '<div class="tiny dim">本期无命中记录</div>'),
+            `<div class="sect-title" style="margin:8px 0 4px">命中明细（模拟${SCOPED ? ' · 本部门' : ''}）</div>` +
+            (r.hit ? (SCOPED ? MINE : D.persons).slice(0, r.hit).map(p => `<div class="li" style="padding:4px 0"><span class="mono tiny">${esc(fld(p, 'idNo'))}</span><span class="tiny dim" style="margin-left:8px">${esc(p.town)} · 待修正队列</span></div>`).join('') : '<div class="tiny dim">本期无命中记录</div>'),
           okText: '去规则参数', cancelText: '关闭',
           onOk: () => { setTimeout(() => { location.href = 'system.html?tab=config'; }, 60); return true; }
         });

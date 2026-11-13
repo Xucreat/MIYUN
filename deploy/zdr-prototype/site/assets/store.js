@@ -12,6 +12,11 @@ window.STORE = (function () {
 
   const KEY = 'miyun-demo-v2';
   const SYS_KEY = KEY + ':sys';
+  /* 角色镜像：localStorage 跨标签页共享。
+     sessionStorage 不随 target="_blank" 新标签页继承——
+     大屏模式（新标签）点「返回工作台」、或从预警/盲区新开系统管理，
+     都会在没有会话存档的新标签里把角色回退成默认政法委主管。 */
+  const ROLE_KEY = KEY + ':role';
   /* 演示"今天"：全站时间口径统一为 2026-11-10（时分仍取真实时钟，保证有变化），
      避免真实系统日期与演示数据混排、审计日志出现 11-12 插在 11-10 前面 */
   const DEMO_TODAY = '2026-11-10';
@@ -46,8 +51,9 @@ window.STORE = (function () {
   let state = blank();
 
   function load() {
+    let raw = null;
     try {
-      const raw = sessionStorage.getItem(KEY);
+      raw = sessionStorage.getItem(KEY);
       if (raw) state = Object.assign(blank(), JSON.parse(raw));
     } catch (e) { state = blank(); }
     /* 系统管理配置态额外落 localStorage：草稿与已改配置关掉标签页也不丢 */
@@ -55,6 +61,14 @@ window.STORE = (function () {
       const sysRaw = localStorage.getItem(SYS_KEY);
       if (sysRaw) state.sys = JSON.parse(sysRaw);
     } catch (e) { /* 隐私模式忽略 */ }
+    /* 本标签页没有会话存档（新开标签 / 大屏返回跳转）时，
+       从 localStorage 镜像恢复登录角色，避免退回默认政法委主管 */
+    if (!raw) {
+      try {
+        const rk = localStorage.getItem(ROLE_KEY);
+        if (rk && D.ROLES[rk]) { state.role = rk; state.loggedIn = true; }
+      } catch (e) { /* 隐私模式忽略 */ }
+    }
   }
   function save() {
     try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 隐私模式忽略 */ }
@@ -72,11 +86,28 @@ window.STORE = (function () {
     if (!D.ROLES[key]) return;
     state.role = key;
     state.loggedIn = true;
+    try { localStorage.setItem(ROLE_KEY, key); } catch (e) { /* 隐私模式忽略 */ }
     audit('登录', '以「' + D.ROLES[key].roleName + '」身份登录系统', '系统入口');
     commit();
   }
   function logout() { state.loggedIn = false; commit(); }
   function can(perm) { return !!(role().can || {})[perm]; }
+
+  /* ---- 数据范围视图（scope=dept 时全站收敛到本部门） ----
+     persons 页走 D.scoped(roleKey, list)；其余页面统一用本入口：
+     · 元素本身是人员（有 dept）→ 直接比对主责部门；
+     · 元素带 personId（预警 / 走访行）→ 按台账人员的部门比对；
+     · 元素带 person 复合对象（wartime 未走访行）→ 按行内人员比对。
+     无 personId/person 的记录（安全事件类待办）在 dept 视角不可见——
+     账号安全类由安全管理员处置，本就不属于业务经办的数据范围。 */
+  function view(list) {
+    const r = role();
+    if (r.scope !== 'dept') return list || [];
+    const idx = {};
+    D.persons.forEach(p => { idx[p.id] = p; });
+    const ok = p => !!p && p.dept === r.dept;
+    return (list || []).filter(x => ok(x) || ok(x.person) || ok(idx[x.personId]));
+  }
 
   /* ---- 审计流水 ---- */
   function now() {
@@ -374,8 +405,10 @@ window.STORE = (function () {
     return base.map(r => Object.assign({}, r, delta.rows[r.personId] || {}));
   }
   function wtTasks() {
+    const deptView = role().scope === 'dept';
     return D.wartime.tasks.map(t => {
-      const rows = wtRows(t.town);
+      const rows = view(wtRows(t.town));
+      if (deptView && !rows.length) return null;   /* 本部门人员未涉及的镇街任务行不显示 */
       const met = rows.filter(r => r.status === 'met').length;
       const miss = rows.length - met;
       const delta = state.wartime[t.town];
@@ -402,7 +435,7 @@ window.STORE = (function () {
         edited: !!(delta && delta.rows),
         filled
       };
-    });
+    }).filter(Boolean);
   }
   /* 逐人回填：rows 为整镇街的完整快照（含未改动行），note 为镇街整体说明 */
   function wtFill(town, rows, note) {
@@ -491,7 +524,7 @@ window.STORE = (function () {
   }
   function wtAllRows() {
     const out = [];
-    D.wartime.tasks.forEach(t => wtRows(t.town).forEach(r => out.push(Object.assign({ town: t.town, officer: t.officer }, r))));
+    D.wartime.tasks.forEach(t => view(wtRows(t.town)).forEach(r => out.push(Object.assign({ town: t.town, officer: t.officer }, r))));
     return out;
   }
   function wtHist(town) {
@@ -1102,13 +1135,19 @@ window.STORE = (function () {
 
   /* ---- 订阅 / 重置 ---- */
   function on(fn) { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i > -1) listeners.splice(i, 1); }; }
-  function reset() { state = blank(); state.role = 'admin'; clearSysStore(); commit(); }
+  function reset() {
+    state = blank();
+    state.role = 'admin';
+    try { localStorage.removeItem(ROLE_KEY); } catch (e) { /* ignore */ }
+    clearSysStore();
+    commit();
+  }
   function dump() { return JSON.parse(JSON.stringify(state)); }
 
   load();
   replayImported();
   return {
-    role, setRole, logout, can,
+    role, setRole, logout, can, view,
     audit, auditOf, auditMatch, now,
     levelOf, applyLevel,
     alerts, alert, handleAlert, transferAlert, alertStats,

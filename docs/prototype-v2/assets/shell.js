@@ -32,6 +32,10 @@
   const svg = (n, cls) => `<svg class="${cls || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${I[n] || ''}</svg>`;
 
   const ROLE = window.STORE ? STORE.role() : (window.DATA ? DATA.ROLES.admin : null);
+  /* 导航项可带 perm：对应角色 can[perm] 为真才显示。
+     三员分立下「数据导入」需 import 权限、「系统管理」需 config 权限、
+     「调整审批」需 approve 权限——区领导 / 公安经办无审批权，
+     对应侧栏入口直接隐藏，避免进得去却处处被拦。 */
   const NAV = [
     { label: '态势总览', items: [
       { id: 'dashboard', t: '态势驾驶舱', i: 'dashboard', href: 'dashboard.html' },
@@ -41,12 +45,12 @@
     { label: '台账管理', items: [
       { id: 'persons', t: '人员台账', i: 'users', href: 'persons.html' },
       { id: 'person', t: '一人一档', i: 'file', href: 'person.html' },
-      { id: 'import', t: '数据导入', i: 'upload', href: 'import.html' }
+      { id: 'import', t: '数据导入', i: 'upload', href: 'import.html', perm: 'import' }
     ]},
     { label: '风险与预警', items: [
       { id: 'alerts', t: '预警待办', i: 'bell', href: 'alerts.html', badge: window.STORE ? STORE.alertStats().open : 18 },
       { id: 'blind', t: '盲区人群', i: 'blind', href: 'blind.html', badge: 3 },
-      { id: 'risk', t: '调整审批', i: 'approve', href: 'risk.html', badge: window.STORE ? STORE.approvalStats().pending : 5 },
+      { id: 'risk', t: '调整审批', i: 'approve', href: 'risk.html', perm: 'approve', badge: window.STORE ? STORE.approvalStats().pending : 5 },
       { id: 'wartime', t: '重点时期管控', i: 'shield2', href: 'wartime.html' }
     ]},
     { label: '查询统计', items: [
@@ -54,9 +58,13 @@
       { id: 'analytics', t: '统计分析', i: 'chart', href: 'analytics.html' }
     ]},
     { label: '系统管理', items: [
-      { id: 'system', t: '系统管理', i: 'settings', href: 'system.html' }
+      { id: 'system', t: '系统管理', i: 'settings', href: 'system.html', perm: 'config' }
     ]}
   ];
+  const canSee = it => !it.perm || (window.STORE ? STORE.can(it.perm) : true);
+  const NAV_VISIBLE = NAV
+    .map(g => Object.assign({}, g, { items: g.items.filter(canSee) }))
+    .filter(g => g.items.length);
 
   const page = document.body.dataset.page || '';
   const crumb = document.body.dataset.crumb || '';
@@ -82,7 +90,7 @@
         </div>
       </div>
       <nav class="nav">
-        ${NAV.map(g => `
+        ${NAV_VISIBLE.map(g => `
           <div class="nav-group">
             <div class="nav-label">${g.label}</div>
             ${g.items.map(it => `
@@ -292,7 +300,8 @@
           · 侧栏底部头像可随时切换岗位，观察字段掩码与数据范围变化<br>
           · 所有处置、审批、导入、查看明文操作都会写入审计流水（系统管理 → 审计日志）
         </div>`,
-      onClose: v => { if (v === null) return; }
+      /* 「切换角色」按钮：关闭说明并直接打开角色切换弹窗，避免按钮文案承诺了动作却不响应 */
+      onCancel: () => { setTimeout(roleSwitchDialog, 60); }
     });
   }
 
@@ -399,6 +408,92 @@
   .top-search:focus-within { background: #fff; border-color: var(--blue-soft-2); box-shadow: 0 0 0 3px rgba(0,113,227,.10); }
   `;
   document.head.appendChild(s);
+})();
+
+/* ---------- 按钮级权限门控 ----------
+   约定：<button data-perm="approve">…</button>
+   无权限时置灰 + title 说明，点击仍走 window.guard 兜底提示。
+   之所以不隐藏按钮：三员分立演示需要让使用者看到"有该动作但本岗无权"，
+   否则区领导看不到审批按钮，会误以为系统没有审批功能。 */
+(function () {
+  if (!window.STORE || !window.DATA) return;
+  const PERM_TXT = {
+    approve: '审批', export: '导出', exportPlain: '明文导出', edit: '处置与登记',
+    import: '数据导入', disclosure: '明文查看申请', config: '系统配置变更'
+  };
+  function lockTip(perm) {
+    const cur = STORE.role();
+    const holder = Object.keys(DATA.ROLES).map(k => DATA.ROLES[k])
+      .filter(r => (r.can || {})[perm] && r.key !== cur.key)
+      .sort((a, b) => (b.can.approve ? 1 : 0) - (a.can.approve ? 1 : 0))[0];
+    return '「' + cur.roleName + '」无' + (PERM_TXT[perm] || '该') + '权限' +
+      (holder ? ' · 由「' + holder.roleName + '」执行' : '');
+  }
+  window.applyPermGates = function (root) {
+    (root || document).querySelectorAll('[data-perm]').forEach(el => {
+      const perm = el.dataset.perm;
+      if (!perm) return;
+      if (el.dataset.permOk === undefined) el.dataset.permOk = el.getAttribute('title') || '';
+      const ok = STORE.can(perm);
+      el.classList.toggle('is-locked', !ok);
+      el.setAttribute('aria-disabled', ok ? 'false' : 'true');
+      el.title = ok ? (el.dataset.permOk || '') : lockTip(perm);
+      if (!el.dataset.gated) {
+        el.dataset.gated = '1';
+        /* capture 阶段拦截：早于页面自己绑的 onclick，保证置灰态不会被穿透 */
+        el.addEventListener('click', e => {
+          if (STORE.can(el.dataset.perm)) return;
+          e.preventDefault(); e.stopImmediatePropagation();
+          window.guard(el.dataset.perm, PERM_TXT[el.dataset.perm] || '该操作');
+        }, true);
+      }
+    });
+  };
+  window.applyPermGates();
+  /* 动态渲染出来的按钮（列表行、弹窗）也要跟上，用一个轻量 debounce 观察器 */
+  let gateTimer = null;
+  new MutationObserver(() => {
+    if (gateTimer) return;
+    gateTimer = setTimeout(() => { gateTimer = null; window.applyPermGates(); }, 60);
+  }).observe(document.body, { childList: true, subtree: true });
+})();
+
+/* ---------- 页面级权限门：body[data-page-perm] ----------
+   侧栏导航已按 can[perm] 过滤入口，但直达 URL（书签 / 手输）仍会进到页面本体。
+   命中时把 .content 原内容整体隐藏（不删除，页面脚本照常初始化，避免
+   getElementById 报错），插一条无权限占位：说明缺哪项权限、由谁负责，
+   并提供「切换角色」与「返回驾驶舱」。覆盖 system（config）与 import（import）。 */
+(function () {
+  if (!window.STORE || !window.DATA) return;
+  const perm = document.body.dataset.pagePerm;
+  if (!perm || STORE.can(perm)) return;
+  document.body.classList.add('page-denied');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const PERM_TXT = { approve: '审批', export: '导出', exportPlain: '明文导出', edit: '处置与登记',
+    import: '数据导入', disclosure: '明文查看申请', config: '系统配置变更' };
+  const label = PERM_TXT[perm] || '该';
+  const cur = STORE.role();
+  const holder = Object.keys(DATA.ROLES).map(k => DATA.ROLES[k])
+    .filter(r => (r.can || {})[perm])
+    .sort((a, b) => (b.can.approve ? 1 : 0) - (a.can.approve ? 1 : 0))[0];
+  const box = document.createElement('div');
+  box.className = 'page-deny';
+  box.innerHTML =
+    '<div class="pd-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="9.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 118 0v3"/><path d="M12 14.5v2"/></svg></div>' +
+    '<div class="pd-tt">无权访问 · ' + esc(label) + '模块</div>' +
+    '<div class="pd-sub">当前角色「' + esc(cur.roleName) + '」（' + esc(cur.user) + '）不具备本页所需的 ' + esc(label) + ' 权限' +
+    (holder ? '，该模块由「' + esc(holder.roleName) + '」（' + esc(holder.user) + '）负责' : '') + '。</div>' +
+    '<div class="pd-sub dim">三员分立：系统配置由系统管理员执行，审计由审计员执行，业务处置由主管与经办执行。</div>' +
+    '<div class="pd-acts"><button class="btn btn-primary" id="pdSwitch">切换角色</button>' +
+    '<a class="btn" href="dashboard.html">返回态势驾驶舱</a></div>';
+  const content = document.querySelector('.content');
+  if (content) {
+    content.prepend(box);
+    box.querySelector('#pdSwitch').onclick = () => {
+      const me = document.getElementById('nuMe');   /* 复用顶栏的角色切换弹窗 */
+      if (me) me.click();
+    };
+  }
 })();
 
 /* ---------- 一屏填满模式（body.fit）的自适应开关 ----------

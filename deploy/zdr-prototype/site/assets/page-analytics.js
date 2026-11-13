@@ -13,14 +13,24 @@
   'use strict';
   const D = window.DATA;
   const esc = UI.esc;
+  /* 数据范围视图：dept 角色只统计本部门人员（政法委主管 / 区领导仍为全区口径） */
+  const ALL = () => STORE.view(D.persons);
 
   const body = document.getElementById('townBody');
   if (!body) return;
 
+  /* dept 角色进入时在页头声明数据范围：双在册/多标等实时统计已收敛到本部门，
+     镇街「在册 / 高风险」两列是 DATA.towns 静态基线（全区口径），需说明避免口径误读 */
+  const ROLE0 = window.STORE ? STORE.role() : null;
+  if (ROLE0 && ROLE0.scope === 'dept') {
+    const ph = document.querySelector('.page-head .ph-t p');
+    if (ph) ph.textContent = '数据范围：仅本部门（' + ROLE0.dept + '）主责人员 · 镇街「在册 / 高风险」列为全区口径基线 · 可按月生成报送报表';
+  }
+
   /* ---------- 行数据 ---------- */
   const multiByTown = {};
   const dualByTown = {};
-  D.persons.forEach(p => {
+  ALL().forEach(p => {
     if (p.multi) multiByTown[p.town] = (multiByTown[p.town] || 0) + 1;
     if (p.dual) dualByTown[p.town] = (dualByTown[p.town] || 0) + 1;
   });
@@ -281,6 +291,8 @@
   'use strict';
   const D = window.DATA, S = window.STORE, esc = UI.esc;
   if (!D || !S) return;
+  /* 数据范围视图：dept 角色只统计本部门人员（与第一个 IIFE 的 ALL 同口径） */
+  const ALL = () => S.view(D.persons);
   const roleKey = () => S.role().key;
   const nm = p => D.field(roleKey(), 'name', p).text;
   const lvOf = p => D.levelOf(S.levelOf(p));
@@ -345,7 +357,7 @@
     return D.TAGS.map(t => {
       const cells = { high2: 0, high: 0, mid: 0, low: 0, unknown: 0 };
       let total = 0;
-      D.persons.forEach(p => {
+      ALL().forEach(p => {
         if ((p.tags || []).indexOf(t.name) < 0) return;
         const k = S.levelOf(p);
         cells[k] = (cells[k] || 0) + 1;
@@ -375,14 +387,14 @@
     });
 
     const sub = document.getElementById('matrixSub');
-    if (sub) sub.textContent = `人员台账 ${D.persons.length} 人 · ${all} 人次`;
+    if (sub) sub.textContent = `人员台账 ${ALL().length} 人 · ${all} 人次`;
   }
   function openMatrixCell(tag, lvKey) {
     const lvName = lvKey ? (LEVEL_COLS.find(c => c.key === lvKey) || {}).name : '';
-    const list = D.persons.filter(p => (p.tags || []).indexOf(tag) > -1 && (!lvKey || S.levelOf(p) === lvKey));
+    const list = ALL().filter(p => (p.tags || []).indexOf(tag) > -1 && (!lvKey || S.levelOf(p) === lvKey));
     personDialog(
       '类别明细 · ' + tag + (lvName ? ' × ' + lvName : ''),
-      `台账 ${list.length} 人 · 该类别共 ${D.persons.filter(p => (p.tags || []).indexOf(tag) > -1).length} 人次`,
+      `台账 ${list.length} 人 · 该类别共 ${ALL().filter(p => (p.tags || []).indexOf(tag) > -1).length} 人次`,
       list,
       { scope: '类别明细 ' + tag, file: `类别明细_${tag}_2026-11.csv`, note: '按标签人次统计，多标人员在各标签行重复计入' }
     );
@@ -453,7 +465,7 @@
   const shortOf = t => SHORT[t] || t;
   function comboStats() {
     const map = {};
-    D.persons.forEach(p => {
+    ALL().forEach(p => {
       const t = (p.tags || []);
       if (t.length < 2) return;
       const k = t.slice().sort().join('+');
@@ -461,8 +473,8 @@
     });
     const list = Object.keys(map).map(k => ({ key: k, tags: k.split('+'), n: map[k] }))
       .sort((a, b) => b.n - a.n || a.key.localeCompare(b.key));
-    const multi = D.persons.filter(p => (p.tags || []).length > 1).length;
-    const triple = D.persons.filter(p => (p.tags || []).length > 2).length;
+    const multi = ALL().filter(p => (p.tags || []).length > 1).length;
+    const triple = ALL().filter(p => (p.tags || []).length > 2).length;
     return { list, multi, triple };
   }
   function renderCombo() {
@@ -505,7 +517,7 @@
     const st = comboStats();
     /* 每个组合涉及的镇街分布（用于「主要镇街」列） */
     const townOf = {};
-    D.persons.forEach(p => {
+    ALL().forEach(p => {
       const t = p.tags || [];
       if (t.length < 2) return;
       const k = t.slice().sort().join('+');
@@ -522,7 +534,7 @@
       okText: null,
       cancelText: '关闭',
       body: `<div class="exp-lead">
-          <span>多标人员 <b>${st.multi}</b> 人（占台账人员 ${(st.multi / D.persons.length * 100).toFixed(1)}%）</span>
+          <span>多标人员 <b>${st.multi}</b> 人（占台账人员 ${(st.multi / ALL().length * 100).toFixed(1)}%）</span>
           <span class="dim">·</span>
           <span>组合 <b>${st.list.length}</b> 种 · 其中 3 标及以上 <b>${st.triple}</b> 人</span>
           <span class="spacer"></span>
@@ -556,11 +568,11 @@
     let list, title, note;
     if (key === '__rest') {
       const topKeys = top.map(x => x.key);
-      list = D.persons.filter(p => (p.tags || []).length > 1 && topKeys.indexOf((p.tags || []).slice().sort().join('+')) < 0);
+      list = ALL().filter(p => (p.tags || []).length > 1 && topKeys.indexOf((p.tags || []).slice().sort().join('+')) < 0);
       title = '标签组合 · 其他组合';
       note = `前 10 组合之外的 ${st.list.length - 10} 种组合`;
     } else {
-      list = D.persons.filter(p => (p.tags || []).slice().sort().join('+') === key);
+      list = ALL().filter(p => (p.tags || []).slice().sort().join('+') === key);
       title = '标签组合 · ' + key.split('+').map(shortOf).join(' + ');
       note = key.split('+').join(' / ');
     }

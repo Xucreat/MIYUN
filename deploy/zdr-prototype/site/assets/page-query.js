@@ -109,7 +109,7 @@
   }
   const match = p => matchWith(p, Q);
   function results() {
-    return D.persons.filter(match)
+    return STORE.view(D.persons).filter(match)   /* dept 角色只在本部门人员中查询 */
       .sort((a, b) => (lvOf(a).order - lvOf(b).order) || (b.visitGap - a.visitGap) || a.id.localeCompare(b.id));
   }
 
@@ -268,7 +268,7 @@
 
   function renderResult() {
     const list = results();
-    const total = D.persons.length;
+    const total = STORE.view(D.persons).length;   /* 占比分母同口径：dept 视角为本部门总数 */
     const cnt = document.getElementById('qCount');
     if (cnt) cnt.textContent = list.length;
     const sub = document.getElementById('qSub');
@@ -363,7 +363,7 @@
   }
   function countOf(q) {
     const merged = Object.assign(blankQ(), q);
-    return D.persons.filter(p => matchWith(p, merged)).length;
+    return STORE.view(D.persons).filter(p => matchWith(p, merged)).length;
   }
   function renderSaved() {
     const box = document.getElementById('qSaved');

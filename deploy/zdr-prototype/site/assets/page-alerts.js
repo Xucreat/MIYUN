@@ -25,7 +25,7 @@
 
   /* ---------- 过滤 ---------- */
   function filtered() {
-    let list = STORE.alerts();
+    let list = STORE.view(STORE.alerts());   /* dept 角色只看本部门主责人员的预警 */
     if (status) list = list.filter(a => a.status === status);
     if (fTown) list = list.filter(a => a.town === fTown);
     if (fRule) list = list.filter(a => a.rule === fRule);
@@ -41,7 +41,7 @@
   }
 
   function renderRules() {
-    const all = STORE.alerts();
+    const all = STORE.view(STORE.alerts());
     const open = all.filter(a => a.status === '待处置');
     const list = visibleRules();
     grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, list.length) + ', minmax(0,1fr))';
@@ -147,8 +147,8 @@
 
           <div class="row mt12" style="gap:7px">
             <input class="input" style="flex:1" id="assignTo" value="指派给：${esc(a.assignee || a.owner)}（${esc(a.dept)}）" readonly>
-            <button class="btn" id="btnTransfer">转派</button>
-            <button class="btn btn-primary" id="btnSubmit" ${done ? 'disabled' : ''}>${done ? '已闭环' : '提交处置'}</button>
+            <button class="btn" id="btnTransfer" data-perm="edit">转派</button>
+            <button class="btn btn-primary" id="btnSubmit" data-perm="edit" ${done ? 'disabled' : ''}>${done ? '已闭环' : '提交处置'}</button>
           </div>
         </div>
       </div>

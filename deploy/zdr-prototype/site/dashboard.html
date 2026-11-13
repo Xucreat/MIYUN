@@ -151,10 +151,7 @@
       <p>在册 <b data-metric="inRegister">6,028</b> 人（台账 7,112 人次去重）· 高风险 <b data-metric="highPlus">486</b> · 待核实 612 · 截至 2026-11-10 09:45 · 来源：公安分局 / 区信访办 / 区卫健委 / 区司法局<span data-import-note hidden></span></p>
               </div>
               <div class="page-actions">
-                <div class="seg">
-                  <button>近 7 天</button><button>近 30 天</button><button>近 12 月</button><button class="on">累计</button>
-                </div>
-                <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>导出快报</button>
+                <button class="btn" id="btnBrief"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>导出快报</button>
                 <a class="btn btn-primary" href="bigscreen.html" target="_blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M9 20.5h6M12 17v3.5"/></svg>投屏模式</a>
               </div>
             </div>
@@ -168,33 +165,33 @@
       <div class="grid g6">
         <div class="card kpi">
                 <div class="kpi-label">在册总数 <span class="q">?</span></div>
-                <div class="kpi-val" data-metric="inRegister" data-unit="人">6,028<span class="unit">人</span></div>
-                <div class="kpi-meta">去重后 · 台账 7,112 人次</div>
+                <div class="kpi-val" id="kpiReg" data-metric="inRegister" data-unit="人">6,028<span class="unit">人</span></div>
+                <div class="kpi-meta" id="kpiRegMeta">去重后 · 台账 7,112 人次</div>
                 </div>
               <div class="card kpi k-red">
                 <div class="kpi-label">高风险及以上 <span class="q">?</span></div>
-                <div class="kpi-val" data-metric="highPlus" data-unit="人">486<span class="unit">人</span></div>
-                <div class="kpi-meta">占 <b data-metric="percentHigh" data-dec="1">8.1</b>% · <span class="up">较上月 +6</span></div>
+                <div class="kpi-val" id="kpiHigh" data-metric="highPlus" data-unit="人">486<span class="unit">人</span></div>
+                <div class="kpi-meta" id="kpiHighMeta">占 <b data-metric="percentHigh" data-dec="1">8.1</b>% · <span class="up">较上月 +6</span></div>
                 </div>
               <div class="card kpi k-orange">
                 <div class="kpi-label">双在册人员 <span class="q">?</span></div>
-                <div class="kpi-val">127<span class="unit">人</span></div>
-                <div class="kpi-meta">公安卫健 103 · 公安信访 24</div>
+                <div class="kpi-val" id="kpiDual">127<span class="unit">人</span></div>
+                <div class="kpi-meta" id="kpiDualMeta">公安卫健 103 · 公安信访 24</div>
                 </div>
               <div class="card kpi">
                 <div class="kpi-label">多重标签人员 <span class="q">?</span></div>
-                <div class="kpi-val">214<span class="unit">人</span></div>
-                <div class="kpi-meta">2 标 186 · 3 标 28</div>
+                <div class="kpi-val" id="kpiMulti">214<span class="unit">人</span></div>
+                <div class="kpi-meta" id="kpiMultiMeta">2 标 186 · 3 标 28</div>
                 </div>
               <div class="card kpi k-amber">
                 <div class="kpi-label">待核实 <span class="q">?</span></div>
-                <div class="kpi-val">612<span class="unit">人</span></div>
-                <div class="kpi-meta">未定级 · 风险不详</div>
+                <div class="kpi-val" id="kpiUnk">612<span class="unit">人</span></div>
+                <div class="kpi-meta" id="kpiUnkMeta">未定级 · 风险不详</div>
                 </div>
               <div class="card kpi k-green">
                 <div class="kpi-label">本月变动 <span class="q">?</span></div>
-                <div class="kpi-val">+31<span class="unit">人</span></div>
-                <div class="kpi-meta">新增 43 · 消减 12</div>
+                <div class="kpi-val" id="kpiDelta">+31<span class="unit">人</span></div>
+                <div class="kpi-meta" id="kpiDeltaMeta">新增 43 · 消减 12</div>
                 </div>
 
       </div>
@@ -252,19 +249,19 @@
                         <svg viewBox="0 0 160 160" width="98" height="98">
                           <circle cx="80" cy="80" r="62" fill="none" stroke="#f2f4f7" stroke-width="15"/>
                           <g transform="rotate(-90 80 80)">
-                            <circle cx="80" cy="80" r="62" fill="none" stroke="#d92d20" stroke-width="15" stroke-dasharray="30 359.6" stroke-dashoffset="0"/>
-                            <circle cx="80" cy="80" r="62" fill="none" stroke="#e8830c" stroke-width="15" stroke-dasharray="108.6 281" stroke-dashoffset="-31.4"/>
-                            <circle cx="80" cy="80" r="62" fill="none" stroke="#8fb0cd" stroke-width="15" stroke-dasharray="206.9 182.6" stroke-dashoffset="-141.5"/>
-                            <circle cx="80" cy="80" r="62" fill="none" stroke="#c9a227" stroke-width="15" stroke-dasharray="38 351.6" stroke-dashoffset="-349.9"/>
+                            <circle data-seg="high" cx="80" cy="80" r="62" fill="none" stroke="#d92d20" stroke-width="15" stroke-dasharray="30 359.6" stroke-dashoffset="0"/>
+                            <circle data-seg="mid" cx="80" cy="80" r="62" fill="none" stroke="#e8830c" stroke-width="15" stroke-dasharray="108.6 281" stroke-dashoffset="-31.4"/>
+                            <circle data-seg="low" cx="80" cy="80" r="62" fill="none" stroke="#8fb0cd" stroke-width="15" stroke-dasharray="206.9 182.6" stroke-dashoffset="-141.5"/>
+                            <circle data-seg="unknown" cx="80" cy="80" r="62" fill="none" stroke="#c9a227" stroke-width="15" stroke-dasharray="38 351.6" stroke-dashoffset="-349.9"/>
                           </g>
                         </svg>
-                        <div class="ctr"><div><b data-metric="inRegister">6,028</b><span>在册总数</span></div></div>
+                        <div class="ctr"><div><b id="donutReg" data-metric="inRegister">6,028</b><span>在册总数</span></div></div>
                       </div>
                       <div style="flex:1 1 auto;min-width:0">
-                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#d92d20"></i><span class="sm">第一档 · 高风险</span><span class="spacer"></span><b style="font-size:12.5px" data-metric="highPlus">486</b><span class="tiny dim" style="width:36px;text-align:right" data-metric="percentHigh" data-dec="1">8.1%</span></div>
-                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#e8830c"></i><span class="sm">第二档 · 中风险</span><span class="spacer"></span><b style="font-size:12.5px">1,704</b><span class="tiny dim" style="width:36px;text-align:right">28.3%</span></div>
-                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#8fb0cd"></i><span class="sm">第三档 · 低风险</span><span class="spacer"></span><b style="font-size:12.5px">3,226</b><span class="tiny dim" style="width:36px;text-align:right">53.5%</span></div>
-                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#c9a227"></i><span class="sm">第四档 · 待核实</span><span class="spacer"></span><b style="font-size:12.5px">612</b><span class="tiny dim" style="width:36px;text-align:right">10.2%</span></div>
+                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#d92d20"></i><span class="sm">第一档 · 高风险</span><span class="spacer"></span><b style="font-size:12.5px" id="lvHigh" data-metric="highPlus">486</b><span class="tiny dim" style="width:36px;text-align:right" id="lvHighP" data-metric="percentHigh" data-dec="1">8.1%</span></div>
+                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#e8830c"></i><span class="sm">第二档 · 中风险</span><span class="spacer"></span><b style="font-size:12.5px" id="lvMid">1,704</b><span class="tiny dim" style="width:36px;text-align:right" id="lvMidP">28.3%</span></div>
+                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#8fb0cd"></i><span class="sm">第三档 · 低风险</span><span class="spacer"></span><b style="font-size:12.5px" id="lvLow">3,226</b><span class="tiny dim" style="width:36px;text-align:right" id="lvLowP">53.5%</span></div>
+                        <div class="li" style="padding:4px 0"><i style="width:7px;height:7px;border-radius:2px;background:#c9a227"></i><span class="sm">第四档 · 待核实</span><span class="spacer"></span><b style="font-size:12.5px" id="lvUnk">612</b><span class="tiny dim" style="width:36px;text-align:right" id="lvUnkP">10.2%</span></div>
                       </div>
                     </div>
                     <div class="card-ft" style="padding:7px 14px"><a class="btn btn-sm btn-ghost" href="risk.html">变动台账 ›</a></div>
@@ -525,6 +522,27 @@ const TOWNS = window.DATA.towns;
 const TOWN = {};
 TOWNS.forEach(t => { TOWN[t.name] = t; });
 
+/* ---- 数据范围：公安经办（scope=dept）仅见本部门数据 ----
+   leader / admin 维持全区静态基线不动；dept 把 KPI、风险结构、
+   地图镇街数值与人员明细全部收敛为本部门（STORE.view 实时口径），
+   全区统筹叙事（重点时期进度 / 预警趋势 / 等级迁移）保留并在页头注明口径。 */
+const SCOPED = STORE.role().scope === 'dept';
+const DEPT_NAME = STORE.role().dept || '';
+const MINE = SCOPED ? STORE.view(window.DATA.persons) : null;      // 本部门人员（高风险台账）
+const MINE_UN = SCOPED ? STORE.view(window.DATA.unrated) : null;   // 本部门未定级
+const inScope = p => !SCOPED || (p && p.dept === DEPT_NAME);
+/* 镇街数值取数：全区走 towns 静态基线；dept 按本部门人员实时重算（见面率仍为镇街统筹口径） */
+function TV(t) {
+  if (!SCOPED) return t;
+  const ps = MINE.filter(p => p.town === t.name);
+  return {
+    v: ps.length,
+    h: ps.filter(p => p.level === 'high2' || p.level === 'high').length,
+    d: ps.filter(p => p.dual).length,
+    m: t.m
+  };
+}
+
 const svgEl = document.getElementById("mapSvg");
 const gCells = document.getElementById("mapCells");
 const tip = document.getElementById("mapTip");
@@ -602,24 +620,25 @@ function renderLevel1(){
   btnBack.style.display = "none";
 
   const key = curMetric;
-  const vals = TOWNS.map(t => t[key]);
+  const vals = TOWNS.map(t => TV(t)[key]);
   const vmax = Math.max.apply(null, vals), vmin = Math.min.apply(null, vals);
 
   const labels = [];
   TOWNS.forEach(t => {
     const g = GEO.towns.find(x => x.n === t.name);
     if (!g) return;
-    const ratio = norm(t[key], vmin, vmax);
+    const tv = TV(t);
+    const ratio = norm(tv[key], vmin, vmax);
     const fill = ramp(ratio), txt = textOn(ratio);
     const p = el("path", { d: g.d, fill: fill, stroke: "#ffffff", "stroke-width": 1.5 });
     p.setAttribute("class", "map-cell");
     p.style.filter = "drop-shadow(0 1px 1px rgba(10,60,110,.10))";
     p.addEventListener("mousemove", e => {
       showTip(
-        `<div class="tt">${t.name}<span class="tag tag-line" style="background:rgba(255,255,255,.16);color:#fff;border:0">镇街</span></div>
-         <div class="tr"><span>在册人数</span><b>${t.v} 人</b></div>
-         <div class="tr"><span>高风险及以上</span><b>${t.h} 人 · ${(t.h / t.v * 100).toFixed(1)}%</b></div>
-         <div class="tr"><span>双在册</span><b>${t.d} 人</b></div>
+        `<div class="tt">${t.name}${SCOPED ? '<span class="tag tag-line" style="background:rgba(255,255,255,.16);color:#fff;border:0">本部门</span>' : '<span class="tag tag-line" style="background:rgba(255,255,255,.16);color:#fff;border:0">镇街</span>'}</div>
+         <div class="tr"><span>在册人数</span><b>${tv.v} 人</b></div>
+         <div class="tr"><span>高风险及以上</span><b>${tv.h} 人${tv.v ? ' · ' + (tv.h / tv.v * 100).toFixed(1) + '%' : ''}</b></div>
+         <div class="tr"><span>双在册</span><b>${tv.d} 人</b></div>
          <div class="tr"><span>重点时期见面率</span><b>${t.m}%</b></div>
          <div class="th">包联干部 ${t.officer} · 社区/村 ${t.villages.length} 个 · 点击下钻</div>`, e);
     });
@@ -627,19 +646,19 @@ function renderLevel1(){
     p.addEventListener("click", () => renderLevel2(t.name));
     gCells.appendChild(p);
 
-    labels.push({ g, t, ratio, txt });
+    labels.push({ g, t, tv, ratio, txt });
   });
 
   /* 标签层：小面积城区单元用引线标注，其余在形心处两行标注 */
   labels.forEach(L => {
-    const { g, t, ratio, txt } = L;
+    const { g, t, tv, ratio, txt } = L;
     if (g.lb) {
       /* 城区小单元面积过小，仅画定位点，名称见右侧清单，避免标签互相压盖 */
       const dot = el("circle", { cx: g.c[0], cy: g.c[1], r: 1.5, fill: "#123c66", opacity: .45 });
       gCells.appendChild(dot);
     } else {
       const t1 = el("text", { x: g.c[0], y: g.c[1] - 1, "text-anchor": "middle", fill: txt, class: "map-val" });
-      t1.textContent = curMetric === "m" ? t.m + "%" : t[curMetric];
+      t1.textContent = curMetric === "m" ? t.m + "%" : tv[curMetric];
       const t2 = el("text", { x: g.c[0], y: g.c[1] + 9.5, "text-anchor": "middle", fill: txt, class: "map-lbl", opacity: .88 });
       t2.textContent = shortName(t.name);
       gCells.appendChild(t1); gCells.appendChild(t2);
@@ -650,15 +669,15 @@ function renderLevel1(){
 }
 
 /* ---- 城区 6 个单元：地理上过小，改用清单承载标注与下钻 ---- */
-function renderUrban(urban){
-  if (!chipsBox) return;
-  chipsBox.style.display = "";
-  chipsBox.innerHTML = urban
-    .slice()
-    .sort((a, b) => b.t[curMetric] - a.t[curMetric])
-    .map(L => `<span class="mc" data-town="${L.t.name}">${shortName(L.t.name)} <b>${curMetric === "m" ? L.t.m + "%" : L.t[curMetric]}</b></span>`).join("");
-  chipsBox.querySelectorAll('.mc').forEach(c => { c.onclick = () => renderLevel2(c.dataset.town); });
-}
+  function renderUrban(urban){
+    if (!chipsBox) return;
+    chipsBox.style.display = "";
+    chipsBox.innerHTML = urban
+      .slice()
+      .sort((a, b) => b.tv[curMetric] - a.tv[curMetric])
+      .map(L => `<span class="mc" data-town="${L.t.name}">${shortName(L.t.name)} <b>${curMetric === "m" ? L.t.m + "%" : L.tv[curMetric]}</b></span>`).join("");
+    chipsBox.querySelectorAll('.mc').forEach(c => { c.onclick = () => renderLevel2(c.dataset.town); });
+  }
 
 /* ---- 二级：社区 / 村（真实镇街边界放大聚焦 + 边界内拼块） ---- */
 function renderLevel2(name){
@@ -715,9 +734,10 @@ function renderLevel2(name){
      网格覆盖不满镇界产生空白。改为逐像素判定界内 + 最近种子点归属村，
      着色与镇界轮廓完全一致，界内无空白，村块分界按像素归属描白。 */
   const n = t.villages.length;
-  const vals = splitTotal(t.v, n, name.charCodeAt(0) + n);
-  const highs = splitTotal(t.h, n, name.charCodeAt(1) + n);
-  const duals = splitTotal(t.d, n, name.charCodeAt(2) + n);
+  const tv = TV(t);
+  const vals = splitTotal(tv.v, n, name.charCodeAt(0) + n);
+  const highs = splitTotal(tv.h, n, name.charCodeAt(1) + n);
+  const duals = splitTotal(tv.d, n, name.charCodeAt(2) + n);
   const vmax = Math.max.apply(null, vals), vmin = Math.min.apply(null, vals);
 
   const bx0 = bb.x - pad, by0 = bb.y - pad;
@@ -921,7 +941,7 @@ const mask = document.getElementById("dlgMask");
 const roleKey = STORE.role().key;
 function openDlg(street, idx, v, h, dd, t){
   const vil = t.villages[idx];
-  const list = window.DATA.persons.filter(p => p.town === street && p.village === vil).slice(0, 6);
+  const list = window.DATA.persons.filter(p => p.town === street && p.village === vil && inScope(p)).slice(0, 6);
   document.getElementById("dlgTitle").textContent = vil;
   document.getElementById("dlgStreet").textContent = street;
   document.getElementById("dlgHigh").textContent = "高风险 " + h;
@@ -1010,7 +1030,7 @@ const metricOpt = UI.select(metricNode, {
     const date = dateOf(w, d);
     const ruleNames = window.STORE.rules().map(r => r.name);
     const towns = window.DATA.towns.map(t => t.name);
-    const persons = window.DATA.persons;
+    const persons = SCOPED ? MINE : window.DATA.persons;
     const roleKey = STORE.role().key;
     let s = (w * 7 + d) * 97 + 31;
     const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
@@ -1057,6 +1077,112 @@ const metricOpt = UI.select(metricNode, {
   });
 })();
 
+/* ---- 导出快报：把当前 KPI 口径汇总成 CSV，并写审计流水 ---- */
+(function () {
+  const btn = document.getElementById('btnBrief');
+  if (!btn) return;
+  btn.onclick = () => {
+    if (!window.guard('export', '导出快报')) return;
+    const D = window.DATA, S = window.STORE, UI = window.UI;
+    const scoped = SCOPED;
+    /* dept：本部门口径（与页面 KPI 同源）；leader / admin：全区汇总 */
+    const mine = scoped ? MINE : null, mineUn = scoped ? MINE_UN : null;
+    const nAll = scoped ? mine.length : D.stats.inRegister;
+    const nHigh = scoped ? mine.filter(p => p.level === 'high' || p.level === 'high2').length : D.stats.highPlus;
+    const nHigh2 = scoped ? mine.filter(p => p.level === 'high2').length : D.stats.high2;
+    const nDual = scoped ? mine.filter(p => p.dual).length : D.stats.dual;
+    const nMulti = scoped ? mine.filter(p => p.multi).length : D.stats.multi;
+    const nUn = scoped ? mineUn.length : D.stats.unknown;
+    const scopeTxt = scoped ? '本部门（' + DEPT_NAME + '）在册口径' : '全区台账口径';
+    const rows = [
+      ['指标', '数值', '口径说明'],
+      ['在册总数', nAll + ' 人', scoped ? '本部门（' + DEPT_NAME + '）在册' : '台账 ' + D.fmt(D.stats.ledgerRecords) + ' 人次去重'],
+      ['高风险及以上', nHigh + ' 人', '极高 ' + nHigh2 + ' + 高 ' + (nHigh - nHigh2) + (scoped ? '' : '，占 ' + D.stats.percentHigh + '%')],
+      ['双在册人员', nDual + ' 人', '同一身份证在两个及以上部门台账在册'],
+      ['多重标签人员', nMulti + ' 人', scoped ? '本部门 2 标及以上' : '2 标 ' + D.stats.multi2 + ' · 3 标 ' + D.stats.multi3],
+      ['待核实', nUn + ' 人', '已建档未定级或依据缺失，不计入高风险统计'],
+      ['数据截至', '2026-11-10 09:45', '演示环境 · 数据不出域 · ' + scopeTxt],
+      ['导出时间', S.now(), '导出动作已记入审计日志']
+    ];
+    UI.downloadCSV('重点人员态势快报_2026-11-10.csv', rows);
+    S.addExport('态势快报', rows.length - 2, '脱敏导出');
+    UI.toast.ok('快报已导出（' + (rows.length - 2) + ' 项指标，' + scopeTxt + '），操作已留痕');
+  };
+})();
+
+/* ---- dept 口径收敛：KPI / 风险结构 / 页头 / 口径说明条 ----
+   全区静态基线（重点时期进度、预警趋势、等级迁移矩阵）保留原样，
+   由口径说明条注明「全区统筹口径」，避免演示叙事与权限模型混淆。 */
+if (SCOPED) {
+  const $id = id => document.getElementById(id);
+  const fmt = window.DATA.fmt;
+  const nAll = MINE.length;
+  const nHigh = MINE.filter(p => p.level === 'high' || p.level === 'high2').length;
+  const nHigh2 = MINE.filter(p => p.level === 'high2').length;
+  const nMid = MINE.filter(p => p.level === 'mid').length;
+  const nLow = MINE.filter(p => p.level === 'low').length;
+  const nUn = MINE_UN.length;
+  const nDual = MINE.filter(p => p.dual).length;
+  const nMulti = MINE.filter(p => p.multi).length;
+
+  /* KPI 六卡（移除 data-metric，防止 SYNC_METRICS 之后以全区口径回填） */
+  const setK = (id, html, metaId, metaTxt) => {
+    const n = $id(id);
+    if (n) { n.innerHTML = html; n.removeAttribute('data-metric'); }
+    const m = $id(metaId);
+    if (m) m.textContent = metaTxt;
+  };
+  setK('kpiReg', fmt(nAll) + '<span class="unit">人</span>', 'kpiRegMeta', '本部门（' + DEPT_NAME + '）在册');
+  setK('kpiHigh', nHigh + '<span class="unit">人</span>', 'kpiHighMeta', '占本部门 ' + (nAll ? (nHigh / nAll * 100).toFixed(1) : '0.0') + '% · 极高 ' + nHigh2);
+  setK('kpiDual', nDual + '<span class="unit">人</span>', 'kpiDualMeta', '本部门双在册 · 跨部门责任交叉');
+  setK('kpiMulti', nMulti + '<span class="unit">人</span>', 'kpiMultiMeta', '本部门 2 标及以上');
+  setK('kpiUnk', nUn + '<span class="unit">人</span>', 'kpiUnkMeta', '本部门未定级人员');
+  setK('kpiDelta', '+26<span class="unit">人</span>', 'kpiDeltaMeta', '本月公安新列管 · 与数据看板流入来源同源');
+
+  /* 风险结构卡：环图 + 四档数值（本部门台账仅含高 / 极高两档） */
+  const C = 2 * Math.PI * 62;
+  const segs = [['high', nHigh], ['mid', nMid], ['low', nLow], ['unknown', nUn]];
+  let acc = 0;
+  segs.forEach(([k, n]) => {
+    const c = document.querySelector('[data-seg="' + k + '"]');
+    if (!c) return;
+    const p = nAll ? n / nAll : 0, len = p * C;
+    c.setAttribute('stroke-dasharray', len.toFixed(1) + ' ' + (C - len).toFixed(1));
+    c.setAttribute('stroke-dashoffset', (-acc * C).toFixed(1));
+    acc += p;
+  });
+  const donut = $id('donutReg');
+  if (donut) { donut.textContent = fmt(nAll); donut.removeAttribute('data-metric'); }
+  const setLv = (bid, sid, n) => {
+    const b = $id(bid), s = $id(sid);
+    if (b) { b.textContent = fmt(n); b.removeAttribute('data-metric'); }
+    if (s) { s.textContent = (nAll ? (n / nAll * 100).toFixed(1) : '0.0') + '%'; s.removeAttribute('data-metric'); }
+  };
+  setLv('lvHigh', 'lvHighP', nHigh);
+  setLv('lvMid', 'lvMidP', nMid);
+  setLv('lvLow', 'lvLowP', nLow);
+  setLv('lvUnk', 'lvUnkP', nUn);
+
+  /* 城区注记按本部门重算 */
+  const un = $id('urbanNote');
+  if (un && un.lastElementChild) {
+    const cg = MINE.filter(p => p.town === '鼓楼街道' || p.town === '果园街道').length;
+    un.lastElementChild.innerHTML = '鼓楼 + 果园 <b style="color:var(--t1)">' + cg + '</b> 人 · ' + (nAll ? (cg / nAll * 100).toFixed(1) : '0.0') + '%（本部门）';
+  }
+  /* 口径说明条：shell 会把 .page-head 移出 DOM，这里直接挂到 .content 顶部 */
+  const content = document.querySelector('.content');
+  if (content) {
+    const banner = document.createElement('div');
+    banner.className = 'banner banner-info mb10';
+    banner.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v.2M12 11v5"/></svg>' +
+      '<span>当前以「' + STORE.role().roleName + ' · ' + DEPT_NAME + '」身份查看：在册（' + fmt(nAll) + ' 人）、双在册、多重标签、待核实、镇街分布与人员明细为<b>本部门口径</b>；重点时期进度、预警趋势与等级迁移为全区统筹口径。</span>';
+    content.prepend(banner);
+  }
+  /* 顶栏当前页名标注视角差异（page-head 的 h1/p 已被 shell 移除，不重复处理） */
+  const tnOn = document.querySelector('.tn-on');
+  if (tnOn && tnOn.textContent.indexOf('本部门') < 0) tnOn.textContent += ' · 本部门';
+}
+
 /* ---- 初始化：支持 ?street= 深链直达二级，?community= 直接打开弹窗 ---- */
 renderLevel1();
 (function(){
@@ -1070,9 +1196,10 @@ renderLevel1();
       const idx = t.villages.indexOf(c);
       if (idx > -1) {
         const n = t.villages.length;
-        const vals = splitTotal(t.v, n, street.charCodeAt(0) + n);
-        const highs = splitTotal(t.h, n, street.charCodeAt(1) + n);
-        const duals = splitTotal(t.d, n, street.charCodeAt(2) + n);
+        const tv = TV(t);
+        const vals = splitTotal(tv.v, n, street.charCodeAt(0) + n);
+        const highs = splitTotal(tv.h, n, street.charCodeAt(1) + n);
+        const duals = splitTotal(tv.d, n, street.charCodeAt(2) + n);
         openDlg(street, idx, vals[idx], highs[idx], duals[idx], t);
       }
     }

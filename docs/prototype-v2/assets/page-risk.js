@@ -204,9 +204,9 @@
         </div>
         <div class="acts-row">
           <input class="input" style="flex:1;height:26px;font-size:11.5px" id="rejectReason" placeholder="驳回 / 退回补充理由（驳回时必填）">
-          <button class="btn btn-sm" id="btnReject">驳回</button>
-          <button class="btn btn-sm" id="btnBack2">退回补充</button>
-          <button class="btn btn-sm btn-primary" id="btnPass">${selfApplied ? '提交上级终审' : '同意并生效'}</button>
+          <button class="btn btn-sm" id="btnReject" data-perm="approve">驳回</button>
+          <button class="btn btn-sm" id="btnBack2" data-perm="approve">退回补充</button>
+          <button class="btn btn-sm btn-primary" id="btnPass" data-perm="approve">${selfApplied ? '提交上级终审' : '同意并生效'}</button>
         </div>
         <div class="tiny dim" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${selfApplied ? '发起人回避：本单将提交 ' + esc(UPPER.name) + '（' + esc(UPPER.role) + '）终审 · ' : ''}生效后：档案等级即时变更 · 驾驶舱指标同步刷新 · 生成不可修改的变动记录 · 申请人收到通知</div>
       </div>`}`;

@@ -245,10 +245,10 @@
       <span class="tag tag-line" style="height:20px">${S.level ? '管控等级：' + D.levelOf(S.level).name : (S.quick === 'high' ? '高风险及以上' : (QUICKS.find(q => q.k === S.quick) || {}).t)}${S.tag ? ' · ' + esc(S.tag) : ''}${S.village ? ' · ' + esc(S.village) : ''} · 当前排序：${sortText()}</span>
       <span class="spacer"></span>
       <span class="dim">已选 <b style="color:var(--blue)">${S.selected.size}</b> 项</span>
-      <button class="btn btn-sm" id="btnAssign" ${S.selected.size ? '' : 'disabled'}>批量指派</button>
-      <button class="btn btn-sm" id="btnMark" ${S.selected.size ? '' : 'disabled'}>批量打标</button>
-      <button class="btn btn-sm" id="btnExpSel">导出选中</button>
-      <button class="btn btn-sm btn-primary" id="btnExpAll">
+      <button class="btn btn-sm" id="btnAssign" ${S.selected.size ? '' : 'disabled title="请先勾选人员后再批量指派"'}>批量指派</button>
+      <button class="btn btn-sm" id="btnMark" ${S.selected.size ? '' : 'disabled title="请先勾选人员后再批量打标"'}>批量打标</button>
+      <button class="btn btn-sm" id="btnExpSel" data-perm="export">导出选中</button>
+      <button class="btn btn-sm btn-primary" id="btnExpAll" data-perm="export">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4v12m0 0l-4.5-4.5M12 16l4.5-4.5"/><path d="M4 20h16"/></svg>脱敏导出
       </button>`;
 

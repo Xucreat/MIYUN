@@ -258,9 +258,9 @@
                     <div class="card-hd" style="border-bottom:1px solid var(--line);padding-top:8px;flex:0 0 auto">
                       <div class="card-title">命中 <span id="qCount" style="color:var(--blue);font-size:15px">0</span> 人 <span class="sub" id="qSub"></span></div>
                       <div class="right">
-                        <button class="btn btn-sm" id="qAssign">批量指派走访</button>
-                        <button class="btn btn-sm" id="qWatch">生成盯控名单</button>
-                        <button class="btn btn-sm btn-primary" id="qExport">脱敏导出</button>
+                        <button class="btn btn-sm" id="qAssign" data-perm="edit">批量指派走访</button>
+                        <button class="btn btn-sm" id="qWatch" data-perm="edit">生成盯控名单</button>
+                        <button class="btn btn-sm btn-primary" id="qExport" data-perm="export">脱敏导出</button>
                       </div>
                     </div>
                     <div class="table-wrap" style="flex:1 1 0;min-height:0;overflow:auto">
@@ -301,7 +301,7 @@
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v10M12 18.5v.5"/><circle cx="12" cy="12" r="9"/></svg>
                           <span id="qGateNote">本批次 &lt; 50 条，由政法委主管单人审批；文件含水印（账号 + 时间戳）</span>
                         </div>
-                        <button class="btn btn-primary mt10" id="qSubmitPlain" style="width:100%">提交明文导出申请</button>
+                        <button class="btn btn-primary mt10" id="qSubmitPlain" data-perm="disclosure" style="width:100%">提交明文导出申请</button>
                         <div class="tiny" id="qReqTip" style="margin-top:7px;line-height:1.7;display:none"></div>
                       </div>
                     </div>

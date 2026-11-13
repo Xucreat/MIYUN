@@ -409,7 +409,7 @@
   .subnav .acts .draft-chip a[aria-disabled="true"] { color: var(--t4); pointer-events: none; text-decoration: none; }
 </style>
 </head>
-<body class="fit" data-page="system" data-crumb="系统管理" data-title="系统管理">
+<body class="fit" data-page="system" data-crumb="系统管理" data-title="系统管理" data-page-perm="config">
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
   <div class="main">
@@ -422,14 +422,14 @@
         <button data-tab="config">规则与参数 <span class="cnt">V1.4</span></button>
         <button data-tab="audit">审计日志</button>
         <div class="acts on" data-for="account">
-          <button class="btn" id="btnPermExport">权限清单导出</button>
-          <button class="btn" id="btnRoleTmpl">角色模板</button>
-          <button class="btn btn-primary" id="btnAcctNew">新建账号</button>
+          <button class="btn" id="btnPermExport" data-perm="config">权限清单导出</button>
+          <button class="btn" id="btnRoleTmpl" data-perm="config">角色模板</button>
+          <button class="btn btn-primary" id="btnAcctNew" data-perm="config">新建账号</button>
         </div>
         <div class="acts" data-for="dict">
-          <button class="btn" id="btnDictExport">导出字典包</button>
+          <button class="btn" id="btnDictExport" data-perm="config">导出字典包</button>
           <a class="btn" href="system.html?tab=audit">变更留痕</a>
-          <button class="btn btn-primary" id="btnDictAdd">新增字典项</button>
+          <button class="btn btn-primary" id="btnDictAdd" data-perm="config">新增字典项</button>
         </div>
         <div class="acts" data-for="config">
           <div class="draft-chip" id="draftBar" title="草稿存于本机：关闭标签页或刷新不丢失；点「查看」可看明细与存储位置；发布后生成版本快照">
@@ -441,13 +441,13 @@
             <a class="rowlink" href="#" id="draftDrop">放弃</a>
           </div>
           <a class="btn" href="system.html?tab=audit">变更记录</a>
-          <button class="btn" id="btnDraft">保存草稿</button>
-          <button class="btn btn-primary" id="btnPublish">提交发布</button>
+          <button class="btn" id="btnDraft" data-perm="config">保存草稿</button>
+          <button class="btn btn-primary" id="btnPublish" data-perm="config">提交发布</button>
         </div>
         <div class="acts" data-for="audit">
           <button class="btn" id="btnFullVerify">完整性校验</button>
-          <button class="btn" id="btnLogExport">导出日志</button>
-          <button class="btn btn-primary" id="btnAuditReport">生成审计报告</button>
+          <button class="btn" id="btnLogExport" data-perm="export">导出日志</button>
+          <button class="btn btn-primary" id="btnAuditReport" data-perm="export">生成审计报告</button>
         </div>
       </div>
 
@@ -480,7 +480,7 @@
                     <div class="right" id="trioTag"></div>
                   </div>
                   <div class="card-bd" style="padding:7px 14px" id="trioBody"></div>
-                  <div class="card-ft" style="padding:7px 14px;display:block"><button class="btn btn-sm" style="width:100%" id="btnPermList">生成本季度权限清单</button></div>
+                  <div class="card-ft" style="padding:7px 14px;display:block"><button class="btn btn-sm" style="width:100%" id="btnPermList" data-perm="config">生成本季度权限清单</button></div>
                 </div>
 
                 <div class="card">
@@ -543,7 +543,7 @@
 
                 <div class="card">
                   <div class="card-hd"><div class="card-title">行政区划 <span class="sub" id="geoSub">20 镇街 · 372 社区村</span></div>
-                    <div class="right"><button class="btn btn-sm" id="btnGeoImport">导入区划</button></div>
+                    <div class="right"><button class="btn btn-sm" id="btnGeoImport" data-perm="config">导入区划</button></div>
                   </div>
                   <div class="card-bd" style="padding:10px 16px 8px">
                     <div class="sect-title" style="margin-bottom:6px">一级：镇街（<span id="geoTownN">20</span>）</div>
@@ -577,7 +577,7 @@
                     <div class="card-title">预警规则 <span class="sub">每日 06:00 扫描 · 命中生成待办</span></div>
                     <div class="right">
                       <div class="seg" id="ruleSeg"><button class="on">全部</button><button>启用</button><button>停用</button></div>
-                      <button class="btn btn-sm" id="btnRuleAdd">新增规则</button>
+                      <button class="btn btn-sm" id="btnRuleAdd" data-perm="config">新增规则</button>
                       <button class="btn btn-sm btn-ico" id="btnRuleExpand" title="放大查看完整表格" aria-label="放大查看预警规则">
                         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 2.5H2.5v6.7M2.5 2.5l4.6 4.6M6.8 13.5h6.7V6.8M13.5 13.5L8.9 8.9"/></svg>
                       </button>
@@ -628,7 +628,7 @@
               <div class="card c-dq">
                   <div class="card-hd">
                     <div class="card-title">数据质量规则 <span class="sub">导入与人工录入共用 · 与报送质量看板同源</span></div>
-                    <div class="right"><button class="btn btn-sm" id="btnDqAdd">新增规则</button>
+                    <div class="right"><button class="btn btn-sm" id="btnDqAdd" data-perm="config">新增规则</button>
                       <button class="btn btn-sm btn-ico" id="btnDqExpand" title="放大查看完整表格" aria-label="放大查看数据质量规则">
                         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 2.5H2.5v6.7M2.5 2.5l4.6 4.6M6.8 13.5h6.7V6.8M13.5 13.5L8.9 8.9"/></svg>
                       </button>

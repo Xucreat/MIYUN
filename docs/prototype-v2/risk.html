@@ -115,7 +115,7 @@
   body.fit .acts-ft .textarea { color: var(--t1); }
 </style>
 </head>
-<body class="fit" data-page="risk" data-crumb="风险与预警" data-title="调整审批">
+<body class="fit" data-page="risk" data-crumb="风险与预警" data-title="调整审批" data-page-perm="approve">
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
   <div class="main">
@@ -128,9 +128,9 @@
           <p>等级调整须人工发起、填写评估依据、逐级审批后生效 · 明文导出须提交申请单并按条数走单人审批 / 双人复核 · 全部留痕不可修改</p>
         </div>
         <div class="page-actions">
-          <button class="btn" id="btnNew">发起调整申请</button>
-          <button class="btn" id="btnExport">导出变动台账</button>
-          <button class="btn btn-primary" id="btnMonthly">月度报送预览</button>
+          <button class="btn" id="btnNew" data-perm="approve">发起调整申请</button>
+          <button class="btn" id="btnExport" data-perm="export">导出变动台账</button>
+          <button class="btn btn-primary" id="btnMonthly" data-perm="export">月度报送预览</button>
         </div>
       </div>
 

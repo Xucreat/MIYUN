@@ -208,7 +208,11 @@ window.UI = (function () {
     document.addEventListener('keydown', onKey);
     mask.addEventListener('click', e => { if (e.target === mask && opt.maskClose !== false) close(null); });
     dlg.querySelector('.x').onclick = () => close(null);
-    dlg.querySelector('[data-act=cancel]').onclick = () => close(null);
+    dlg.querySelector('[data-act=cancel]').onclick = () => {
+      /* onCancel 可拦截「取消」做副作用（如链式打开另一个弹窗），返回 false 则不关闭 */
+      if (opt.onCancel && opt.onCancel() === false) return;
+      close(null);
+    };
     const okBtn = dlg.querySelector('[data-act=ok]');
     if (okBtn) okBtn.onclick = () => { const r = opt.onOk ? opt.onOk(dlg, close) : true; if (r !== false) close(r === undefined ? true : r); };
     if (opt.onMount) opt.onMount(dlg, close);

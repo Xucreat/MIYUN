@@ -28,9 +28,9 @@
      dual/multi/待核实 三类清单「现算」而非启动快照：
      并档后 p.dual=false、补评后 unrated.level≠unknown，人员会立即从对应清单移出，
      KPI 与清单条数同步变化，不会出现「操作完还挂在盲区里」的矛盾。 */
-  const dualNow = () => D.persons.filter(p => p.dual);
-  const multiNow = () => D.persons.filter(p => p.multi);
-  const unkNow = () => (D.unrated || []).filter(p => p.level === 'unknown');
+  const dualNow = () => STORE.view(D.persons.filter(p => p.dual));
+  const multiNow = () => STORE.view(D.persons.filter(p => p.multi));
+  const unkNow = () => STORE.view((D.unrated || []).filter(p => p.level === 'unknown'));
 
   /* 基线快照：仅供「在册组合」与「确认状态」的确定性分配使用，不随操作变化 */
   const DUAL = dualNow();
@@ -286,7 +286,10 @@
   function syncSel() {
     document.getElementById('selCount').textContent = S.selected.size;
     const btn = document.getElementById('btnAssign');
-    if (btn) btn.disabled = S.selected.size === 0;
+    if (btn) {
+      btn.disabled = S.selected.size === 0;
+      btn.title = S.selected.size === 0 ? '请先勾选需要指派核查的人员' : '';
+    }
   }
 
   function renderPager(total) {
@@ -308,11 +311,26 @@
     const list = filtered();
     const pages = Math.max(1, Math.ceil(list.length / S.size));
     if (S.page > pages) S.page = pages;
+    syncKpi();
     renderTable();
     renderPager(list.length);
     syncSel();
     syncTypeUI(list.length);
     renderCond(list.length);
+  }
+
+  /* 顶部 KPI 随数据范围收敛：dept 角色只统计本部门人员（政法委主管 / 区领导保持全区口径） */
+  function syncKpi() {
+    if (STORE.role().scope !== 'dept') return;
+    const set = (i, n, meta) => {
+      const card = document.querySelectorAll('.kpi')[i];
+      if (!card) return;
+      const val = card.querySelector('.kpi-val');
+      if (val) val.firstChild.nodeValue = n;
+      if (meta) { const m = card.querySelector('.kpi-meta'); if (m) m.textContent = meta; }
+    };
+    set(0, dualNow().length, '本部门主责人员');
+    set(1, multiNow().length, '本部门主责人员');
   }
 
   /* 类型按钮数字随筛选联动：当前类型显示命中数（带区间条件），其余显示库内总数 */
@@ -578,7 +596,7 @@
   }
 
   document.getElementById('btnAssign').onclick = () => {
-    if (!S.selected.size) return;
+    if (!S.selected.size) { UI.toast.err('请先勾选需要指派核查的人员'); return; }
     assign(Array.from(S.selected));
   };
 

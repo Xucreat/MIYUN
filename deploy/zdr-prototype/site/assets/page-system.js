@@ -378,32 +378,83 @@
     });
   }
 
+  /* 批量导入账号：字段化表格逐行填写（姓名 / 登录账号 / 单位 / 角色），
+     取代旧的整段逗号分隔文本框——自由文本难校验、易错列，
+     字段填写后逐格读取：单位取字典、角色取下拉，与「新建账号」同源。 */
   function openAcctImport() {
     if (!OK()) return;
+    const units = unitOptions();
+    const roleItems = D.SYS_ROLES.map(r => ({ v: r.key, t: r.key + ' · ' + r.name }));
+    const rows = [];
     U.modal({
       title: '批量导入账号',
-      sub: '每行一个：姓名,账号,单位,角色编码（R1—R9）',
-      width: 520,
+      sub: '逐行填写，姓名与登录账号必填；重复账号自动跳过',
+      width: 720,
       okText: '导入',
-      body: `<textarea id="acImp" rows="6" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:12px;outline:none" placeholder="王小明,wangxm,区信访办,R4&#10;李小红,lixh,鼓楼街道,R5"></textarea>
-        <div class="tiny dim" style="margin-top:7px">重复账号会自动跳过；导入后立即出现在对应角色的账号列表，并写入审计。</div>`,
+      body: `
+        <div class="row" style="gap:8px;font-size:11px;color:var(--t3);font-weight:600;padding:0 0 4px">
+          <span style="flex:1">姓名 *</span><span style="flex:1">登录账号 *</span>
+          <span style="flex:1.35">单位</span><span style="flex:1.35">角色</span><span style="width:26px"></span>
+        </div>
+        <div id="aiRows"></div>
+        <button class="btn btn-sm" id="aiAdd" type="button" style="margin-top:2px">＋ 添加一行</button>
+        <div class="tiny dim" style="margin-top:8px">单位取自「责任部门 / 镇街」字典、角色取自角色目录，与「新建账号」同源；导入后立即出现在对应角色的账号列表，并写入审计。</div>`,
+      onMount: dlg => {
+        const box = dlg.querySelector('#aiRows');
+        const inpCss = 'width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit;font-size:12px;outline:none';
+        function addRow(d) {
+          const row = Object.assign({ name: '', acc: '', unit: '', role: 'R4' }, d || {});
+          rows.push(row);
+          const el = document.createElement('div');
+          el.className = 'row';
+          el.style.cssText = 'gap:8px;margin-bottom:8px';
+          el.innerHTML = `
+            <span style="flex:1"><input class="ai-name" placeholder="如：王小明" style="${inpCss}"></span>
+            <span style="flex:1"><input class="ai-acc" placeholder="拼音，如：wangxm" style="${inpCss}"></span>
+            <span style="flex:1.35"><div class="select ai-unit" style="height:32px"></div></span>
+            <span style="flex:1.35"><div class="select ai-role" style="height:32px"></div></span>
+            <button class="btn btn-sm ai-del" type="button" title="删除本行" style="width:26px;padding:0">✕</button>`;
+          box.appendChild(el);
+          el.querySelector('.ai-name').value = row.name;
+          el.querySelector('.ai-acc').value = row.acc;
+          el.querySelector('.ai-name').oninput = e => { row.name = e.target.value; };
+          el.querySelector('.ai-acc').oninput = e => { row.acc = e.target.value; };
+          U.select(el.querySelector('.ai-unit'), {
+            items: units, value: row.unit, placeholder: '选择单位（可留空）',
+            onChange: v => { row.unit = v; }
+          });
+          U.select(el.querySelector('.ai-role'), {
+            items: roleItems, value: row.role,
+            onChange: v => { row.role = v; }
+          });
+          el.querySelector('.ai-del').onclick = () => {
+            const i = rows.indexOf(row);
+            if (i > -1) rows.splice(i, 1);
+            el.remove();
+          };
+        }
+        addRow(); addRow();
+        dlg.querySelector('#aiAdd').onclick = () => addRow();
+        dlg.__rows = () => rows;
+      },
       onOk: dlg => {
-        const txt = dlg.querySelector('#acImp').value.trim();
-        if (!txt) { U.toast.err('请先粘贴账号数据'); return false; }
+        const list = dlg.__rows() || [];
+        const filled = list.filter(r => (r.name || '').trim() && (r.acc || '').trim());
+        if (!filled.length) { U.toast.err('请至少完整填写一行：姓名与登录账号均为必填'); return false; }
         const exists = S.accounts().map(a => a.account);
         let ok = 0, skip = 0;
-        txt.split(/\n/).forEach(line => {
-          const c = line.split(/[,，\t]/).map(x => x.trim()).filter(Boolean);
-          if (c.length < 3) { skip++; return; }
-          if (exists.indexOf(c[1]) > -1) { skip++; return; }
-          const roleKey = (c[3] || 'R4').toUpperCase();
-          S.addAccount({ name: c[0], account: c[1], unit: c[2], role: D.SYS_ROLE_OF[roleKey] ? roleKey : 'R4', scope: '本部门来源人员' });
-          exists.push(c[1]);
+        filled.forEach(r => {
+          const name = r.name.trim(), acc = r.acc.trim().toLowerCase();
+          if (exists.indexOf(acc) > -1) { skip++; return; }
+          S.addAccount({ name, account: acc, unit: r.unit || '未指定单位', role: D.SYS_ROLE_OF[r.role] ? r.role : 'R4', scope: '本部门来源人员' });
+          exists.push(acc);
           ok++;
         });
+        skip += list.length - filled.length;   /* 未填全的行 */
+        P.acctPage = 1;
         renderRoles();
         renderRoleDetail();
-        U.toast.ok('导入完成：新增 ' + ok + ' 个，跳过 ' + skip + ' 个');
+        U.toast.ok('导入完成：新增 ' + ok + ' 个' + (skip ? '，跳过 ' + skip + ' 个（未填全 / 账号重复）' : ''));
         return true;
       }
     });

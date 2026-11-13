@@ -889,12 +889,13 @@ window.DATA = (function () {
       user: '李国栋', title: '区委常委 · 政法委书记', avatar: '李',
       scope: 'all', scopeText: '全区概要 · 身份证掩码',
       fields: { name: 'mask', idNo: 'mask', phone: 'mask', addr: 'trim' },
-      can: { approve: false, export: false, exportPlain: false, edit: false, import: false, disclosure: false, config: false }
+      /* 区领导：概要查看 + 脱敏导出（不接触明细编辑 / 明文 / 审批 / 配置） */
+      can: { approve: false, export: true, exportPlain: false, edit: false, import: false, disclosure: false, config: false }
     },
     admin: {
       key: 'admin', account: 'demo_admin', roleName: '政法委主管',
       user: '陈志远', title: '政法委主管 · 全区', avatar: '陈',
-      scope: 'all', scopeText: '全区全字段 · 可审批',
+      scope: 'all', scopeText: '全区全字段',
       fields: { name: 'full', idNo: 'full', phone: 'full', addr: 'full' },
       can: { approve: true, export: true, exportPlain: true, edit: true, import: true, disclosure: true, config: true }
     },

@@ -23,11 +23,14 @@
   const cardMap = document.getElementById('cardMap');
   const cardCheck = document.getElementById('cardCheck');
 
+  /* 四部门 15 类台账：与 import.html / login.html「四部门 15 类」口径一致，
+     选项数必须与「目标表块（共 15 类）」标注对账 */
   const TABLES = [
     '公安 · 政保重点人台账', '公安 · 涉访人员台账', '公安 · 吸毒人员台账',
-    '卫健 · 严重精神障碍患者台账', '卫健 · 六失一偏人员台账',
-    '信访 · 涉访 A 类台账', '信访 · 涉访 B 类台账',
-    '司法 · 社区矫正台账', '司法 · 刑满释放台账', '司法 · 安置帮教台账'
+    '公安 · 肇事肇祸精神障碍患者台账', '公安 · 重点青少年人员台账',
+    '卫健 · 严重精神障碍患者台账', '卫健 · 六失一偏人员台账', '卫健 · 非在管精神障碍患者台账',
+    '信访 · 涉访 A 类台账', '信访 · 涉访 B 类台账', '信访 · 重复越级访人员台账',
+    '司法 · 社区矫正台账', '司法 · 刑满释放台账', '司法 · 安置帮教台账', '司法 · 剥夺政治权利人员台账'
   ];
   const DEPTS = ['公安分局', '区卫健委', '区信访办', '区司法局', '区委政法委'];
 
@@ -264,7 +267,7 @@
         <div class="row mt12" style="gap:8px">
           <span class="tiny dim" style="flex:1">导入后自动重算：管控等级（就高不就低）、双在册/多标标识、镇街统计、驾驶舱指标</span>
           <button class="btn" id="btnBackMap">返回修改映射</button>
-          <button class="btn btn-primary" id="btnImport" ${imported.length ? '' : 'disabled'}>确认导入 ${imported.length} 条</button>
+          <button class="btn btn-primary" id="btnImport" data-perm="import" ${imported.length ? '' : 'disabled'}>确认导入 ${imported.length} 条</button>
         </div>
       </div>`;
 

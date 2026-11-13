@@ -203,9 +203,8 @@
           <p>随时监测 · 实时看变化 · 看重点人员流动趋势与区域流向 · 每 5 分钟增量刷新，日终 23:30 定格</p>
         </div>
         <div class="page-actions">
-          <div class="seg"><button>今日</button><button class="on">近 7 天</button><button>近 30 天</button><button>本期</button></div>
-          <button class="btn">订阅推送</button>
-          <button class="btn btn-primary">导出看板</button>
+          <button class="btn" data-board="sub">订阅推送</button>
+          <button class="btn btn-primary" data-board="export">导出看板</button>
         </div>
       </div>
 
@@ -1075,8 +1074,10 @@
     }
   });
 
-  /* 页头：订阅推送 / 导出看板 */
-  const btnSub = document.querySelector('.page-actions .btn:not(.btn-primary)');
+  /* 页头：订阅推送 / 导出看板
+     注意：shell.js 会把 .page-head 里的 .page-actions 搬到顶栏 #topActs 后删除整块，
+     所以不能用 .page-actions 后代选择器定位（搬走后选择器返回 null），改用 data 属性。 */
+  const btnSub = document.querySelector('[data-board="sub"]');
   if (btnSub) btnSub.onclick = () => {
     if (!window.guard('exportPlain', '配置订阅推送')) return;
     UI.modal({
@@ -1100,7 +1101,7 @@
     });
   };
 
-  const btnExp = document.querySelector('.page-actions .btn-primary');
+  const btnExp = document.querySelector('[data-board="export"]');
   if (btnExp) btnExp.onclick = () => {
     if (!window.guard('exportPlain', '导出看板')) return;
     UI.confirm({
