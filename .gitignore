@@ -16,3 +16,7 @@ desktop.ini
 # 调试/运行产物
 docs/prototype-v2/.probe/
 deploy/zdr-prototype/logs/
+
+# 构建/打包产物（离线包、内嵌 runtime、压缩包，体积过大不入库）
+output/
+*.7z

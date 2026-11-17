@@ -167,7 +167,7 @@
         <div class="lg-input">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 118 0v3.5"/></svg>
           <input type="password" value="••••••••••••">
-          <span class="tail">显示</span>
+          <span class="tail" id="btnPwd" style="cursor:pointer;user-select:none" role="button" tabindex="0">显示</span>
         </div>
       </div>
 
@@ -185,10 +185,10 @@
       </div>
 
       <div class="lg-opt">
-        <span class="cb on"></span>
-        <span>记住本机（仅限涉密终端）</span>
+        <span class="cb on" id="cbRemember" style="cursor:pointer"></span>
+        <span id="lbRemember" style="cursor:pointer;user-select:none">记住本机（仅限涉密终端）</span>
         <span class="spacer"></span>
-        <span style="color:var(--blue);font-weight:600">CA 证书登录</span>
+        <span id="btnCa" style="color:var(--blue);font-weight:600;cursor:pointer;user-select:none">CA 证书登录</span>
       </div>
 
       <a class="login-btn" href="dashboard.html" id="btnLogin">
@@ -262,6 +262,48 @@
       if (ev.key === 'Backspace' && !inp.value && otp[i - 1]) { otp[i - 1].focus(); ev.preventDefault(); }
     });
   });
+
+  /* ---------- 口令显示 / 隐藏 ---------- */
+  /* 初始为掩码占位，点击「显示」替换为演示明文口令，再点击回到掩码 */
+  const PWD_MASK = '••••••••••••';
+  const PWD_DEMO = 'Miyun@2026';
+  const pwdInput = document.querySelector('.lg-input input[type="password"]');
+  const btnPwd = document.getElementById('btnPwd');
+  let pwdShown = false;
+  function renderPwd() {
+    if (!pwdInput || !btnPwd) return;
+    pwdInput.type = pwdShown ? 'text' : 'password';
+    pwdInput.value = pwdShown ? PWD_DEMO : PWD_MASK;
+    btnPwd.textContent = pwdShown ? '隐藏' : '显示';
+  }
+  function togglePwd() {
+    pwdShown = !pwdShown;
+    renderPwd();
+  }
+  if (btnPwd) {
+    btnPwd.addEventListener('click', togglePwd);
+    btnPwd.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); togglePwd(); }
+    });
+  }
+
+  /* ---------- 记住本机 ---------- */
+  const cbRemember = document.getElementById('cbRemember');
+  const lbRemember = document.getElementById('lbRemember');
+  function toggleRemember() {
+    if (!cbRemember) return;
+    const on = cbRemember.classList.toggle('on');
+    UI.toast(on ? '已开启「记住本机」，仅限涉密终端使用' : '已关闭「记住本机」，每次登录需重新验证动态口令', on ? 'ok' : 'warn');
+  }
+  [cbRemember, lbRemember].forEach(node => { if (node) node.addEventListener('click', toggleRemember); });
+
+  /* ---------- CA 证书登录 ---------- */
+  const btnCa = document.getElementById('btnCa');
+  if (btnCa) {
+    btnCa.addEventListener('click', () => {
+      UI.toast.warn('CA 证书登录需接入区政务统一认证网关，演示环境暂未启用，请使用账号口令 + 动态口令登录');
+    });
+  }
 })();
 </script>
 </body>

@@ -1,12 +1,13 @@
 /**
  * 密云区重点风险人员台账管理与风险预警系统 — 原型静态服务
  * 零依赖，Node.js 原生 http/fs。绑定 0.0.0.0 供内网访问。
+ * 默认端口 8080（非特权端口，便于内网穿透/隧道客户端以普通权限映射）；可用环境变量 PORT 覆盖。
  */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = Number(process.env.PORT || 80);
+const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname, 'site');
 const LOG_DIR = path.join(__dirname, 'logs');
