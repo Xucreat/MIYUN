@@ -98,6 +98,22 @@ window.DATA = (function () {
     { name: '境外关联', dept: '公安分局', cls: 'tag-purple' }
   ];
 
+  /* ---------- 数据导入标准字段（D6：外置为单一来源，等政务部门给正式字段要求后在此追加） ----------
+     命名空间与职责：本常量只描述「源表列 → 标准字段」的映射能力，不含校验逻辑
+     （校验在 fileparse.js：身份证校验位、镇街有效性、库内查重）。
+     required 仅姓名与身份证号——查重并档以身份证为主键，两者缺一无法合并归档；
+     其余字段可缺列，缺列不影响导入通过，仅对应属性留空。 */
+  const IMPORT_FIELDS = [
+    { key: 'name', label: '姓名', required: true, alias: ['姓名', '人员姓名', '当事人', '名字', 'name'] },
+    { key: 'idNo', label: '身份证号', required: true, alias: ['身份证号', '身份证', '身份证号码', '证件号码', 'idcard', 'idno'] },
+    { key: 'phone', label: '联系电话', required: false, alias: ['联系电话', '手机号', '手机', '电话', 'phone'] },
+    { key: 'tags', label: '风险类别 / 标签', required: false, alias: ['标签', '类别', '风险类别', '人员类别', '类型', 'tag'] },
+    { key: 'town', label: '属地镇街', required: false, alias: ['镇街', '属地', '所属镇街', '街道', '乡镇', 'town'] },
+    { key: 'dept', label: '来源部门', required: false, alias: ['部门', '来源', '来源部门', '报送单位', 'dept'] },
+    { key: 'level', label: '风险等级', required: false, alias: ['等级', '风险等级', '管控等级', 'level'] },
+    { key: 'note', label: '备注', required: false, alias: ['备注', '说明', '情况说明', 'note'] }
+  ];
+
   const LEVELS = [
     { key: 'high2', name: '极高风险', cls: 'risk risk-0', order: 0 },
     { key: 'high', name: '高风险', cls: 'risk risk-1', order: 1 },
@@ -424,12 +440,58 @@ window.DATA = (function () {
   ];
 
   /* ---------- 等级变动全量台账（46 条 · 本月变动台账 / 全部 46 条 / 导出台账 / 月度报送 同源） ----------
-     口径锁定：上调 19 + 下调 27 = 46，与「本月变动台账」角标逐项对账。
+     口径锁定：上调 22 + 下调 24 = 46，与「本月变动台账」角标逐项对账。
      前 4 条与 CHG_BASE 完全一致，保证 board 的等级调整明细与 risk 页不打架。
      审批层级按「审批层级规则」四档取，审批人取自部门主管 / 政法委 / 双人复核。 */
   const DEPT_HEAD = {
     '公安分局': '王立', '区信访办': '周敏', '区卫健委': '孙敏', '区司法局': '李明', '区委政法委': '陈志远'
   };
+
+  /* ---------- 部门维度派生（会议决议 D3 的数据底座） ----------
+     口径三条，演示时必须说清：
+     1. 人员归属部门由「类别标签 → 部门」映射得出（TAGS[].dept），一人可同时归属多个行业主管部门；
+     2. 因此「部门人次」之和 > 在册明细人数，差额即跨部门共管造成的重复计数；
+     3. 这里的「跨部门共管」按标签实算，与 stats.dual（双在册 127，政府台账既有的「公安 + 卫健/信访」
+        两部门确认标记）不是同一口径，两个数字不可互相替代，也不能简单相减。
+     覆盖范围：仅 persons（486 条带完整明细的在册人员）；待核实 612 人不纳入部门统计。 */
+  function deptsOf(p) {
+    return Array.from(new Set((p.tags || []).map(t => (TAGS.find(x => x.name === t) || {}).dept).filter(Boolean)));
+  }
+  /* 每次按当前 persons 重算——导入会追加人员，做缓存会立刻失真 */
+  function deptStats() {
+    const byDept = {};
+    const pairs = {};
+    const multi = {};
+    let personTimes = 0;
+    let multiPersons = 0;
+    persons.forEach(p => {
+      const ds = deptsOf(p);
+      personTimes += ds.length;
+      if (ds.length > 1) {
+        multiPersons += 1;
+        multi[ds.length] = (multi[ds.length] || 0) + 1;
+      }
+      ds.forEach(d => {
+        if (!byDept[d]) byDept[d] = { dept: d, head: DEPT_HEAD[d] || '', persons: 0 };
+        byDept[d].persons += 1;
+      });
+      for (let i = 0; i < ds.length; i++) {
+        for (let j = i + 1; j < ds.length; j++) {
+          const k = [ds[i], ds[j]].sort().join('|');
+          pairs[k] = (pairs[k] || 0) + 1;
+        }
+      }
+    });
+    const depts = Object.keys(byDept).map(k => byDept[k]).sort((a, b) => b.persons - a.persons);
+    return {
+      depts,                          // [{ dept, head, persons }] 按人数降序
+      personTimes,                    // 部门人次合计（含重复计数）
+      uniquePersons: persons.length,  // 去重人数
+      multiPersons,                   // 归属 ≥2 个部门的人数
+      multi,                          // { 2: n, 3: n } 按归属部门数分布
+      pairs                           // { 'A|B': n } 两两重合（键按字典序拼接）
+    };
+  }
   const CHG_FULL = (function () {
     const PLAN = [
       { from: 'mid', to: 'high', n: 12 }, { from: 'low', to: 'mid', n: 4 }, { from: 'high', to: 'high2', n: 3 },
@@ -1559,7 +1621,8 @@ window.DATA = (function () {
 
   return {
     towns, townOf, addPersons, recalcStats, fmt,
-    persons, unrated, stats, levelOf, LEVELS, TAGS,
+    persons, unrated, stats, levelOf, LEVELS, TAGS, IMPORT_FIELDS,
+    deptsOf, deptStats,
     alerts, approvals, blind, imports, wartime, analytics, RULES,
     WT_REASONS, WT_REASON_OF, WT_WAYS, WT_TARGETS, WT_RESULTS, WT_LEVELS, WT_CFG, reportMonthly,
     WT_VISIT_STEPS, WT_REPORT_STEPS, WT_SCOPES, wtLevelText,

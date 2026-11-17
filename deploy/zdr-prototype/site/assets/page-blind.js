@@ -154,7 +154,8 @@
   };
 
   const tagCls = name => (D.TAGS.find(x => x.name === name) || { cls: 'tag tag-line' }).cls;
-  const deptsOf = p => Array.from(new Set(p.tags.map(t => (D.TAGS.find(x => x.name === t) || {}).dept).filter(Boolean)));
+  /* 部门归属统一走数据层 D.deptsOf（与驾驶舱部门维度共用同一口径） */
+  const deptsOf = p => D.deptsOf(p);
   const levelTag = p => {
     const lv = D.levelOf(p.level);
     return `<span class="${lv.cls}">${esc(lv.name)}</span>`;

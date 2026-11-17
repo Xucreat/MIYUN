@@ -227,17 +227,10 @@ window.FILEPARSE = (function () {
     return s.slice(6, 10) + '-' + s.slice(10, 12) + '-' + s.slice(12, 14);
   }
 
-  /* ---------- 列名智能映射 ---------- */
-  const FIELDS = [
-    { key: 'name', label: '姓名', alias: ['姓名', '人员姓名', '当事人', '名字', 'name'] },
-    { key: 'idNo', label: '身份证号', alias: ['身份证号', '身份证', '身份证号码', '证件号码', 'idcard', 'idno'] },
-    { key: 'phone', label: '联系电话', alias: ['联系电话', '手机号', '手机', '电话', 'phone'] },
-    { key: 'tags', label: '风险类别 / 标签', alias: ['标签', '类别', '风险类别', '人员类别', '类型', 'tag'] },
-    { key: 'town', label: '属地镇街', alias: ['镇街', '属地', '所属镇街', '街道', '乡镇', 'town'] },
-    { key: 'dept', label: '来源部门', alias: ['部门', '来源', '来源部门', '报送单位', 'dept'] },
-    { key: 'level', label: '风险等级', alias: ['等级', '风险等级', '管控等级', 'level'] },
-    { key: 'note', label: '备注', alias: ['备注', '说明', '情况说明', 'note'] }
-  ];
+  /* ---------- 列名智能映射 ----------
+     标准字段清单由数据层提供（DATA.IMPORT_FIELDS），本模块只负责「猜列名 → 字段」，
+     流程：alias 精确匹配 → 包含匹配 → 人工改。字段增删改一律在 data.js 进行。 */
+  const FIELDS = window.DATA.IMPORT_FIELDS;
   function guessMap(headers) {
     const out = {};
     FIELDS.forEach(f => {
