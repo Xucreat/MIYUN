@@ -160,7 +160,7 @@
         <span class="vl">${r.count}</span>
       </div>`).join('') +
       `<div class="divider" style="margin:9px 0 7px"></div>
-       <div class="note">拒访 + 失联合计 <b>${refuse.count + lost.count}</b> 人，已生成「失访/拒访」预警推送给属地书记；
+       <div class="note">拒访 + 失联合计 <b>${refuse.count + lost.count}</b> 人，已纳入「失访/拒访」预警统计供统筹研判；
        住院治疗 <b>${hosp.count}</b> 人凭诊断材料视同已见面；复访已到期 <b>${overdue}</b> 人，其中需督办 <b>${sup}</b> 人。
        点击任一原因可查看具体人员。</div>`;
 
@@ -232,13 +232,10 @@
         <td>${esc(r.town)}</td>
         <td class="r" style="color:${over > 0 ? 'var(--red)' : 'var(--t3)'};font-weight:${over > 0 ? 600 : 400}">${over > 0 ? '超期 ' + over + ' 天' : '未超期'}</td>
         <td class="dim">${esc(r.reason.name)} · 距上次见面 ${p.visitGap} 天（时限 ${eff.visitLimit} 天） · 复访 ${esc(r.row.due || '—')}</td>
-        <td class="r"><a class="rowlink" href="javascript:;" data-db="${esc(p.id)}" data-perm="edit">督办</a></td>
+        <td class="r">${r.row.supervise ? '<span class="tag tag-red" style="height:17px">需督办</span>' : '<span class="dim">—</span>'}</td>
       </tr>`;
     }).join('') || `<tr><td colspan="7"><div class="ui-empty"><b>本期无未见面人员</b>全部应见人员均已回填为已见面</div></td></tr>`;
 
-    tb.querySelectorAll('[data-db]').forEach(a => {
-      a.onclick = e => { e.stopPropagation(); openSupervise(a.dataset.db); };
-    });
     tb.querySelectorAll('tr[data-pid]').forEach(tr => {
       tr.style.cursor = 'pointer';
       tr.onclick = () => openPerson(tr.dataset.pid);
@@ -306,7 +303,7 @@
              <div class="select sm" data-f="reason">${esc((D.WT_REASON_OF[r.reason] || D.WT_REASONS[0]).name)}</div>
              <input class="tin" data-f="due" value="${esc(r.due || '')}" placeholder="预计复访日期">
              <label class="tiny" style="display:flex;align-items:center;gap:4px;color:var(--t2)">
-               <span class="cb ${r.supervise ? 'on' : ''}" data-f="supervise"></span>需下发督办</label>
+               <span class="cb ${r.supervise ? 'on' : ''}" data-f="supervise"></span>标记需督办</label>
              <input class="tin" data-f="memo" value="${esc(r.memo || '')}" placeholder="原因说明（其他必填）">
            </div>`;
       return `<tr data-pid="${esc(id)}">
@@ -551,7 +548,7 @@
                 <td class="tiny">${esc(lv.name)}</td>
                 <td class="r" style="color:var(--red)">${x.person.visitGap} 天</td>
                 <td class="tiny num">${esc(x.row.due || '—')}</td>
-                <td class="tiny dim">${esc(x.row.memo || (x.row.supervise ? '需下发督办' : '待属地补充说明'))}</td>
+                <td class="tiny dim">${esc(x.row.memo || (x.row.supervise ? '需督办' : '待属地补充说明'))}</td>
               </tr>`;
             }).join('')}</tbody>
           </table>
@@ -578,170 +575,9 @@
     location.href = 'person.html?id=' + encodeURIComponent(id);
   }
 
-  /* ---------- 督办 ---------- */
-  function openSupervise(pid) {
-    if (!window.guard('edit', '督办未见面人员')) return;
-    const row = S.wtAllRows().find(r => r.personId === pid);
-    const p = D.personById(pid);
-    /* 不再静默 return：行数据缺失时给出明确反馈，避免「点了没反应」 */
-    if (!row || !p) { UI.toast.err('该人员的未见面记录已更新，请刷新清单后重试'); return; }
-    const reason = D.WT_REASON_OF[row.reason] || D.WT_REASONS[4];
-    UI.modal({
-      title: '督办 · ' + nmOf(p),
-      sub: `${row.town} · 连续 ${p.visitGap} 天未有效见面 · 未见面原因「${reason.name}」`,
-      width: 470,
-      okText: '下发督办单',
-      body: `
-        <div class="field mb8"><label>督办对象</label><div class="select" id="dbTo" style="height:32px"></div></div>
-        <div class="field mb8"><label>完成时限</label><div class="select" id="dbDue" style="height:32px"></div></div>
-        <div class="field"><label>督办要求（≥ 8 字）</label><textarea id="dbNote" rows="3" placeholder="例如：本人须于时限内完成上门走访并回传现场照片，未见面原因须同步说明"></textarea></div>
-        <div class="tiny dim">督办单同时抄送镇街政法委员；超时未反馈自动升级为区委政法委督办。</div>`,
-      onMount: dlg => {
-        UI.select(dlg.querySelector('#dbTo'), {
-          items: [
-            { v: 'op', t: '属地经办（' + row.town + '）' },
-            { v: 'hdr', t: '属地负责人（' + row.town + '）' },
-            { v: 'both', t: '负责人 + 经办人（同时）' }
-          ]
-        });
-        UI.select(dlg.querySelector('#dbDue'), { items: [{ v: '24', t: '24 小时内' }, { v: '72', t: '72 小时内' }, { v: '7d', t: '7 日内' }] });
-      },
-      onOk: dlg => {
-        const note = (dlg.querySelector('#dbNote').value || '').trim();
-        if (note.length < 8) { UI.toast.err('督办要求至少 8 字'); return false; }
-        const due = dlg.querySelector('#dbDue').textContent;
-        S.audit('下发督办单', `${nmOf(p)}（${p.no}，${row.town}，${reason.name}）限时 ${due}：${note}`, '重点时期管控');
-        UI.toast.ok('督办单已下发 ' + nmOf(p) + '，限时 ' + due + '反馈');
-        return true;
-      }
-    });
-  }
-
-  /* ---------- 批量催办 ---------- */
-  function doPush() {
-    if (!window.guard('edit', '批量催办')) return;
-    const list = S.wtTasks().filter(t => !t.reported);
-    if (!list.length) { UI.toast('全部镇街已提交，无需催办'); return; }
-    UI.modal({
-      title: `批量催办 · ${list.length} 个镇街未提交零报告`,
-      sub: '催办单将推送至镇街政法委员与包联干部，并要求 2 小时内回复',
-      width: 520,
-      okText: '发送催办单',
-      body: `<div class="table-wrap" style="border:1px solid var(--line);border-radius:9px;max-height:220px;overflow:auto">
-        <table class="tb compact"><thead><tr><th style="width:34px">#</th><th>责任镇街</th><th style="width:74px">包联干部</th><th class="r" style="width:52px">应见</th><th class="r" style="width:56px">未见面</th></tr></thead>
-        <tbody>${list.map((t, i) => `<tr><td class="dim num">${i + 1}</td><td>${esc(t.town)}</td><td>${esc(t.officer)}</td><td class="r num">${t.should}</td><td class="r num" style="color:var(--red)">${t.missing}</td></tr>`).join('')}</tbody></table>
-      </div>
-      <div class="tiny dim" style="margin-top:9px">发送后 ${list.length} 个镇街状态标为「已催办」，超 ${S.wtEffective().escalateHours} 小时仍未提交的将升级为区委政法委督办。</div>`,
-      onOk: () => {
-        S.audit('批量催办零报告', `${list.length} 个镇街：${list.map(t => t.town).join('、')}`, '重点时期管控');
-        UI.toast.ok(`已向 ${list.length} 个镇街发送催办单`);
-        return true;
-      }
-    });
-  }
-
-  /* ---------- 推送属地书记（渠道 / 到人 / 结果 / 留痕） ---------- */
-  function openPush() {
-    if (!window.guard('edit', '推送属地书记')) return;
-    const list = S.wtTasks().filter(t => !t.reported);
-    if (!list.length) { UI.toast('今日各镇街均已提交零报告，无需推送'); return; }
-    const picked = {};
-    list.forEach(t => { picked[t.town] = true; });
-    const results = {};
-    let sent = false;
-
-    UI.modal({
-      title: '推送属地书记 · ' + list.length + ' 个镇街未报',
-      sub: '接收人：镇街党（工）委书记 + 政法委员；推送后自动记录留痕，可在审计日志按「推送」检索',
-      width: 620,
-      okText: '推送到人',
-      body: `
-        <div class="table-wrap" style="max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:9px">
-          <table class="tb compact">
-            <thead><tr><th style="width:30px"><span class="cb on" id="pushAll"></span></th><th>责任镇街</th><th style="width:64px">包联干部</th><th class="r" style="width:56px">未见面</th><th style="width:92px">接收人</th></tr></thead>
-            <tbody id="pushBody">${list.map(t => `<tr data-town="${esc(t.town)}">
-              <td><span class="cb on" data-ck></span></td>
-              <td>${esc(t.town)}</td><td>${esc(t.officer)}</td>
-              <td class="r num" style="color:var(--red)">${t.missing}</td>
-              <td class="tiny dim">书记 + 政法委员</td></tr>`).join('')}</tbody>
-          </table>
-        </div>
-        <div class="fld"><label>推送渠道（可多选）</label>
-          <div class="chips" id="pushCh">
-            <span class="chip-select on" data-v="im">内网工作消息</span>
-            <span class="chip-select on" data-v="sms">短信提醒</span>
-          </div>
-        </div>
-        <div class="fld"><label>推送内容</label>
-          <textarea id="pushMsg" rows="3">今日重点时期零报告尚未提交，请于 ${S.wtEffective().reportDue} 前完成「未见面人员原因」填报并回传；连续 2 日未报将升级区委政法委督办。</textarea>
-        </div>
-        <div id="pushRes"></div>`,
-      onMount: dlg => {
-        UI.check(dlg.querySelector('#pushAll'), {
-          onChange: on => {
-            dlg.querySelectorAll('#pushBody [data-ck]').forEach(n => {
-              n.classList.toggle('on', on);
-              picked[n.closest('tr').dataset.town] = on;
-            });
-          }
-        });
-        dlg.querySelectorAll('#pushBody [data-ck]').forEach(n => {
-          UI.check(n, { onChange: on => { picked[n.closest('tr').dataset.town] = on; } });
-        });
-        UI.chips(dlg.querySelector('#pushCh'));
-      },
-      onOk: dlg => {
-        if (sent) return true;
-        const towns = Object.keys(picked).filter(k => picked[k]);
-        if (!towns.length) { UI.toast.err('请至少选择一个镇街'); return false; }
-        const chs = Array.from(dlg.querySelectorAll('#pushCh .chip-select.on')).map(n => n.dataset.v);
-        if (!chs.length) { UI.toast.err('请至少选择一个推送渠道'); return false; }
-        /* 逐条发送：短信渠道对「新城子镇」模拟一次失败，用于演示失败重试 */
-        towns.forEach((town, i) => {
-          const fail = chs.indexOf('sms') > -1 && town === '北庄镇';
-          results[town] = {
-            ok: !fail, ch: chs.map(c => c === 'im' ? '内网' : '短信').join('+'),
-            at: '2026-11-10 09:' + String(50 + (i % 10)).padStart(2, '0'),
-            err: fail ? '短信网关超时（可重试）' : ''
-          };
-        });
-        const okN = towns.filter(t => results[t].ok).length;
-        const failN = towns.length - okN;
-        const sms = chs.indexOf('sms') > -1 ? towns.length : 0;
-        sent = true;
-        dlg.querySelector('#pushRes').innerHTML = `
-          <div class="sect-title" style="margin-top:10px">发送结果</div>
-          <div class="table-wrap" style="max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:9px">
-            <table class="tb compact"><thead><tr><th>镇街</th><th style="width:80px">渠道</th><th style="width:86px">时间</th><th style="width:70px">结果</th><th>说明</th></tr></thead>
-            <tbody>${towns.map(t => `<tr><td>${esc(t)}</td><td class="tiny">${esc(results[t].ch)}</td>
-              <td class="tiny num">${esc(results[t].at)}</td>
-              <td>${results[t].ok ? '<span class="tag tag-green" style="height:17px">成功</span>' : '<span class="tag tag-red" style="height:17px">失败</span>'}</td>
-              <td class="tiny dim">${esc(results[t].err || '已送达书记与政法委员')}</td></tr>`).join('')}</tbody></table>
-          </div>
-          <div class="tiny dim" style="margin-top:7px">成功 ${okN} · 失败 ${failN}${sms ? ' · 短信计费 ' + sms + ' 条' : ' · 未使用短信'} · 已写入推送记录与审计流水（操作类型：推送）</div>
-          ${failN ? '<button class="btn btn-sm mt10" data-act="retry">重试失败项</button>' : ''}`;
-        S.wtAddPush({
-          towns: towns.join('、'), channels: chs.map(c => c === 'im' ? '内网工作消息' : '短信').join(' + '),
-          ok: okN, fail: failN, sms
-        });
-        const okBtn = dlg.querySelector('[data-act=ok]');
-        if (okBtn) okBtn.textContent = '完成';
-        const cancel = dlg.querySelector('[data-act=cancel]');
-        if (cancel) cancel.style.display = 'none';
-        const retry = dlg.querySelector('[data-act=retry]');
-        if (retry) retry.onclick = () => {
-          towns.forEach(t => { if (!results[t].ok) results[t] = Object.assign({}, results[t], { ok: true, err: '', at: '2026-11-10 09:58' }); });
-          const ok2 = towns.filter(t => results[t].ok).length;
-          retry.disabled = true;
-          retry.textContent = '已全部重试成功';
-          S.wtAddPush({ towns: towns.join('、'), channels: '重试', ok: ok2, fail: towns.length - ok2, sms: 0 });
-          UI.toast.ok('失败项已重试成功（' + ok2 + ' / ' + towns.length + '）');
-        };
-        UI.toast.ok('已推送 ' + okN + ' 个镇街' + (failN ? '，' + failN + ' 个失败待重试' : ''));
-        return false;
-      }
-    });
-  }
+  /* ---------- 督办：仅展示"需督办"标识，不下发（按 2026-11-13 会议决议 D2） ---------- */
+  /* 原 openSupervise / doPush / openPush / doSelect 四个下发动作已按 D2 移除：
+     不向镇街下发督办单、催办单、推送或圈选名单；仅保留"需督办"标识与明细导出。 */
 
   /* ---------- 时期配置 ---------- */
   function openPeriodCfg() {
@@ -1077,49 +913,25 @@
     UI.toast.ok('报送单已导出');
   }
 
-  function exportSupervise() {
-    if (!guardExport('导出督办单')) return;
+  function exportUnseen() {
+    if (!guardExport('导出未见面清单')) return;
     const head = ['序号', '姓名', '档案号', '责任镇街', '管控等级', '超期(天)', '未见面原因', '复访日期', '需督办', '包联干部'];
     const data = unseenList().map((x, i) => [i + 1, nmOf(x.person), x.person.no, x.town,
       D.levelOf(S.levelOf(x.person)).name, Math.max(1, x.person.visitGap - 30), x.reason.name,
       x.row.due || '', x.row.supervise ? '是' : '否', x.person.officer || '']);
-    UI.downloadCSV('重点时期_未见面督办台账_2026-11-10.csv', [head].concat(data));
-    S.addExport('未见面督办台账', data.length, '脱敏');
-    S.audit('导出督办单', '未见面 ' + data.length + ' 人', '重点时期管控');
-    UI.toast.ok('督办台账已导出（' + data.length + ' 人）');
-  }
-
-  /* ---------- 圈选名单下发 ---------- */
-  function doSelect() {
-    if (!window.guard('edit', '圈选名单下发')) return;
-    const st = S.wtStats();
-    const rule = S.wtCfg().rosterRule.join(' + ');
-    UI.modal({
-      title: '圈选名单下发',
-      sub: `本期应见名单 ${st.should} 人 · 覆盖 ${st.total} 镇街 · 圈选规则：${rule}`,
-      width: 500,
-      okText: '确认下发',
-      body: `<div class="tiny" style="line-height:1.8">下发后各镇街政法委员与包联干部将在「重点时期管控」页收到本期应见名单，须按日逐人回填见面进度与零报告。</div>
-        <div class="tiny dim" style="margin-top:7px">名单为当前在册重点人员快照（含等级、属地、包联干部与未见面基线）；408 人中 44 人已标注基线未见面原因，可直接修正。</div>`,
-      onOk: () => {
-        S.audit('圈选名单下发', `本期应见名单 ${st.should} 人下发 ${st.total} 镇街（规则：${rule}）`, '重点时期管控');
-        UI.toast.ok('名单已下发 ' + st.total + ' 镇街政法委员');
-        return true;
-      }
-    });
+    UI.downloadCSV('重点时期_未见面清单_2026-11-10.csv', [head].concat(data));
+    S.addExport('未见面清单', data.length, '脱敏');
+    S.audit('导出未见面清单', '未见面 ' + data.length + ' 人', '重点时期管控');
+    UI.toast.ok('未见面清单已导出（' + data.length + ' 人）');
   }
 
   /* ---------- 事件绑定 ---------- */
   const bind = (id, fn) => { const n = document.getElementById(id); if (n) n.onclick = fn; };
-  bind('btnPush', doPush);
-  bind('btnPush2', doPush);
   bind('btnPeriod', openPeriodCfg);
   bind('btnLvCfg', openLevelCfg);
   bind('btnExpRoster', exportRoster);
   bind('btnExpRpt', exportReport);
-  bind('btnExpDb', exportSupervise);
-  bind('btnSecPush', openPush);
-  bind('btnSelect', doSelect);
+  bind('btnExpDb', exportUnseen);
   bind('btnRsExport', () => {
     if (!guardExport('导出未见面明细')) return;
     const head = ['序号', '姓名', '责任镇街', '管控等级', '未见面原因', '复访日期', '需督办', '距上次见面(天)'];
@@ -1148,13 +960,4 @@
   }
 
   render();
-
-  /* ?push=1 深链：落地即弹出「批量催办」（board 待我处理督办入口） */
-  if (new URLSearchParams(location.search).get('push') === '1') {
-    setTimeout(() => {
-      const list = S.wtTasks().filter(t => !t.reported);
-      if (list.length) doPush();
-      else UI.toast.ok('全部镇街已提交零报告，无需催办');
-    }, 150);
-  }
 })();

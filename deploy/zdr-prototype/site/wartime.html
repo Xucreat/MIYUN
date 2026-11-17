@@ -120,8 +120,7 @@
         </div>
         <div class="page-actions">
           <button class="btn" id="btnPeriod">时期配置</button>
-          <button class="btn" id="btnExpRoster">导出应见名单</button>
-          <button class="btn btn-primary" id="btnSelect">圈选名单下发</button>
+          <button class="btn btn-primary" id="btnExpRoster">导出应见名单</button>
         </div>
       </div>
 
@@ -152,10 +151,9 @@
         <!-- 镇街回填 -->
         <div class="card">
           <div class="card-hd">
-            <div class="card-title">镇街见面情况回填 <span class="sub">属地逐日逐人填报 · 未填报进入督办</span></div>
+            <div class="card-title">镇街见面情况回填 <span class="sub">属地逐日逐人填报 · 未填报标记为需督办</span></div>
             <div class="right">
               <span class="tag tag-red" id="wtNotRep">6 镇街未报</span>
-              <button class="btn btn-sm" id="btnPush">批量催办</button>
             </div>
           </div>
           <div class="table-wrap">
@@ -203,7 +201,6 @@
               <div class="bar mt6"><i id="wtNotBar" style="width:30%;background:var(--red)"></i></div>
               <div class="chips mt10" id="wtChips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
               <div class="row mt10" style="gap:6px">
-                <button class="btn btn-sm" id="btnPush2" style="flex:1">一键催办</button>
                 <button class="btn btn-sm" id="btnExpRpt" style="flex:1">导出报送单</button>
               </div>
             </div>
@@ -217,13 +214,12 @@
           <div class="card-title">应见未见清单 <span class="sub">未见面人员 · 逐人对应台账</span></div>
           <div class="right">
             <span class="tag tag-red" id="unseenCount">44 人</span>
-            <button class="btn btn-sm" id="btnExpDb">导出督办单</button>
-            <button class="btn btn-sm btn-primary" id="btnSecPush">推送属地书记</button>
+            <button class="btn btn-sm" id="btnExpDb">导出未见面清单</button>
           </div>
         </div>
         <div class="table-wrap">
           <table class="tb compact">
-            <thead><tr><th style="width:92px">姓名</th><th style="width:128px">类别标签</th><th style="width:88px">管控等级</th><th style="width:78px">责任镇街</th><th class="r" style="width:54px">超期</th><th>最近状态</th><th class="r" style="width:58px">操作</th></tr></thead>
+            <thead><tr><th style="width:92px">姓名</th><th style="width:128px">类别标签</th><th style="width:88px">管控等级</th><th style="width:78px">责任镇街</th><th class="r" style="width:54px">超期</th><th>最近状态</th><th class="r" style="width:64px">需督办</th></tr></thead>
             <tbody id="unseenBody">
             </tbody>
           </table>

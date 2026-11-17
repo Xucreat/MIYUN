@@ -501,7 +501,7 @@
     if (!t.list.length) { UI.toast('当前无可生成的记录'); return; }
     UI.modal({
       title: '生成盯控名单 · ' + t.list.length + ' 人',
-      sub: '盯控名单将下发至属地包联干部与辖区派出所，并进入「重点时期管控」督办口径',
+      sub: '盯控名单生成为内部参考清单（供统筹研判与后续核查），名单口径与「重点时期管控」应见未见一致',
       width: 620,
       okText: '生成并导出',
       body: `<div class="tiny" style="line-height:1.8;color:var(--t2)">名单口径：${esc(echoText())}</div>

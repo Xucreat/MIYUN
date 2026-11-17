@@ -124,7 +124,7 @@
       SCOPED
         ? { c: 'var(--blue)', t: `本部门调整申请在途 ${apprN} 条`, m: '审批由「政法委主管」执行，此处跟踪进度', b: '查看', href: 'persons.html?tab=query' }
         : { c: 'var(--blue)', t: `等级调整待审批 ${apprN} 条`, m: '上调 2 · 下调 3', b: '处理', href: 'risk.html' },
-      { c: 'var(--amber)', t: `未零报告镇街 ${notRep.length} 个`, m: `${notRep.slice(0, 2).map(t => t.town.replace(/(街道|地区|镇)$/, '')).join('、')}${notRep.length > 2 ? ' 等 ' + notRep.length + ' 个' : ''} · 20:00 截止`, b: '督办', href: 'wartime.html?push=1' }
+      { c: 'var(--amber)', t: `未零报告镇街 ${notRep.length} 个`, m: `${notRep.slice(0, 2).map(t => t.town.replace(/(街道|地区|镇)$/, '')).join('、')}${notRep.length > 2 ? ' 等 ' + notRep.length + ' 个' : ''} · 20:00 截止`, b: '查看明细', href: 'wartime.html' }
     ];
     box.innerHTML = items.map(it => `<div class="li" style="padding:7px 0">
       <span class="lvl" style="width:4px;height:26px;border-radius:2px;background:${it.c};flex:0 0 4px"></span>
@@ -143,7 +143,7 @@
     { t: '10:26', tag: '审批', tc: 'var(--purple-soft)', fc: 'var(--purple)', html: '等级调整申请 <b>中 → 低</b>（周文斌 · 巨各庄镇）待政法委主管审批', act: { type: 'link', href: 'risk.html', btn: '去审批', note: '对应申请单 APP-20261111-001 ·「待我审批」列表第一条' } },
     { t: '10:18', tag: '回填', tc: 'var(--green-soft)', fc: 'var(--green)', html: '冯家峪镇 补报昨日数据 <b>12 条</b>（此前接口超时），今日零报告已提交', act: { type: 'link', href: 'wartime.html', btn: '看零报告状态', note: '冯家峪镇今日零报告已提交，见重点时期管控 20 镇街进度' } },
     { t: '10:05', tag: '入库', tc: 'var(--blue-soft)', fc: 'var(--blue-ink)', html: '公安分局增量推送 <b>4 人</b>，查重后新增 4、合并 0', act: { type: 'link', href: 'import.html', btn: '看导入批次', note: '对应导入批次 IM-20261111-01（今日 10:05 · 已完成）' } },
-    { t: '09:47', tag: '预警', tc: 'var(--red-soft)', fc: 'var(--red)', html: '果园街道 <b>韦振华</b> 双在册确认超期（公安+卫健），已发督办', act: { type: 'link', href: 'blind.html?type=dual&st=over', btn: '去盲区核查', note: '已过滤「双在册 + 超 7 日未确认」，韦振华为清单第 1 条' } }
+    { t: '09:47', tag: '预警', tc: 'var(--red-soft)', fc: 'var(--red)', html: '果园街道 <b>韦振华</b> 双在册确认超期（公安+卫健），已标记需督办', act: { type: 'link', href: 'blind.html?type=dual&st=over', btn: '去盲区核查', note: '已过滤「双在册 + 超 7 日未确认」，韦振华为清单第 1 条' } }
   ];
   function feedModal(item) {
     const a = item.act;
@@ -736,7 +736,7 @@
     }
     /* 调整后 30 日跟踪：点击弹窗 */
     const TRACK = [
-      { tag: '上调', cls: 'tag-red', t: '19 人中 17 人已完成上调后首次见面', m: '未完成 2 人（檀营、石城各 1）已生成督办，限 3 日内完成', rows: [['完成率', '17 / 19（89.5%）'], ['未完成', '檀营 1 人（拒访）· 石城 1 人（外出务工）'], ['督办', '2 件已下发，限 3 日反馈'], ['口径', '与重点时期「20 镇街见面进度」同源']] },
+      { tag: '上调', cls: 'tag-red', t: '19 人中 17 人已完成上调后首次见面', m: '未完成 2 人（檀营、石城各 1）已标记需督办，限 3 日内完成', rows: [['完成率', '17 / 19（89.5%）'], ['未完成', '檀营 1 人（拒访）· 石城 1 人（外出务工）'], ['需督办', '2 人（仅呈现，不下发）'], ['口径', '与重点时期「20 镇街见面进度」同源']] },
       { tag: '下调', cls: 'tag-green', t: '27 人中 25 人走访频次已由月度调整为季度', m: '余 2 人因缓刑考验期内，维持月度走访', rows: [['完成率', '25 / 27（92.6%）'], ['维持月度', '缓刑考验期内 2 人（司法所要求）'], ['回访', '下调后 7 日内随访由 RG-05 监控'], ['口径', '与预警规则 RG-05 联动']] }
     ];
     const tl = $('trackList');
