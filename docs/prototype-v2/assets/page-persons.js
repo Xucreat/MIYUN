@@ -13,6 +13,10 @@
 
   const S = {
     q: '', tag: '', level: '', town: '', dept: '', visit: '', status: '', village: '',
+    /* deptTag：按「人员类别归属部门」筛选（可多部门 AND），与主责单位 dept 字段是两套口径：
+       dept 取人员表的主责单位单值；deptTag 走 DATA.deptsOf(p)，一人可命中多个部门，
+       驾驶舱「部门维度 / 重合矩阵」下钻用这个，命中数与卡片数字严格一致 */
+    deptTag: [],
     quick: 'high', page: 1, size: 20, sort: 'level', dir: 1,
     selected: new Set()
   };
@@ -62,6 +66,10 @@
       if (S.town && p.town !== S.town) return false;
       if (S.village && p.village !== S.village) return false;
       if (S.dept && p.dept !== S.dept) return false;
+      if (S.deptTag.length) {
+        const ds = D.deptsOf(p);
+        if (!S.deptTag.every(d => ds.indexOf(d) > -1)) return false;   /* 多部门为 AND：同时归属 */
+      }
       if (S.visit === '30' && p.visitGap <= 30) return false;
       if (S.visit === '7' && p.visitGap > 7) return false;
       if (S.status === 'new' && p.since < '2025-11') return false;
@@ -93,7 +101,7 @@
     try { localStorage.setItem(SCHEME_KEY, JSON.stringify(list)); } catch (e) { /* 隐私模式忽略 */ }
   }
   function snapshotConds() {
-    return { q: S.q, tag: S.tag, level: S.level, town: S.town, dept: S.dept, visit: S.visit, status: S.status, village: S.village, quick: S.quick };
+    return { q: S.q, tag: S.tag, level: S.level, town: S.town, dept: S.dept, deptTag: S.deptTag.slice(), visit: S.visit, status: S.status, village: S.village, quick: S.quick };
   }
   function renderSchemes() {
     const barEl = document.getElementById('schemeBar');
@@ -178,6 +186,7 @@
     document.getElementById('btnQuery').onclick = () => { S.page = 1; renderAll(); UI.toast.ok('已按 ' + filtered().length + ' 人筛选'); };
     document.getElementById('btnReset').onclick = () => {
       S.q = ''; S.tag = ''; S.level = ''; S.town = ''; S.dept = ''; S.visit = ''; S.status = '';
+      S.deptTag = [];
       S.quick = 'high'; S.page = 1; S.selected.clear();
       renderAll();
     };
@@ -188,6 +197,7 @@
         S.level ? ['管控等级', D.levelOf(S.level).name] : null,
         S.town ? ['责任镇街', S.town] : null,
         S.dept ? ['主责单位', S.dept] : null,
+        S.deptTag.length ? ['部门归属（含共管）', S.deptTag.join(' + ')] : null,
         S.visit ? ['最近走访', S.visit === '30' ? '30 日以上' : '7 日内'] : null,
         S.status ? ['列管状态', S.status === 'new' ? '新列管（1 年内）' : '列管 3 年以上'] : null,
         ['快捷视图', { high: '全部重点关注', high2: '极高风险', dual: '双在册', multi: '多标', nobasis: '无依据' }[S.quick] || S.quick]
@@ -242,7 +252,7 @@
     const pct = (total / D.stats.inRegister * 100).toFixed(1);
     res.innerHTML = `
       <span>筛选结果 <b>${total}</b> 人<span class="dim">（占在册总数 ${pct}%${role.scope === 'dept' ? ' · 数据范围仅 ' + esc(role.dept) : ''}）</span></span>
-      <span class="tag tag-line" style="height:20px">${S.level ? '管控等级：' + D.levelOf(S.level).name : (S.quick === 'high' ? '高风险及以上' : (QUICKS.find(q => q.k === S.quick) || {}).t)}${S.tag ? ' · ' + esc(S.tag) : ''}${S.village ? ' · ' + esc(S.village) : ''} · 当前排序：${sortText()}</span>
+      <span class="tag tag-line" style="height:20px">${S.level ? '管控等级：' + D.levelOf(S.level).name : (S.quick === 'high' ? '高风险及以上' : (QUICKS.find(q => q.k === S.quick) || {}).t)}${S.tag ? ' · ' + esc(S.tag) : ''}${S.village ? ' · ' + esc(S.village) : ''}${S.deptTag.length ? ' · 部门归属：' + esc(S.deptTag.join('+')) : ''} · 当前排序：${sortText()}</span>
       <span class="spacer"></span>
       <span class="dim">已选 <b style="color:var(--blue)">${S.selected.size}</b> 项</span>
       <button class="btn btn-sm" id="btnAssign" ${S.selected.size ? '' : 'disabled title="请先勾选人员后再批量指派"'}>批量指派</button>
@@ -525,9 +535,13 @@
     const tg = (qs.get('tag') || '').trim(); if (tg) S.tag = tg;
     const tw = (qs.get('town') || '').trim(); if (tw) S.town = tw;
     const dp = (qs.get('dept') || '').trim(); if (dp) S.dept = dp;
+    /* ?deptTag=公安分局 或 ?deptTag=公安分局,区信访办（逗号=AND，同时归属）
+       驾驶舱「部门维度 / 重合矩阵」下钻入口，命中数与卡片数字同源（DATA.deptsOf） */
+    const dtg = (qs.get('deptTag') || '').trim();
+    if (dtg) S.deptTag = dtg.split(',').map(s => s.trim()).filter(Boolean);
     const vg = (qs.get('village') || '').trim(); if (vg) S.village = vg;
     const kw = (qs.get('q') || '').trim(); if (kw) S.q = kw;
-    if (lv || tg || tw || dp || vg || kw) S.page = 1;
+    if (lv || tg || tw || dp || dtg || vg || kw) S.page = 1;
   })();
 
   initQueryPanel();

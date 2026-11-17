@@ -274,6 +274,8 @@
 
   function helpDialog() {
     const r = STORE.role();
+    /* 部门维度口径与 DATA.deptStats() 同源，避免说明弹窗里的数字与驾驶舱卡片漂移 */
+    const dSt = DATA.deptStats();
     UI.modal({
       title: '演示说明与口径定义',
       sub: '本系统为演示环境，全部数据为虚拟生成的脱敏数据，不接入任何真实台账',
@@ -288,8 +290,10 @@
           <tbody>
             <tr><td style="width:104px;color:var(--t2)">在册总数</td><td>${DATA.fmt(DATA.stats.inRegister)} 人 · 台账 7,112 人次（同一人多部门在册只计 1 人）</td></tr>
             <tr><td style="color:var(--t2)">高风险及以上</td><td>${DATA.stats.highPlus} 人 = 极高 ${DATA.stats.high2} + 高 ${DATA.stats.highPlus - DATA.stats.high2}，占在册 ${DATA.stats.percentHigh}%</td></tr>
-            <tr><td style="color:var(--t2)">双在册</td><td>同一身份证在两个及以上部门台账在册，${DATA.stats.dual} 人</td></tr>
+            <tr><td style="color:var(--t2)">双在册</td><td>同一身份证在两个及以上部门台账在册（政府台账双重列管标记口径），${DATA.stats.dual} 人</td></tr>
             <tr><td style="color:var(--t2)">多重标签</td><td>2 标 ${DATA.stats.multi2} 人 + 3 标 ${DATA.stats.multi3} 人 = ${DATA.stats.multi} 人</td></tr>
+            <tr><td style="color:var(--t2)">部门归属</td><td>按人员类别映射业务主管部门（公安 / 信访 / 卫健 / 司法），一人可跨部门：高风险及以上 ${dSt.uniquePersons} 人合计 ${dSt.personTimes} 人次<span class="tiny dim">（全量 ${DATA.fmt(DATA.stats.inRegister)} 人对应台账 ${DATA.fmt(DATA.stats.ledgerRecords)} 人次，两者统计范围不同）</span></td></tr>
+            <tr><td style="color:var(--t2)">部门重合</td><td>两个及以上部门共管 ${dSt.multiPersons} 人（2 部门 ${dSt.multi['2'] || 0} · 3 部门 ${dSt.multi['3'] || 0}），其两两重合见驾驶舱「重合矩阵」；<b>与「双在册 ${DATA.stats.dual} 人」统计方法不同，不可互相替代</b></td></tr>
             <tr><td style="color:var(--t2)">待核实</td><td>已建档未定级或依据缺失，${DATA.fmt(DATA.stats.unknown)} 人，不计入高风险统计</td></tr>
             <tr><td style="color:var(--t2)">走访超期</td><td class="tiny dim">高风险人员连续 30 日无有效走访（电话联系不计入有效走访）</td></tr>
           </tbody>

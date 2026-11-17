@@ -388,34 +388,15 @@
                   </div>
                 </div>
 
+                <!-- 部门维度（会议决议 D3）：与镇街地图并列，呈现「行业主管」视角与部门间共管重合。
+                     原「部门报送质量」卡移至数据看板（board.html「报送质量」页签，内容更全），避免一屏重复。 -->
                 <div class="card">
                   <div class="card-hd">
-                    <div class="card-title">部门报送质量 <span class="sub">本期批次 · 11-10</span></div>
-                    <div class="right"><span class="tag tag-green">实时</span></div>
+                    <div class="card-title">部门维度 · 重点人分布</div>
+                    <div class="right"><button class="btn btn-sm btn-ghost" id="btnDeptMatrix" type="button">重合矩阵</button></div>
                   </div>
-                  <div class="card-bd" style="padding:6px 13px 4px">
-                    <div class="src-row" style="display:grid;grid-template-columns:60px 1fr 54px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
-                      <span style="font-size:11.5px;font-weight:550">公安分局</span>
-                      <div><div class="bar thin"><i style="width:99%;background:#0071e3"></i></div><div class="tiny dim" style="margin-top:1px;font-size:9.5px">及时 99% · 完整 98%</div></div>
-                      <span class="tiny dim" style="text-align:right">2,914 条</span>
-                    </div>
-                    <div class="src-row" style="display:grid;grid-template-columns:60px 1fr 54px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
-                      <span style="font-size:11.5px;font-weight:550">区卫健委</span>
-                      <div><div class="bar thin"><i style="width:92%;background:#e8830c"></i></div><div class="tiny dim" style="margin-top:1px;font-size:9.5px">及时 92% · 完整 95%</div></div>
-                      <span class="tiny dim" style="text-align:right">1,204 条</span>
-                    </div>
-                    <div class="src-row" style="display:grid;grid-template-columns:60px 1fr 54px;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
-                      <span style="font-size:11.5px;font-weight:550">区信访办</span>
-                      <div><div class="bar thin"><i style="width:96%;background:#6b56c9"></i></div><div class="tiny dim" style="margin-top:1px;font-size:9.5px">及时 96% · 完整 97%</div></div>
-                      <span class="tiny dim" style="text-align:right">1,568 条</span>
-                    </div>
-                    <div class="src-row" style="display:grid;grid-template-columns:60px 1fr 54px;gap:8px;align-items:center;padding:4px 0;border-bottom:0">
-                      <span style="font-size:11.5px;font-weight:550">区司法局</span>
-                      <div><div class="bar thin"><i style="width:88%;background:#1f8a53"></i></div><div class="tiny dim" style="margin-top:1px;font-size:9.5px">及时 88% · 完整 93%</div></div>
-                      <span class="tiny dim" style="text-align:right">1,426 条</span>
-                    </div>
-                  </div>
-                  <div class="card-ft" style="padding:5px 12px"><a class="btn btn-sm btn-ghost" href="import.html">导入记录 ›</a></div>
+                  <div class="card-bd" id="deptBars" style="padding:6px 13px 4px"></div>
+                  <div class="card-ft" style="padding:5px 12px"><span class="tiny dim" id="deptFoot">按人员类别归属部门统计</span></div>
                 </div>
 
                 <div class="card c-trend">
@@ -1236,6 +1217,102 @@ if (SCOPED) {
   const tnOn = document.querySelector('.tn-on');
   if (tnOn && tnOn.textContent.indexOf('本部门') < 0) tnOn.textContent += ' · 本部门';
 }
+
+/* ============ 部门维度 · 重点人分布（会议决议 D3） ============
+   与镇街地图并列呈现「行业主管」视角：486 名高风险及以上人员按人员类别
+   归属到部门，一人可同时归属多个部门 → 人数 486、归属人次 667、跨部门共管 168。
+   取数一律走 DATA.deptStats()（每次按当前 persons 实算，导入后自动跟随，不写死）。
+   口径差异：KPI「双在册 127 人」是政府台账的双重列管标记，与本卡按类别归属
+   实算的 168 人统计方法不同、不可互相替代，故本卡脚注只报 168 并注明来源。 */
+(function () {
+  const box = document.getElementById('deptBars');
+  if (!box) return;
+  const D = window.DATA, UI = window.UI;
+  const COLOR = { '公安分局': '#0071e3', '区信访办': '#6b56c9', '区卫健委': '#e8830c', '区司法局': '#1f8a53' };
+  const st = D.deptStats();
+  const list = SCOPED ? st.depts.filter(d => d.dept === DEPT_NAME) : st.depts;
+  const maxv = Math.max(1, ...list.map(d => d.persons));
+  const coOf = dep => D.persons.filter(p => {
+    const ds = D.deptsOf(p);
+    return ds.length > 1 && ds.indexOf(dep) > -1;
+  }).length;
+
+  box.innerHTML = list.map((d, i) => `
+    <div class="src-row" style="display:grid;grid-template-columns:56px 1fr 56px;gap:7px;align-items:center;padding:2.5px 0;border-bottom:${i === list.length - 1 ? '0' : '1px solid var(--line)'}">
+      <span style="font-size:11.5px;font-weight:550;white-space:nowrap">${UI.esc(d.dept)}</span>
+      <div style="min-width:0">
+        <div class="bar thin"><i style="width:${(d.persons / maxv * 100).toFixed(1)}%;background:${COLOR[d.dept] || '#0071e3'}"></i></div>
+        <div class="tiny dim" style="margin-top:1px;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">共管 ${coOf(d.dept)} 人 · 负责人 ${UI.esc(d.head || '—')}</div>
+      </div>
+      <span style="text-align:right;font-size:12.5px;white-space:nowrap"><b>${d.persons}</b><span class="tiny dim" style="margin-left:1px">人</span></span>    </div>`).join('');
+
+  const foot = document.getElementById('deptFoot');
+  if (foot) {
+    foot.innerHTML = SCOPED
+      ? `本部门口径：归属 ${list.length ? list[0].persons : 0} 人 · 明细按数据范围收敛`
+      : `跨部门共管 <b style="color:var(--t1)">${st.multiPersons}</b> 人 · 合计 <b style="color:var(--t1)">${st.personTimes}</b> 人次（${st.uniquePersons} 人）`;
+  }
+
+  /* 重合矩阵：4×4，对角=该部门归属人数，其余=两部门共管人数（含同时属第三部门者）
+     点格子直接下钻人员台账（?deptTag=A,B 为「同时归属 A 与 B」的 AND 语义） */
+  const btn = document.getElementById('btnDeptMatrix');
+  if (!btn) return;
+  if (SCOPED) { btn.style.display = 'none'; return; }   /* 本部门角色不展开其他部门数字 */
+  btn.onclick = () => {
+    const s2 = D.deptStats();
+    const ORDER = ['公安分局', '区信访办', '区卫健委', '区司法局'];
+    const SHORT = { '公安分局': '公安', '区信访办': '信访', '区卫健委': '卫健', '区司法局': '司法' };
+    const tot = {};
+    s2.depts.forEach(d => { tot[d.dept] = d.persons; });
+    const pair = (a, b) => {
+      const v = s2.pairs[a + '|' + b];
+      return v != null ? v : (s2.pairs[b + '|' + a] || 0);
+    };
+    const goDept = dep => location.href = 'persons.html?deptTag=' + encodeURIComponent(dep);
+
+    const rows = ORDER.map((a, i) => `
+      <tr><td class="rh">${SHORT[a]}</td>
+        ${ORDER.map((b, j) => {
+          if (j > i) return `<td class="zero" style="background:var(--surface-2)">—</td>`;
+          if (j === i) return `<td class="dg" data-dept="${a}" style="background:#eef5fd;cursor:pointer">${tot[a] || 0}</td>`;
+          const n = pair(a, b);
+          return `<td data-pair="${a}|${b}" class="${n ? '' : 'zero'}" style="background:${n ? '#fff6ea' : 'var(--surface-2)'};cursor:pointer">${n || '—'}</td>`;
+        }).join('')}
+      </tr>`).join('');
+
+    /* 一致性自检：人数 486 + 重复计入 181 = 667 人次；两两共管 194 人·对 = 155×1 + 13×3 */
+    const dupTimes = s2.personTimes - s2.uniquePersons;
+    const pairSum = Object.keys(s2.pairs).reduce((a, k) => a + s2.pairs[k], 0);
+    const m2 = s2.multi['2'] || 0, m3 = s2.multi['3'] || 0;
+
+    UI.modal({
+      title: '部门间管理重合矩阵',
+      sub: `${s2.uniquePersons} 名高风险及以上人员 · 归属 ${s2.personTimes} 人次 · 共管 ${s2.multiPersons} 人`,
+      width: 560,
+      okText: '知道了',
+      cancelText: '去人员台账',
+      body: `
+        <table class="mtx" style="margin-top:2px">
+          <thead><tr><th></th>${ORDER.map(d => `<th>${SHORT[d]}</th>`).join('')}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="tiny dim" style="margin-top:9px;line-height:1.85">
+          行 / 列均为业务主管部门（公安分局 / 区信访办 / 区卫健委 / 区司法局）；<b>对角</b>为该部门归属人数，<b>其余</b>为两部门共管人数（含同时属第三部门者）。<b>点任一数字</b>直接下钻人员台账，落地即按该条件筛选。<br>
+          核对：${s2.uniquePersons} 人按部门归属合计 <b>${s2.personTimes}</b> 人次（多计 ${dupTimes} 人次）；两两共管合计 ${pairSum} 人·对 = 2 部门 ${m2} 人×1 + 3 部门 ${m3} 人×3。双在册 ${D.stats.dual} 人为政府台账双重列管标记，与本表按类别归属的重合口径不同，不可互相替代。
+        </div>`,
+      onMount: dlg => {
+        dlg.querySelectorAll('[data-dept]').forEach(td => { td.onclick = () => goDept(td.dataset.dept); });
+        dlg.querySelectorAll('[data-pair]').forEach(td => {
+          td.onclick = () => {
+            const parts = td.dataset.pair.split('|');
+            location.href = 'persons.html?deptTag=' + encodeURIComponent(parts[0]) + ',' + encodeURIComponent(parts[1]);
+          };
+        });
+      },
+      onCancel: () => { setTimeout(() => { location.href = 'persons.html'; }, 40); }
+    });
+  };
+})();
 
 /* ---- 初始化：支持 ?street= 深链直达二级，?community= 直接打开弹窗 ---- */
 renderLevel1();
