@@ -90,7 +90,11 @@ python -m tools.api_checks_b6  # B6 走访读端 18 条（权限 / 范围 / 写�
 前端侧回归在 `docs/prototype-v2/tools/`：
 `smoke-b5.js`（14 页 + mock↔live 对账）、`check-live-role.js`（R1/R2/R4/R5 范围与掩码）、
 `check-live-write.js`（请求体契约）、`check-live-dedupe.js`（B6 回填与去重）、
-`check-live-e2e.js`（真 HTTP，需 PG + API + 静态站三件套同时在线）。
+`check-live-e2e.js`（真 HTTP 端到端，需 PG + API + 静态站三件套同时在线）。
+
+`check-live-e2e.js` 真写库，**跑前库必须是种子态、跑后必须 `python -m app.seed` 还原**；
+不满足前置时它在第 1b 步打印实际行数并以 exit 2 中止（不写库），不再误报成断言失败。
+2026-11-18 复测：此前记录的「Chrome 渲染进程请求 8001 即崩」已不复现，该脚本可正常跑完全部断言。
 
 ## 数据库
 

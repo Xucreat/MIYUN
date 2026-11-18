@@ -6,12 +6,12 @@
    前置：backend 的 PG(55433) 与 API(8001) 已启动；静态站 8081。
    用法：node tools/check-live-e2e.js
    注意：本脚本会真的改库（处置一条预警、登记一次等级变动与走访），跑完请执行 `python -m app.seed` 还原。
-   ⚠ 环境限制（2026-11-18 记录）：本机当前沙箱里 Chrome 渲染进程只要请求 8001 端口就崩
-     （同源 8081 正常，连 /api/health 也崩），本脚本会在第 1 步真登录处失败 —— 这是环境不是代码。
-     B5 时期它在同一台机器上跑通过；等环境恢复即可复跑。环境不可用时用替代口径：
-       · 写完能读 → backend/tools/api_checks_b6.py（写 visit → 立刻从 /api/visits 读回）
-       · 读出能渲染 → tools/smoke-b5.js <服务端快照>（逐页对账 + 走访 2916 条逐条明细全等）
-       · 回填与去重 → tools/check-live-dedupe.js（route 拦截造假响应，不需要网络）
+   ⚠ 前置（2026-11-18 起强制校验）：库必须是种子态，否则第 1b 步打印实际值并以 exit 2 中止。
+     本脚本真写库（处置预警 / 登记等级变动 / 登记走访），**跑完必须** `cd backend && python -m app.seed` 还原。
+     不还原就连跑，会累积 level_change 与 visit 行，或撞上服务端 `level_unchanged`（400，目标等级=当前等级）——
+     后者是正确校验，不是缺陷。
+   ✅ 环境（2026-11-18 复测）：此前记录的「Chrome 渲染进程请求 8001 即崩」已不复现，
+     分层探针（直访 /api/health、8081 页面内 fetch、localhost 变体、纯静态 8002）五项全通，本脚本可正常跑完。
 */
 const PW = 'C:/Users/Administrator/.workbuddy/binaries/node/versions/22.22.2-6/node_modules/@playwright/cli/node_modules/playwright-core';
 const { chromium } = require(PW);
@@ -57,6 +57,21 @@ const PAGES = ['dashboard', 'board', 'bigscreen', 'persons', 'person', 'alerts',
     `五个核心数 ${st.stats.inRegister}/${st.stats.highPlus}/${st.stats.dual}/${st.stats.multi}/${st.stats.unknown}`);
   ok(st.text.indexOf('6,028') > -1, '驾驶舱文案含「6,028」');
   ok(st.text.indexOf('服务端') > -1, '顶栏显示服务端数据源标识');
+
+  /* ---- 1b. 前置：库必须是种子态（本脚本真写库，不还原就反复跑会累积，断言随即误报） ---- */
+  const pre = await page.evaluate(() => ({
+    changes: STORE.changes().length,
+    visitP0433: DATA.visitsOf(DATA.personById('P0433')).length
+  }));
+  if (pre.changes !== 46 || pre.visitP0433 !== 6) {
+    console.log('\n===== 前置不满足：库不是种子态，本脚本中止（未写库）=====');
+    console.log(`  level_change=${pre.changes}（应为 46）· P0433 走访=${pre.visitP0433}（应为 6）`);
+    console.log('  上一次跑完没还原。先执行：cd backend && python -m app.seed');
+    await ctx.close();
+    await browser.close();
+    process.exit(2);
+  }
+  console.log('  [前置] 库为种子态（level_change=46 · P0433 走访=6）');
 
   /* ---- 2. 全站走一遍：不许有 pageerror ---- */
   console.log('\n=== 真链路全站 ===');
@@ -126,6 +141,7 @@ const PAGES = ['dashboard', 'board', 'bigscreen', 'persons', 'person', 'alerts',
   const VNOTE = 'E2E 走访落库验证';
   await page.goto(WEB + '/person.html?id=P0433', { waitUntil: 'load' });
   await page.waitForTimeout(300);
+  const vBase = await page.evaluate(() => DATA.visitsOf(DATA.personById('P0433')).length);
   await page.evaluate(note => STORE.addVisit('P0433', { way: '入户走访', result: note }), VNOTE);
   await page.waitForTimeout(900);
   await page.goto(WEB + '/person.html?id=P0433&refresh=1', { waitUntil: 'load' });
@@ -143,7 +159,7 @@ const PAGES = ['dashboard', 'board', 'bigscreen', 'persons', 'person', 'alerts',
     };
   }, VNOTE);
   ok(visit.live, '刷新后仍是服务端数据源');
-  ok(visit.server === 7, `服务端该人 7 条走访（6 条种子 + 1 条刚登记，实际 ${visit.server}）`);
+  ok(visit.server === vBase + 1, `服务端该人走访 ${vBase} → ${vBase + 1} 条（刚登记的一条落库，实际 ${visit.server}）`);
   ok(visit.hit === 1, `刚登记的走访只出现 1 次、不重复（实际 ${visit.hit}，id ${visit.ids.join(',') || '—'}）`);
   ok(visit.text, '档案页 DOM 上能看到这条新走访（缺陷「入库了但刷新看不见」已修）');
 
@@ -158,6 +174,9 @@ const PAGES = ['dashboard', 'board', 'bigscreen', 'persons', 'person', 'alerts',
 
   /* ---- 5. 换 R1 真登录：403 端点降级，不许把整份快照拖成「本地演示数据」 ---- */
   console.log('\n=== R1 真登录（无 risk:history:view / visit:view → 端点降级）===');
+  /* 本段验的是「R1 无权限 → 回落本地种子 46 条」的口径，但前面第 3/4 段真的写过一条等级变动与一次走访，
+     乐观行还在 sessionStorage 里，同 tab 换角色重登会被算进去（47 而非 46）——先清干净，避免顺序耦合。 */
+  await page.evaluate(() => { try { sessionStorage.clear(); localStorage.clear(); } catch (e) { /* ignore */ } });
   await page.goto(WEB + '/login.html?live=0', { waitUntil: 'load' });   // 清令牌与 live 开关
   await page.waitForTimeout(250);
   await page.click('.demo-item[data-role="leader"]');
