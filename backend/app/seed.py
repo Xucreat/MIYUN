@@ -77,7 +77,7 @@ EXPECT = {
     "person": 1098, "person_tag": 1340, "dual_confirm": 127, "visit": 2916,
     "level_change": 46, "level_route": 4, "alert": 18, "import_batch": 6,
     "report_monthly": 5, "wartime_task": 20, "responder": 26, "sys_role": 9,
-    "sys_account": 47, "perm": 48, "role_perm": 106, "field_policy": 9,
+    "sys_account": 47, "perm": 48, "role_perm": 122, "field_policy": 9,
     "dict_type": 13, "dict_item": 124, "system_param": 7, "rule": 13,
     "dq_rule": 6, "security_event": 6, "town": 20, "village": 108,
     "tag_dict": 11, "level_dict": 5, "dept": 5, "wt_level": 3,
@@ -211,7 +211,7 @@ def seed(session) -> dict[str, int]:
     put(SysRole, rows("sys_role"))
     put(SysAccount, rows("sys_account"))
     put(Perm, rows("perm"))
-    put(RolePerm, rows("role_perm"))
+    put(RolePerm, [{**r, "mode": r.get("mode") or "on"} for r in rows("role_perm")])
     put(FieldPolicy, rows("field_policy"))
 
     # --- 字典 / 参数 / 规则 / 安全事件 ---

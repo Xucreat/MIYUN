@@ -63,15 +63,23 @@ const PAGES = ['dashboard', 'board', 'bigscreen', 'persons', 'person', 'alerts',
     changes: STORE.changes().length,
     visitP0433: DATA.visitsOf(DATA.personById('P0433')).length
   }));
-  if (pre.changes !== 46 || pre.visitP0433 !== 6) {
+  pre.rolePerm = await page.evaluate(async () => {
+    const r = await fetch(API.base() + '/roles', { headers: { Authorization: 'Bearer ' + API.token() } });
+    const d = await r.json();
+    let n = 0;
+    (d.roles || []).forEach(x => { n += Object.keys(x.modes || {}).length; });
+    return n;
+  });
+  if (pre.changes !== 46 || pre.visitP0433 !== 6 || pre.rolePerm !== 122) {
     console.log('\n===== 前置不满足：库不是种子态，本脚本中止（未写库）=====');
-    console.log(`  level_change=${pre.changes}（应为 46）· P0433 走访=${pre.visitP0433}（应为 6）`);
+    console.log(`  level_change=${pre.changes}（应为 46）· P0433 走访=${pre.visitP0433}（应为 6）`
+      + ` · role_perm=${pre.rolePerm}（应为 122）`);
     console.log('  上一次跑完没还原。先执行：cd backend && python -m app.seed');
     await ctx.close();
     await browser.close();
     process.exit(2);
   }
-  console.log('  [前置] 库为种子态（level_change=46 · P0433 走访=6）');
+  console.log('  [前置] 库为种子态（level_change=46 · P0433 走访=6 · role_perm=122）');
 
   /* ---- 2. 全站走一遍：不许有 pageerror ---- */
   console.log('\n=== 真链路全站 ===');
@@ -200,6 +208,38 @@ const PAGES = ['dashboard', 'board', 'bigscreen', 'persons', 'person', 'alerts',
   ok(r1.changes === 46, `变动台账回落本地 46 条（实际 ${r1.changes}）`);
   ok(r1.persons === 486 && r1.masked === 486,
     `人员仍走服务端且全部掩码（${r1.masked}/${r1.persons}）· 角色 ${r1.role}`);
+
+  /* ---- 6. R8 保存权限矩阵：改 → 落库 → 刷新仍在（B6-3b）---- */
+  console.log('\n=== 权限矩阵保存落库（R8 安全管理员）===');
+  await page.evaluate(() => { try { sessionStorage.clear(); localStorage.clear(); } catch (e) { /* ignore */ } });
+  await page.goto(WEB + '/login.html', { waitUntil: 'load' });
+  const u8 = await page.evaluate(() => API.login('guolx'));
+  ok(u8 && /R8/.test(u8.roleKey || ''), `R8 登录（${u8 && u8.roleKey} ${u8 && u8.name}）`);
+  await page.goto(WEB + '/system.html', { waitUntil: 'load' });
+  await page.waitForTimeout(700);
+  ok(await page.evaluate(() => STORE.can('sys:perm:assign')), 'R8 有 sys:perm:assign → 矩阵可编辑（前端门控放行）');
+
+  await page.evaluate(() => STORE.saveRolePerms('R4', { 'tag:create': 'half' }));
+  await page.waitForTimeout(1400);
+  const srvRp = await page.evaluate(async () => {
+    const r = await fetch(API.base() + '/roles', { headers: { Authorization: 'Bearer ' + API.token() } });
+    const d = await r.json();
+    const r4 = (d.roles || []).find(x => x.key === 'R4') || {};
+    return { mode: (r4.modes || {})['tag:create'] || null, rows: Object.keys(r4.modes || {}).length };
+  });
+  ok(srvRp.mode === 'half', `服务端库里 R4 tag:create = half（实际 ${srvRp.mode}，该角色 ${srvRp.rows} 行）`);
+
+  await page.goto(WEB + '/system.html?refresh=1', { waitUntil: 'load' });
+  await page.waitForTimeout(2200);
+  const rpAfter = await page.evaluate(() => DATA.SYS_ROLE_PERMS.R4['tag:create']);
+  ok(rpAfter === 'half', `刷新后矩阵仍是 half（实际 ${rpAfter}）—— 写的是库不是内存`);
+
+  const u2b = await page.evaluate(() => API.login('chenzhiyuan'));
+  await page.goto(WEB + '/system.html?refresh=1', { waitUntil: 'load' });
+  await page.waitForTimeout(1800);
+  ok(u2b && /R2/.test(u2b.roleKey || ''), `回到 R2（${u2b && u2b.roleKey}）`);
+  ok(!(await page.evaluate(() => STORE.can('sys:perm:assign'))),
+    'R2 无 sys:perm:assign → 矩阵只读（前端门控与后端 403 口径一致）');
 
   await ctx.close();
   await browser.close();

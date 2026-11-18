@@ -59,12 +59,23 @@ def snapshot() -> None:
     SNAP["visit_ids"] = {r[0] for r in q("SELECT id FROM visit")}
     SNAP["p0433"] = q("SELECT last_visit FROM person WHERE id = 'P0433'")[0][0]
     SNAP["audit_max"] = scalar("SELECT COALESCE(max(id), 0) FROM audit_log")
+    SNAP["role_perm"] = {(r[0], r[1]): r[2]
+                         for r in q("SELECT role_key, perm_code, mode FROM role_perm")}
 
 
 def restore() -> None:
     for vid in {r[0] for r in q("SELECT id FROM visit")} - SNAP["visit_ids"]:
         db.execute(text("DELETE FROM visit WHERE id = :i"), {"i": vid})
     db.execute(text("UPDATE person SET last_visit = :v WHERE id = 'P0433'"), {"v": SNAP["p0433"]})
+    cur = {(r[0], r[1]): r[2] for r in q("SELECT role_key, perm_code, mode FROM role_perm")}
+    for k in set(cur) - set(SNAP["role_perm"]):
+        db.execute(text("DELETE FROM role_perm WHERE role_key = :r AND perm_code = :c"),
+                   {"r": k[0], "c": k[1]})
+    for (rk, pc), m in SNAP["role_perm"].items():
+        if cur.get((rk, pc)) != m:
+            db.execute(text("INSERT INTO role_perm (role_key, perm_code, mode) VALUES (:r, :c, :m) "
+                            "ON CONFLICT ON CONSTRAINT uq_role_perm DO UPDATE SET mode = EXCLUDED.mode"),
+                       {"r": rk, "c": pc, "m": m})
     db.execute(text("DELETE FROM audit_log WHERE id > :m"), {"m": SNAP["audit_max"]})
     db.commit()
 
@@ -89,6 +100,11 @@ def verify_restored() -> None:
     ok(n_p0433 == 6, f"P0433 回到 6 条（实际 {n_p0433}）")
     ok(q("SELECT last_visit FROM person WHERE id = 'P0433'")[0][0] == SNAP["p0433"],
        f"P0433.last_visit 回滚为 {SNAP['p0433']}")
+    n_rp = scalar("SELECT count(*) FROM role_perm")
+    n_on = scalar("SELECT count(*) FROM role_perm WHERE mode = 'on'")
+    n_half = scalar("SELECT count(*) FROM role_perm WHERE mode = 'half'")
+    ok(n_rp == 122 and n_on == 106 and n_half == 16,
+       f"role_perm 回到 122 行（on {n_on} + half {n_half}）")
 
 
 def run() -> None:
@@ -160,6 +176,54 @@ def run() -> None:
        f"dept_id 为空的 {len(orphan)} 条（镇街综治中心）原文仍在 —— 外键映射不上不等于没有责任单位")
     ok(scalar("SELECT count(*) FROM alert WHERE dept_raw IS NULL") == 0,
        "库里 dept_raw 无 NULL（迁移 + 重灌后应全量有值）")
+
+    print("\n[F] 权限矩阵三态 + 编辑落库（B6-3a/3b）")
+
+    def modes_of(role_key: str) -> dict:
+        x = client.get("/api/roles", headers=hdr(r2)).json()
+        return [y for y in x["roles"] if y["key"] == role_key][0]["modes"]
+
+    d = client.get("/api/roles", headers=hdr(r2)).json()
+    tri: dict[str, int] = {}
+    for rr in d["roles"]:
+        for m in rr["modes"].values():
+            tri[m] = tri.get(m, 0) + 1
+    ok(len(d["permCodes"]) == 48, f"perm 字典 48 个（实际 {len(d['permCodes'])}）")
+    ok(tri == {"on": 106, "half": 16},
+       f"三态 106 on + 16 half = 122 行，与前端矩阵逐格同规模（实际 {tri}）")
+    ok(all(m in ("on", "half") for rr in d["roles"] for m in rr["modes"].values()),
+       "表里只有 on/half —— off 靠「没有行」表示，不写空记录")
+
+    r = client.post("/api/roles/R4/perms", headers=hdr(r2), json={"changes": {"tag:create": "half"}})
+    ok(r.status_code == 403, f"R2 无 sys:perm:assign → 403（实际 {r.status_code}）")
+    r = client.post("/api/roles/R4/perms", headers=hdr(r7), json={"changes": {"tag:create": "half"}})
+    ok(r.status_code == 403, f"R7 无 sys:perm:assign → 403（实际 {r.status_code}）")
+
+    r8 = login("guolx")          # R8 安全管理员：唯一持有 sys:perm:assign 的角色
+    r = client.post("/api/roles/R4/perms", headers=hdr(r8), json={"changes": {"tag:create": "half"}})
+    ok(r.status_code == 200 and (r.json().get("modes") or {}).get("tag:create") == "half",
+       f"R8 → R4 tag:create=half 落库（{r.status_code}）")
+    ok(modes_of("R4").get("tag:create") == "half", "GET /roles 读回 half（三态不再丢在本地）")
+
+    r = client.post("/api/roles/R4/perms", headers=hdr(r8), json={"changes": {"tag:create": "on"}})
+    ok(r.status_code == 200 and modes_of("R4").get("tag:create") == "on", "再改 on 生效（UPSERT 覆盖）")
+
+    r = client.post("/api/roles/R4/perms", headers=hdr(r8), json={"changes": {"tag:create": "off"}})
+    ok(r.status_code == 200 and "tag:create" not in modes_of("R4"),
+       "改 off → 删行（读回没有这个码，恢复到稀疏表示）")
+
+    r = client.post("/api/roles/R8/perms", headers=hdr(r8), json={"changes": {"sys:perm:assign": "off"}})
+    ok(r.status_code == 400 and (r.json().get("detail") or {}).get("code") == "self_lock",
+       f"R8 收回自己的 sys:perm:assign → 400 self_lock（实际 {r.status_code}）")
+
+    r = client.post("/api/roles/R4/perms", headers=hdr(r8), json={"changes": {"no:such:perm": "on"}})
+    ok(r.status_code == 400 and (r.json().get("detail") or {}).get("code") == "unknown_perm",
+       f"未知权限码 → 400 unknown_perm（实际 {r.status_code}）")
+
+    act = scalar("SELECT act FROM audit_log ORDER BY id DESC LIMIT 1")
+    tgt = scalar("SELECT target FROM audit_log ORDER BY id DESC LIMIT 1")
+    ok(act == "调整角色权限", f"审计落「调整角色权限」（实际 {act}）")
+    ok(tgt == "R4", f"审计 target 是角色键（实际 {tgt}）")
 
 
 if __name__ == "__main__":

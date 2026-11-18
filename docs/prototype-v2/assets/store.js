@@ -121,7 +121,14 @@ window.STORE = (function () {
     /* live：权限位来自服务端 role_perm（只存允许项，fail-closed），
        不再叠加前端权限矩阵 —— 两份矩阵同时生效必然出现「前端能点、后端 403」 */
     const r = role();
-    if (r.live) return !!(r.can || {})[perm];
+    if (r.live) {
+      /* live 下 r.can 只是 7 个逻辑开关（edit / export / exportPlain / import /
+         disclosure / config / approve），查它以外的键永远是 undefined —— 于是
+         can('sys:perm:assign') 这种**权限码**判定会恒 false，把系统管理员一起挡在门外。
+         规则：键在 r.can 里就按开关算，否则按服务端 role_perm 的权限码算（fail-closed）。 */
+      if (r.can && perm in r.can) return !!r.can[perm];
+      return (r.perms || []).indexOf(perm) > -1;
+    }
     /* 权限矩阵覆盖优先（on=允许 / half=受限需审批 / off=禁止）：
        账号与角色页改了矩阵必须真实生效，否则「配置页关了、业务页还能点」两处口径打架 */
     const ov = (sysState().rolePerms[state.role] || {})[perm];
@@ -933,22 +940,61 @@ window.STORE = (function () {
     const base = D.SYS_ROLE_PERMS[roleKey] || {};
     return Object.assign({}, base, sysState().rolePerms[roleKey] || {});
   }
-  function setRolePerm(roleKey, code, val) {
+  /* 权限矩阵保存（B6-3b）：一次提交一个角色的多项变更。
+     为什么要批量：页面上「保存权限」本来就是这个语义（一次 N 项），逐项发请求会变成 N 次
+     往返、N 条审计，出问题时也说不清是一次操作还是 N 次。 */
+  function saveRolePerms(roleKey, changes) {
+    const codes = Object.keys(changes || {});
+    if (!codes.length) return;
     const s = sysState();
-    s.rolePerms[roleKey] = Object.assign({}, s.rolePerms[roleKey] || {}, { [code]: val });
+    s.rolePerms[roleKey] = Object.assign({}, s.rolePerms[roleKey] || {}, changes);
     const rn = (D.SYS_ROLE_OF[roleKey] || {}).name || roleKey;
-    const pn = D.SYS_PERM_NAME[code] || code;
-    markDraft('权限矩阵', rn + ' · ' + pn + ' → ' + (PERM_TXT[val] || val));
-    audit('调整角色权限', rn + ' · ' + pn + ' 设为「' + (PERM_TXT[val] || val) + '」', '账号与角色');
+    const txt = codes.map(c => (D.SYS_PERM_NAME[c] || c) + ' → ' + (PERM_TXT[changes[c]] || changes[c]));
+    markDraft('权限矩阵', rn + ' · ' + txt.join('；'));
+    audit('调整角色权限', rn + ' · ' + txt.join('；'), '账号与角色');
     commit();
+    if (window.API) {
+      API.fire(API.saveRolePerms(roleKey, changes), '调整角色权限', res => {
+        if (!res) return;
+        /* 服务端权威回填：把该角色本地状态对齐到服务端返回值，并清掉草稿 ——
+           否则本地草稿会一直盖在服务端之上，刷新前后两套口径。 */
+        const nm = {};
+        D.SYS_PERM_ALL.forEach(c => { nm[c] = 'off'; });
+        (res.perms || []).forEach(c => { nm[c] = (res.modes || {})[c] || 'on'; });
+        D.SYS_ROLE_PERMS[roleKey] = nm;
+        delete s.rolePerms[roleKey];
+        save();
+      });
+    }
   }
+  function setRolePerm(roleKey, code, val) {
+    saveRolePerms(roleKey, { [code]: val });
+  }
+  /* 恢复基线：基线是 data.js 入场时的静态矩阵（SYS_ROLE_PERMS_BASE），
+     不是「服务端当前值」—— 后者等于什么都没恢复。
+     算出差异后一次性提交，成功后本地也回到基线。 */
   function resetRolePerm(roleKey) {
     const s = sysState();
-    delete s.rolePerms[roleKey];
+    const base = D.SYS_ROLE_PERMS_BASE[roleKey] || {};
+    const cur = rolePerms(roleKey);
+    const changes = {};
+    D.SYS_PERM_ALL.forEach(c => {
+      const want = base[c] || 'off';
+      if ((cur[c] || 'off') !== want) changes[c] = want;
+    });
+    s.rolePerms[roleKey] = Object.assign({}, base);
     const rn = (D.SYS_ROLE_OF[roleKey] || {}).name || roleKey;
     markDraft('权限矩阵', rn + ' 恢复为基线授权');
     audit('重置角色权限', rn + ' 恢复为基线授权', '账号与角色');
     commit();
+    if (Object.keys(changes).length && window.API) {
+      API.fire(API.saveRolePerms(roleKey, changes), '恢复基线授权', res => {
+        if (!res) return;
+        D.SYS_ROLE_PERMS[roleKey] = Object.assign({}, base);
+        delete s.rolePerms[roleKey];
+        save();
+      });
+    }
   }
   function permStat(roleKey) {
     const m = rolePerms(roleKey);
@@ -1306,7 +1352,7 @@ window.STORE = (function () {
     wtToday, wtEffective, wtLevelDefaults, wtCutoff, wtOverdueTowns, wtVisitOverdue,
     wtPushLog, wtAddPush,
     plainReqs, plainReqAdd, plainReqDecide, plainReqDownload,
-    rolePerms, setRolePerm, resetRolePerm, permStat,
+    rolePerms, setRolePerm, saveRolePerms, resetRolePerm, permStat,
     maskMap, setFieldMask,
     desens, setDesens, DESENS_MODES, PERM_TXT,
     paramsMap, paramByKey, paramText, setParam,

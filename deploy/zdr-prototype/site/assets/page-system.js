@@ -531,6 +531,12 @@
   /* ---- 编辑权限（5 组 48 项三态） ---- */
   function openPermEditor() {
     if (!OK()) return;
+    /* B6-3b：矩阵是能被真的写进库的，所以入口要有门控 —— 只有 sys:perm:assign 能改。
+       live 下 can() 读服务端 role_perm（R8 安全管理员），mock 下读本地矩阵，两边都成立。 */
+    if (!S.can('sys:perm:assign')) {
+      U.toast.warn('当前角色没有权限分配权（sys:perm:assign），仅可查看矩阵');
+      return;
+    }
     const r = D.SYS_ROLE_OF[P.role];
     const m = S.rolePerms(P.role);
     const draft = Object.assign({}, m);
@@ -541,7 +547,8 @@
       </div>`).join('');
     U.modal({
       title: '编辑权限 · ' + r.name,
-      sub: '点击切换三态：允许 → 受限需审批 → 禁止；保存后服务端即刻生效并写审计',
+      sub: '点击切换三态：允许 → 受限需审批 → 禁止；保存后服务端即刻生效并写审计'
+        + (window.API && API.live() ? '（当前矩阵来自服务端 role_perm）' : ''),
       width: 640,
       okText: '保存权限',
       body: `<div class="tiny dim" style="margin-bottom:8px">
@@ -563,8 +570,11 @@
       },
       onOk: dlg => {
         const nd = dlg.__draft();
-        let n = 0;
-        Object.keys(nd).forEach(c => { if (nd[c] !== m[c]) { S.setRolePerm(P.role, c, nd[c]); n++; } });
+        /* 一次提交整批变更：服务端一个事务、一条审计；逐项调用会变成 N 次往返。 */
+        const changes = {};
+        Object.keys(nd).forEach(c => { if ((nd[c] || 'off') !== (m[c] || 'off')) changes[c] = nd[c] || 'off'; });
+        const n = Object.keys(changes).length;
+        if (n) S.saveRolePerms(P.role, changes);
         renderRoles();
         renderRoleDetail();
         renderTrio();

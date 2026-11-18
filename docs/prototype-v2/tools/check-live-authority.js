@@ -1,4 +1,6 @@
-/* 服务端权威性回归（B6-2）：预警「责任单位」在 live 下取自 dept_raw，不是本地兜底
+/* 服务端权威性回归（B6-2 / B6-3a）：哪些字段在 live 下取自服务端，而不是本地兜底
+   1. 预警「责任单位」→ alert.dept_raw
+   2. 权限矩阵三态 → role_perm.mode（48 码 × 9 角色）
    ------------------------------------------------------------
    为什么要有这一支：`alert.dept_id` 是外键，镇街综治中心这类单位映射不上就是 NULL，
    B6-2 之前责任单位只能从本地演示数据补 —— 服务端预警配本地责任单位，两套口径。
@@ -48,6 +50,14 @@ const ok = (c, m) => { if (!c) fail++; console.log(`  ${c ? 'PASS' : 'FAIL'} ${m
   });
   ok(!!mockFirst.id && /责任单位：/.test(mockFirst.meta), `mock 首条卡片渲染出责任单位（${mockFirst.id}）`);
   ok(mockFirst.meta.indexOf(PROBE) < 0, 'mock 下不含探针串（探针串来自我们改过的快照）');
+  const mockPerm = await pA.evaluate(() => {
+    const tri = { on: 0, half: 0 };
+    Object.keys(DATA.SYS_ROLE_PERMS).forEach(k => {
+      const m = DATA.SYS_ROLE_PERMS[k] || {};
+      Object.keys(m).forEach(c => { if (m[c] === 'on') tri.on++; else if (m[c] === 'half') tri.half++; });
+    });
+    return { tri, r4: STORE.permStat('R4'), tagCreate: DATA.SYS_ROLE_PERMS.R4['tag:create'] };
+  });
   await ctxA.close();
 
   /* ---- 2. 实验组：把首条预警的 deptRaw 改掉，页面必须跟着变 ---- */
@@ -80,6 +90,58 @@ const ok = (c, m) => { if (!c) fail++; console.log(`  ${c ? 'PASS' : 'FAIL'} ${m
   ok(out.meta.indexOf(PROBE) > -1, `卡片 DOM 渲染的是服务端值（原值「${original}」）`);
   ok(out.meta.indexOf(original) < 0, `卡片上不再出现本地原值「${original}」`);
   ok(errs.length === 0, `零 pageerror（实际 ${errs.length}${errs.length ? '：' + errs[0].slice(0, 100) : ''}）`);
+
+  /* ---- 3. 权限矩阵三态：服务端 role_perm.mode 是权威（B6-3a） ---- */
+  console.log('\n=== 权限矩阵三态（B6-3a）===');
+  await pB.goto(BASE + '/system.html', { waitUntil: 'load' });
+  await pB.waitForTimeout(600);
+  const livePerm = await pB.evaluate(() => {
+    const tri = { on: 0, half: 0, off: 0 };
+    Object.keys(DATA.SYS_ROLE_PERMS).forEach(k => {
+      const m = DATA.SYS_ROLE_PERMS[k] || {};
+      Object.keys(m).forEach(c => { if (m[c] === 'on') tri.on++; else if (m[c] === 'half') tri.half++; else tri.off++; });
+    });
+    return {
+      tri, r4: STORE.permStat('R4'),
+      chips: Array.from(document.querySelectorAll('#permGroups .perm')).length,
+      chipCls: Array.from(document.querySelectorAll('#permGroups .perm'))
+        .filter(n => n.classList.contains('on') || n.classList.contains('half') || n.classList.contains('off')).length
+    };
+  });
+  ok(livePerm.tri.on === 106 && livePerm.tri.half === 16,
+    `live 三态 106 on / 16 half（实际 ${livePerm.tri.on} / ${livePerm.tri.half}）`);
+  ok(livePerm.tri.on === mockPerm.tri.on && livePerm.tri.half === mockPerm.tri.half,
+    `与 mock 静态表逐项同规模（mock ${mockPerm.tri.on}/${mockPerm.tri.half}）`);
+  ok(livePerm.r4.on === mockPerm.r4.on && livePerm.r4.half === mockPerm.r4.half,
+    `R4 三态 ${livePerm.r4.on}/${livePerm.r4.half}/${livePerm.r4.off} 与 mock 一致`);
+  ok(livePerm.chips === 48 && livePerm.chipCls === 48,
+    `权限详情渲染 48 个三态 chip（实际 ${livePerm.chips}，带三态 class ${livePerm.chipCls}）`);
+
+  /* 把 R4 一个原本「禁止」的码在快照里改成「允许」，页面必须跟着变 ——
+     若仍读本地静态表，这里会失败。 */
+  const snap2 = JSON.parse(JSON.stringify(snap));
+  const r4row = (snap2.roles.roles || []).find(x => x.key === 'R4');
+  ok(!!r4row, '快照里带 roles（/roles 已进 sync）');
+  const baseTag = mockPerm.tagCreate;
+  r4row.modes = Object.assign({}, r4row.modes, { 'tag:create': 'on' });
+  const ctxC = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const pC = await ctxC.newPage();
+  const errs3 = [];
+  pC.on('pageerror', e => errs3.push(String(e.message || e)));
+  await pC.goto(BASE + '/login.html', { waitUntil: 'load' });
+  await inject(pC, snap2);
+  await pC.goto(BASE + '/system.html', { waitUntil: 'load' });
+  await pC.waitForTimeout(600);
+  const changed = await pC.evaluate(() => ({
+    tagCreate: DATA.SYS_ROLE_PERMS.R4['tag:create'],
+    r4: STORE.permStat('R4')
+  }));
+  ok(changed.tagCreate === 'on', `R4 tag:create 从「${baseTag}」变为 on（服务端 modes 生效）`);
+  ok(changed.r4.on === mockPerm.r4.on + 1,
+    `R4 允许数 ${mockPerm.r4.on} → ${changed.r4.on}（3a 的 half 未丢）`);
+  ok(changed.r4.half === mockPerm.r4.half, `R4 受限数仍 ${mockPerm.r4.half}（三态没被压成二态）`);
+  ok(errs3.length === 0, `零 pageerror（实际 ${errs3.length}）`);
+  await ctxC.close();
 
   await browser.close();
   console.log(`\n===== 失败项 ${fail} =====`);

@@ -116,16 +116,19 @@ window.API = (function () {
       soft(paged('/persons'), '/persons'),
       soft(paged('/level-changes'), '/level-changes'),
       soft(paged('/alerts'), '/alerts'),
-      soft(paged('/visits'), '/visits')
-    ]).then(([me, stats, persons, changes, alerts, visits]) => {
+      soft(paged('/visits'), '/visits'),
+      /* B6-3：权限矩阵（9 角色 × 48 码的三态）。/roles 只读、登录即可，
+         不是分页端点，所以用 req 而不是 paged。 */
+      soft(req('GET', '/roles'), '/roles')
+    ]).then(([me, stats, persons, changes, alerts, visits, roles]) => {
       const s = {
-        v: 2,
+        v: 3,
         at: new Date().toISOString(),
         base: base(),
         district: me.district,
         user: me.user,
         stats: stats || {},
-        persons, changes, alerts, visits,
+        persons, changes, alerts, visits, roles,
         denied: denied.slice()
       };
       ssSet(SNAP, JSON.stringify(s));
@@ -153,8 +156,9 @@ window.API = (function () {
   function readSnap() {
     try {
       const s = JSON.parse(ssGet(SNAP) || 'null');
-      /* v=2 起快照带 visits / denied：老快照（v=1）直接作废，避免「新代码 + 旧快照」缺字段 */
-      if (!s || s.v !== 2 || s.base !== base()) return null;
+      /* v=3 起快照带 visits / denied / roles：老快照直接作废，避免「新代码 + 旧快照」缺字段
+         （v=2 加 visits+denied / B6-1；v=3 加 roles 权限矩阵 / B6-3a） */
+      if (!s || s.v !== 3 || s.base !== base()) return null;
       return s;
     } catch (e) { return null; }
   }
@@ -201,6 +205,12 @@ window.API = (function () {
   function createVisit(pid, body) {
     if (!live()) return Promise.resolve(null);
     return req('POST', '/persons/' + encodeURIComponent(pid) + '/visits', body);
+  }
+  /* B6-3b：权限矩阵批量保存。changes = { perm_code: 'on'|'half'|'off' }，
+     服务端按「off 删行、on/half UPSERT」落地，返回该角色最新全量。 */
+  function saveRolePerms(roleKey, changes) {
+    if (!live()) return Promise.resolve(null);
+    return req('POST', '/roles/' + encodeURIComponent(roleKey) + '/perms', { changes });
   }
 
   /* 写回失败不该打断演示：提示一句并标记离线，页面继续用本地数据。
@@ -269,7 +279,7 @@ window.API = (function () {
 
   return {
     enabled, live, status, can, login, logout, sync, apply,
-    disposeAlert, transferAlert, createChange, createVisit, fire,
+    disposeAlert, transferAlert, createChange, createVisit, saveRolePerms, fire,
     base, token, snapshot: () => snap
   };
 })();

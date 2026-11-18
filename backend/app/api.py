@@ -581,10 +581,16 @@ def list_responders(db: Session = Depends(get_db),
 @router.get("/roles")
 def list_roles(db: Session = Depends(get_db), user: CurrentUser = Depends(get_user)) -> dict:
     roles = _rows(db, "SELECT * FROM sys_role ORDER BY key")
-    perms = _rows(db, "SELECT role_key, perm_code FROM role_perm ORDER BY role_key, perm_code")
+    perms = _rows(db, "SELECT role_key, perm_code, mode FROM role_perm ORDER BY role_key, perm_code")
     by_role: dict[str, list[str]] = {}
+    modes_of: dict[str, dict[str, str]] = {}
     for p in perms:
         by_role.setdefault(p["role_key"], []).append(p["perm_code"])
+        modes_of.setdefault(p["role_key"], {})[p["perm_code"]] = p["mode"] or "on"
     for r in roles:
+        # perms 保持「字符串数组」不变（兼容既有消费方）；modes 是 B6-3 新增的三态映射。
+        # 表里没行 = 禁止，所以 modes 里不会出现 'off'。
         r["perms"] = by_role.get(r["key"], [])
-    return {"roles": roles, "permTotal": db.execute(text("SELECT count(*) FROM perm")).scalar_one()}
+        r["modes"] = modes_of.get(r["key"], {})
+    return {"roles": roles, "permTotal": db.execute(text("SELECT count(*) FROM perm")).scalar_one(),
+            "permCodes": [x["code"] for x in _rows(db, "SELECT code FROM perm ORDER BY code")]}

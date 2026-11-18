@@ -1,4 +1,4 @@
-# 后端（B1–B6：建库 + 种子 + 只读 API + 鉴权 / 掩码 / 审计 / 写 API + 前端接链路 + 走访读端 + 首次字段迁移）
+# 后端（B1–B6：建库 + 种子 + 只读 API + 鉴权 / 掩码 / 审计 / 写 API + 前端接链路 + 走访读端 + 字段迁移 + 权限矩阵三态）
 
 设计依据：`docs/prototype-v2/BACKEND-数据模型-20261118.md`（从 `data.js` 41 个顶层键反推的准 schema）。
 
@@ -13,6 +13,8 @@
 | B5 | 前端接只读链路（`assets/api.js` + `data.js hydrate()`，页面代码零改动） | ✅ |
 | B6-1 | 走访读端 `GET /api/visits` + 写回填 `srvId` + 乐观行两段式去重 | ✅ |
 | B6-2 | `alert.dept_raw` 加列（责任单位原文入库）—— **本项目第一次真正的 schema 变更** | ✅ |
+| B6-3a | `role_perm.mode` 三态（on / half）+ `/api/roles` 出参 + 前端矩阵以服务端为准 | ✅ |
+| B6-3b | 权限矩阵编辑落库 `POST /api/roles/{key}/perms`（`sys:perm:assign` 门控 + 审计 + 自锁保护） | ✅ |
 
 B4 **没有新增任何表、列或迁移**：权限用 `role_perm`、字段密级用 `field_policy.mask`（本来就是
 9 字段 × 9 角色的矩阵）、审计用 `audit_log`、范围用 `sys_account.unit`，全部是 B1 已建好的。
@@ -73,6 +75,8 @@ curl http://127.0.0.1:8001/api/persons -H "Authorization: Bearer <token>"
 | `POST /api/level-changes` | `risk:adjust:up`（风险升高）/ `risk:adjust:down`（风险降低），按变动方向判定 |
 | `POST /api/persons/{id}/visits` | `visit:create` |
 | `POST /api/alerts/{id}/dispose` | `alert:handle` / `alert:ignore` / `alert:assign`，按处置动作判定 |
+| `GET /api/roles` | 登录即可（矩阵只读）；出参 `perms`（on 列表）+ `modes`（含 half）+ `permCodes` |
+| `POST /api/roles/{key}/perms` | `sys:perm:assign`（仅 R8）；`changes` = 码 → on/half/off；禁改自己角色的 `sys:perm:assign` |
 
 9 个演示账号（口令同一套）：`liguodong`(R1) `chenzhiyuan`(R2) `zhoumin`(R3) `liqiang`(R4)
 `wanghf`(R5) `wangzg`(R6) `liujg`(R7) `guolx`(R8) `yangfan`(R9)。

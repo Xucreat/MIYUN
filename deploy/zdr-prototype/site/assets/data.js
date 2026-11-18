@@ -1245,6 +1245,10 @@ window.DATA = (function () {
     return out;
   })();
 
+  /* 基线快照（深拷贝，冻结在入场状态）：B6-3 起 live 会用服务端 role_perm 覆盖
+     SYS_ROLE_PERMS，若不留一份基线，「恢复为基线授权」就只能恢复成服务端当前值 —— 等于没恢复。 */
+  const SYS_ROLE_PERMS_BASE = JSON.parse(JSON.stringify(SYS_ROLE_PERMS));
+
   /* ---------- 4. 字段密级（9 字段 × 9 角色） ---------- */
   const SYS_FIELDS = [
     { key: 'name', name: '姓名', level: 'L2', hint: '掩码保留姓氏' },
@@ -1806,7 +1810,25 @@ window.DATA = (function () {
       LIVE_VISITS_READY = true;
     }
 
-    /* 6) 身份：注册成可切换角色，STORE.role() 在 live 模式下优先返回它 */
+    /* 6) 权限矩阵三态（B6-3a）：服务端 role_perm 是权威。
+         语义：表里有行且 mode=on/half 才有效，**没有行就是禁止** —— 所以先整份重置成 off，
+         再按服务端 modes 铺 on/half，绝不用本地静态表去「补」服务端没给的项。
+         权限码字典（48 个 + 分组名）仍是本地静态的：它和 perm 表同源导出，属字典而非状态；
+         真出现不一致就 warn 出来，别静默按本地跑。 */
+    if (snap.roles && Array.isArray(snap.roles.roles)) {
+      const known = (snap.roles.permCodes || []).filter(c => SYS_PERM_ALL.indexOf(c) < 0);
+      if (known.length) console.warn('[data] 服务端有前端不认识的权限码：', known);
+      snap.roles.roles.forEach(r => {
+        if (!SYS_ROLE_PERMS[r.key]) return;          // 只更新本地认识的角色
+        const m = {};
+        SYS_PERM_ALL.forEach(c => { m[c] = 'off'; });
+        const modes = r.modes || {};
+        Object.keys(modes).forEach(c => { if (c in m) m[c] = modes[c]; });
+        SYS_ROLE_PERMS[r.key] = m;
+      });
+    }
+
+    /* 7) 身份：注册成可切换角色，STORE.role() 在 live 模式下优先返回它 */
     if (snap.user) registerLiveRole(snap.user);
 
     meta.asOf = snap.at ? String(snap.at).slice(0, 16).replace('T', ' ') : meta.asOf;
@@ -1837,7 +1859,7 @@ window.DATA = (function () {
     wartimeUnseen, wartimeUnseenAll, DQ_RULES, CHG_BASE, CHG_FULL, RESPONDERS, DEPT_HEAD, LEVEL_RULE_OF,
     RULE_OF,
     SYS_ROLES, SYS_ROLE_OF, SYS_PERMS, SYS_PERM_GROUPS, SYS_PERM_ALL, SYS_PERM_NAME,
-    SYS_ROLE_PERMS, SYS_FIELDS, SYS_MASK, MASK_MODES, SYS_ACCOUNTS,
+    SYS_ROLE_PERMS, SYS_ROLE_PERMS_BASE, SYS_FIELDS, SYS_MASK, MASK_MODES, SYS_ACCOUNTS,
     SYS_DICTS, SYS_DICT_OF, SYS_PARAMS, SYS_ROUTES, SYS_TREND, SYS_EVENTS,
     maskId, maskName, maskPhone, dateBefore, dateRel, mulberry32,
     hydrate,                                           // B5：服务端快照注入

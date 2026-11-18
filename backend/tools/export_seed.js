@@ -168,7 +168,10 @@ write('perm', D.SYS_PERM_ALL.map(code => ({
 })));
 write('role_perm', Object.keys(D.SYS_ROLE_PERMS).flatMap(role => {
   const m = D.SYS_ROLE_PERMS[role] || {};
-  return Object.keys(m).filter(c => m[c] === 'on').map(c => ({ role_key: role, perm_code: c }));
+  /* B6-3：half（受限）也要入库。此前只导 'on'，前端矩阵的 16 个「受限需审批」
+     在库里没有位置 —— 页面三态、服务端二态，两套口径。 */
+  return Object.keys(m).filter(c => m[c] === 'on' || m[c] === 'half')
+    .map(c => ({ role_key: role, perm_code: c, mode: m[c] }));
 }));
 write('field_policy', D.SYS_FIELDS.map(f => ({
   field_key: f.key, name: f.name, level: f.level, hint: f.hint,

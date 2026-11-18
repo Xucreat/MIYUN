@@ -189,8 +189,12 @@ def load_user(db: Session, account_id: str, ip: str | None = None) -> CurrentUse
     if (row.status or "") and "停用" in row.status:
         raise _unauth("账号已停用")
 
+    # B6-3：只取 mode='on'。'half' 是「受限需审批」，**不参与权限判定** ——
+    # 若把 half 也算进来，等于把矩阵上「受限」的 16 项静默放宽成「允许」，
+    # 那 R2 的「身份证明文（需申请）」就直接能看了。受限的执行门槛由各端点自己判
+    # （如 export:plain 走申请单），所以这里保持 fail-closed：没有 on 就是没有。
     perms = frozenset(r[0] for r in db.execute(
-        text("SELECT perm_code FROM role_perm WHERE role_key = :r"),
+        text("SELECT perm_code FROM role_perm WHERE role_key = :r AND mode = 'on'"),
         {"r": row.role_key}).all())
     fields = {r[0]: (r[1] or {}).get(row.role_key, "隐") for r in db.execute(
         text("SELECT field_key, mask FROM field_policy")).all()}

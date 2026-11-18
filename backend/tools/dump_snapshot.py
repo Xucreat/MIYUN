@@ -69,9 +69,18 @@ def main() -> None:
     changes = paged("/api/level-changes", token)
     alerts = paged("/api/alerts", token)
     visits = paged("/api/visits", token)
+    # B6-3a：权限矩阵（非分页）。R7/R9 这类没有业务数据的角色也能拿到，登录即可读。
+    rr = client.get("/api/roles", headers=hdr)
+    if rr.status_code in (401, 403):
+        print(f"[snapshot] /roles → {rr.status_code}，权限矩阵留空")
+        roles = None
+        DENIED.append({"path": "/roles", "code": "forbidden"})
+    else:
+        rr.raise_for_status()
+        roles = rr.json()
 
     snap = {
-        "v": 2,
+        "v": 3,
         "at": datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds"),
         "base": "http://127.0.0.1:8001/api",
         "district": settings.demo_district,
@@ -81,6 +90,7 @@ def main() -> None:
         "changes": changes,
         "alerts": alerts,
         "visits": visits,
+        "roles": roles,
         "denied": DENIED,
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -91,6 +101,12 @@ def main() -> None:
     print(f"[snapshot] 账号 {ACCOUNT} → {me['user']['roleKey']} {me['user']['name']}")
     print(f"[snapshot] persons {len(persons)}（在册明细 {len(rated)} / 待核实 {len(unrated)}）"
           f" · changes {len(changes)} · alerts {len(alerts)} · visits {len(visits)}")
+    if roles:
+        tri = {}
+        for x in roles["roles"]:
+            for m in (x.get("modes") or {}).values():
+                tri[m] = tri.get(m, 0) + 1
+        print(f"[snapshot] 权限矩阵 {len(roles['roles'])} 角色 × {roles['permTotal']} 码 · 三态 {tri}")
     if DENIED:
         print("[snapshot] 无权限端点：" + ", ".join(d["path"] for d in DENIED))
     if stats:

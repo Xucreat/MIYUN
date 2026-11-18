@@ -20,7 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.audit import write_audit
-from app.auth import CurrentUser, ensure_data_scope, get_user, require
+from app.auth import CurrentUser, ensure_data_scope, get_user, need, require
 from app.db import get_db
 from app.models import LevelChange, Visit
 
@@ -216,3 +216,70 @@ def dispose_alert(aid: str, body: DisposeIn, request: Request, db: Session = Dep
     write_audit(db, user, act, target=aid, detail=detail, ip=_ip(request))
     db.commit()
     return {"ok": True, "alert": {"id": aid, "status": body.status, "owner": body.to or row["owner"]}}
+
+
+# ------------------------------------------------------------------ 权限矩阵（B6-3b）
+MODE_TXT = {"on": "允许", "half": "受限需审批", "off": "禁止"}
+
+
+class PermChangeIn(BaseModel):
+    """客户端只报「权限码 → 三态」。角色名、操作人、时间一律由服务端生成。"""
+    changes: dict[str, str] = Field(default_factory=dict)
+
+
+@router.post("/roles/{role_key}/perms")
+def set_role_perms(role_key: str, body: PermChangeIn, request: Request,
+                   db: Session = Depends(get_db),
+                   user: CurrentUser = Depends(need("sys:perm:assign"))) -> dict:
+    """保存某角色的权限矩阵变更（B6-3b）。
+
+    三态的存储表示：`on` / `half` 写行（UPSERT），`off` 删行 —— 沿用「没行即禁止」的稀疏
+    表示，不为 9×48 个禁止位造 300+ 空记录。这样 `auth.py` 的 `need()`（有行即放行）继续成立。
+
+    一条硬约束：**不允许收回自己角色的 `sys:perm:assign`**。三权分立下 R8 是唯一的权限管理员，
+    把自己这条关掉就再没人能开回来（演示环境也没有恢复入口），属于自锁。
+    """
+    changes = {k: v for k, v in (body.changes or {}).items() if v in MODE_TXT}
+    if not changes:
+        raise HTTPException(400, {"code": "empty", "reason": "没有可应用的变更",
+                                  "allowed": sorted(MODE_TXT)})
+    if not db.execute(text("SELECT 1 FROM sys_role WHERE key = :k"), {"k": role_key}).first():
+        raise HTTPException(404, f"角色不存在：{role_key}")
+
+    known = {r[0] for r in db.execute(text("SELECT code FROM perm WHERE code = ANY(:cs)"),
+                                     {"cs": list(changes)}).all()}
+    unknown = sorted(set(changes) - known)
+    if unknown:
+        raise HTTPException(400, {"code": "unknown_perm", "reason": "权限码不存在",
+                                  "codes": unknown[:10]})
+
+    if role_key == user.role_key and changes.get("sys:perm:assign") == "off":
+        raise HTTPException(400, {"code": "self_lock",
+                                  "reason": "不能收回自己角色的权限分配权（会把自己锁在门外）"})
+
+    ups = [{"r": role_key, "c": c, "m": m} for c, m in changes.items() if m in ("on", "half")]
+    offs = [c for c, m in changes.items() if m == "off"]
+    if ups:
+        db.execute(text("INSERT INTO role_perm (role_key, perm_code, mode) "
+                        "VALUES (:r, :c, :m) "
+                        "ON CONFLICT ON CONSTRAINT uq_role_perm DO UPDATE SET mode = EXCLUDED.mode"),
+                   ups)
+    if offs:
+        db.execute(text("DELETE FROM role_perm WHERE role_key = :r AND perm_code = ANY(:cs)"),
+                   {"r": role_key, "cs": offs})
+
+    names = {r[0]: r[1] for r in db.execute(text("SELECT code, name FROM perm WHERE code = ANY(:cs)"),
+                                           {"cs": list(changes)}).all()}
+    parts = [f"{names.get(c, c)} → {MODE_TXT[m]}" for c, m in list(changes.items())[:6]]
+    if len(changes) > 6:
+        parts.append(f"等 {len(changes)} 项")
+    role_name = db.execute(text("SELECT name FROM sys_role WHERE key = :k"), {"k": role_key}).scalar_one()
+    write_audit(db, user, "调整角色权限", target=role_key,
+                detail=f"{role_key} {role_name}：" + "；".join(parts), ip=_ip(request))
+    db.commit()
+
+    rows = db.execute(text("SELECT perm_code, mode FROM role_perm WHERE role_key = :r "
+                           "ORDER BY perm_code"), {"r": role_key}).all()
+    return {"ok": True, "roleKey": role_key,
+            "perms": [r[0] for r in rows], "modes": {r[0]: r[1] for r in rows},
+            "applied": len(changes)}

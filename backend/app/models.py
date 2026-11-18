@@ -396,6 +396,12 @@ class RolePerm(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     role_key: Mapped[str] = mapped_column(ForeignKey("sys_role.key"), index=True)
     perm_code: Mapped[str] = mapped_column(ForeignKey("perm.code"), index=True)
+    # B6-3：三态。表里有行 = 允许或受限；没有行 = 禁止（沿用「只存允许」的稀疏表示，
+    # 不为 9×48 的禁止位造 300+ 行空记录）。
+    # 'on'   = 允许；'half' = 受限（可看不可做/需申请审批，前端原来只存在 data.js 里）。
+    # 加这一列之前，前端矩阵的 16 个 half 在库里根本没有位置，导致「页面显示受限、
+    # 服务端只认允许/禁止」两套口径 —— 而权限判定 auth.py 只看行是否存在。
+    mode: Mapped[str] = mapped_column(String(4), default="on", server_default="on")
 
 
 class FieldPolicy(Base):
