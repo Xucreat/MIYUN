@@ -1,16 +1,26 @@
-"""只读 API（阶段 B3）。
+"""只读 API（阶段 B3）+ 鉴权 / 掩码 / 审计（阶段 B4）。
 
 约定：
 - 响应字段用 **camelCase**，与前端 `DATA` / `STORE` 的字段同名，B5 换数据源时不用改页面。
-- 本阶段**不做鉴权与掩码**（B4 才做）。当前返回的是演示数据，本身就是虚拟脱敏的。
-- 所有聚合都走视图或 SQL，不在 Python 里二次计算，方便与前端数字对账。
+- 聚合都走视图或 SQL，不在 Python 里二次计算，方便与前端数字对账。
+- B4 起：**每个业务端点都必须过权限门控**，个人敏感字段由服务端按 `field_policy` 掩码，
+  行级范围由 `sys_account.unit` 解析出的 dept / town 过滤。掩码与权限不再交给前端。
+- 掩码后的出参统一带 `maskedFields`：`{"idNo": {"mode": "申", "needApply": true}}`；
+  值为 `null` 表示该字段被「隐」掉，前端请显示占位符而不是把 null 当空串。
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app import mask
+from app.audit import CLIENT_ACTS, write_anonymous, write_audit
+from app.auth import (
+    CurrentUser, encode_token, ensure_data_scope, get_user, load_user,
+    need, optional_user, person_scope_sql,
+)
 from app.config import settings
 from app.db import get_db
 
@@ -32,28 +42,75 @@ def _page(page: int, size: int, total: int, items: list[dict]) -> dict:
     return {"total": total, "page": page, "size": size, "pages": (total + size - 1) // size, "items": items}
 
 
+def _ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
+# ------------------------------------------------------------------ 登录与身份
+class LoginIn(BaseModel):
+    account: str = Field(..., description="账号（sys_account.account），如 liguodong")
+    password: str | None = Field(None, description="演示口令，默认取 DEMO_PASSWORD")
+
+
+@router.post("/auth/login", summary="登录，签发 Bearer 令牌")
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)) -> dict:
+    ip = _ip(request)
+    pwd = body.password if body.password is not None else settings.demo_password
+    if pwd != settings.demo_password:
+        write_anonymous(db, "登录失败", by=body.account, role=None,
+                        target="系统入口", detail="口令错误", ip=ip)
+        db.commit()
+        raise HTTPException(401, {"code": "unauthorized", "reason": "账号或口令错误"})
+    try:
+        user = load_user(db, body.account, ip)
+    except HTTPException:
+        write_anonymous(db, "登录失败", by=body.account, role=None,
+                        target="系统入口", detail="账号不存在或已停用", ip=ip)
+        db.commit()
+        raise
+    token, exp = encode_token(user.id)
+    write_audit(db, user, "登录", "系统入口",
+                f"以「{user.role_name}」身份登录系统", ip=ip)
+    db.commit()
+    return {"token": token, "expiresAt": exp, "user": user.as_dict(),
+            "district": settings.demo_district}
+
+
+@router.get("/me", summary="当前身份：角色 / 权限位 / 字段密级 / 数据范围")
+def me(user: CurrentUser = Depends(get_user)) -> dict:
+    return {"user": user.as_dict(), "district": settings.demo_district}
+
+
 # ------------------------------------------------------------------ 基础信息
 @router.get("/health")
-def health(db: Session = Depends(get_db)) -> dict:
+def health(request: Request, db: Session = Depends(get_db),
+           user: CurrentUser | None = Depends(optional_user)) -> dict:
     db.execute(text("SELECT 1"))
-    n = db.execute(text("SELECT count(*) FROM person")).scalar_one()
-    return {"ok": True, "persons": n, "district": settings.demo_district}
+    out = {"ok": True, "version": "0.4.0", "district": settings.demo_district,
+           "authenticated": user is not None}
+    if user is not None:   # 台账规模只对登录用户可见
+        out["persons"] = db.execute(text("SELECT count(*) FROM person")).scalar_one()
+        out["role"] = user.role_key
+    return out
 
 
 @router.get("/meta")
-def meta(db: Session = Depends(get_db)) -> dict:
+def meta(db: Session = Depends(get_db), user: CurrentUser = Depends(get_user)) -> dict:
     snap = _one(db, "SELECT * FROM metric_snapshot ORDER BY as_of DESC LIMIT 1")
     period = _one(db, "SELECT id, title, name, start, end, level_key FROM wartime_period WHERE active LIMIT 1")
-    return {"district": settings.demo_district, "asOf": (snap or {}).get("as_of"), "wartime": period}
+    return {"district": settings.demo_district, "asOf": (snap or {}).get("as_of"),
+            "wartime": period, "scope": user.scope.as_dict()}
 
 
 # ------------------------------------------------------------------ 统计
 @router.get("/stats/overview")
-def stats_overview(db: Session = Depends(get_db)) -> dict:
+def stats_overview(db: Session = Depends(get_db),
+                   user: CurrentUser = Depends(need("dashboard:view"))) -> dict:
     """五个核心数：在册 6028 / 高风险及以上 486 / 双在册 127 / 多重标签 214 / 待核实 612。
 
-    前两个与后三个来自 metric_snapshot（承载没有逐人明细的中/低两档），
-    明细侧同时给出实际行数，便于一眼看出「快照 vs 明细」的边界。
+    高风险及以上与极高风险是**实时口径**（`recalcStats` 语义）：从 person 直接数，
+    这样登记等级变动后立刻反映。其余（在册 / 中 / 低 / 双在册 / 多标 / 待核实）
+    仍取 `metric_snapshot`：中低两档没有逐人明细，属冻结快照口径。
     """
     s = _one(db, "SELECT * FROM metric_snapshot ORDER BY as_of DESC LIMIT 1")
     if not s:
@@ -61,27 +118,39 @@ def stats_overview(db: Session = Depends(get_db)) -> dict:
     detail = _one(db, """
         SELECT count(*) FILTER (WHERE NOT is_unrated) AS high_detail,
                count(*) FILTER (WHERE is_unrated) AS unrated_detail,
-               count(*) AS total_detail
+               count(*) AS total_detail,
+               count(*) FILTER (WHERE level IN ('high', 'high2')) AS high_plus_live,
+               count(*) FILTER (WHERE level = 'high2') AS high2_live
         FROM person
     """)
+    high_plus = int(detail["high_plus_live"])
+    high2 = int(detail["high2_live"])
     return {
-        "inRegister": s["in_register"], "highPlus": s["high_plus"], "high2": s["high2"],
+        "inRegister": s["in_register"], "highPlus": high_plus, "high2": high2,
         "mid": s["mid"], "low": s["low"], "unknown": s["unknown"],
         "dual": s["dual"], "multi": s["multi"], "multi2": s["multi2"], "multi3": s["multi3"],
         "noBasis": s["no_basis"], "noVisit30": s["no_visit30"], "noVisit30High": s["no_visit30_high"],
         "offRegister": s["off_register"], "monthAdd": s["month_add"], "monthSub": s["month_sub"],
-        "ledgerRecords": s["ledger_records"], "percentHigh": float(s["percent_high"]),
+        "ledgerRecords": s["ledger_records"],
+        "percentHigh": round(high_plus / s["in_register"] * 100, 1) if s["in_register"] else 0.0,
         "detail": detail,          # 明细实际行数（1098），与快照的口径差异在此显式暴露
         "asOf": s["as_of"],
+        "liveFields": ["highPlus", "high2", "percentHigh"],   # 哪些数是实时算的，写清楚
+        "scope": user.scope.as_dict(),
     }
 
 
 @router.get("/stats/dept")
 def stats_dept(
     db: Session = Depends(get_db),
+    user: CurrentUser = Depends(need("dashboard:view")),
     unrated: bool = Query(False, description="是否把待核实人员计入；默认 False = 与前端「486 高风险及以上」同口径"),
 ) -> dict:
-    """部门两套口径（裁决 B1）+ 重合（裁决 A1）。两条 SQL 分开，不合并成一个参数。"""
+    """部门两套口径（裁决 B1）+ 重合（裁决 A1）。两条 SQL 分开，不合并成一个参数。
+
+    部门分布本身是全区统计口径（R3/R4/R5 的账号 scope 是「本部门 / 本辖区」，
+    但部门对比需要全区才能看），因此此处**不按 scope 过滤**；个案明细才过滤。
+    """
     ur = "" if unrated else " AND NOT p.is_unrated"
     primary = _rows(db, f"""
         SELECT p.primary_dept_id AS dept_id, count(*)::int AS persons
@@ -128,9 +197,10 @@ def stats_dept(
 # ------------------------------------------------------------------ 人员台账
 PERSON_SELECT = """
     SELECT p.id, p.no, p.name, p.gender, p.birth, p.id_no, p.phone,
-           p.town_code, p.village, p.addr, p.primary_dept_id, p.level,
+           p.town_code, p.village, p.addr, p.primary_dept_id, p.dept_raw, p.level,
            p.source, p.status, p.since, p.watch, p.no_basis, p.last_visit,
-           p.officer, p.officer_title, p.is_unrated
+           p.officer, p.officer_title, p.is_unrated,
+           (SELECT count(*) FROM visit v WHERE v.person_id = p.id)::int AS visit_total
     FROM person p
 """
 
@@ -149,6 +219,7 @@ def _person_out(r: dict, tags: list[str] | None = None, dual: bool | None = None
         "officer": r["officer"], "officerTitle": r["officer_title"],
         "source": r["source"], "status": r["status"], "since": r["since"],
         "lastVisit": r["last_visit"].isoformat() if r["last_visit"] else None,
+        "visitTotal": r.get("visit_total", 0),
         "watch": r["watch"], "noBasis": r["no_basis"], "unrated": r["is_unrated"],
     }
 
@@ -156,6 +227,7 @@ def _person_out(r: dict, tags: list[str] | None = None, dual: bool | None = None
 @router.get("/persons")
 def list_persons(
     db: Session = Depends(get_db),
+    user: CurrentUser = Depends(need("person:list")),
     q: str | None = Query(None, description="姓名 / 档案号 / 身份证后四位"),
     level: str | None = Query(None, description="high2 / high / mid / low / unknown，可逗号分隔"),
     town: str | None = None,
@@ -166,7 +238,9 @@ def list_persons(
     page: int = 1,
     size: int = Query(20, le=200),
 ) -> dict:
-    where, params = ["1=1"], {}
+    ensure_data_scope(user)
+    scope_sql, scope_params = person_scope_sql(user, "p")
+    where, params = ["1=1", scope_sql], dict(scope_params)
     if q:
         where.append("(p.name LIKE :q OR p.no LIKE :q OR p.id_no LIKE :q)")
         params["q"] = f"%{q}%"
@@ -201,7 +275,8 @@ def list_persons(
     ids = [r["id"] for r in rows]
     tags = _tags_of(db, ids) if ids else {}
     duals = _dual_of(db, ids) if ids else set()
-    items = [_person_out(r, tags.get(r["id"], []), r["id"] in duals) for r in rows]
+    items = [mask.apply_person(_person_out(r, tags.get(r["id"], []), r["id"] in duals),
+                               user, r["primary_dept_id"], r["town_code"]) for r in rows]
     return _page(page, size, total, items)
 
 
@@ -219,26 +294,39 @@ def _dual_of(db: Session, ids: list[str]) -> set[str]:
 
 
 @router.get("/persons/{pid}")
-def get_person(pid: str, db: Session = Depends(get_db)) -> dict:
+def get_person(pid: str, db: Session = Depends(get_db),
+               user: CurrentUser = Depends(need("person:view"))) -> dict:
+    ensure_data_scope(user)
     r = _one(db, PERSON_SELECT + " WHERE p.id = :pid", pid=pid)
     if not r:
         raise HTTPException(404, f"人员不存在：{pid}")
+    if not user.scope.allows(r["primary_dept_id"], r["town_code"]):
+        # 越权访问：403 而不是 404，便于前端提示「不在你的数据范围」，也便于审计取到拒绝事件
+        raise HTTPException(403, {"code": "out_of_scope", "reason": "该人员不在你的数据范围内",
+                                 "scope": user.scope.as_dict()})
     tags = _tags_of(db, [pid]).get(pid, [])
     dual = pid in _dual_of(db, [pid])
-    out = _person_out(r, tags, dual)
+    out = mask.apply_person(_person_out(r, tags, dual), user, r["primary_dept_id"], r["town_code"])
+    ctx = {"dept": r["primary_dept_id"], "town": r["town_code"],
+           "user_dept": user.dept, "user_town": user.town}
 
-    out["visits"] = [
-        {"id": v["id"], "date": v["date"].isoformat() if v["date"] else None,
-         "way": v["way"], "result": v["result"], "by": v["by"]}
-        for v in _rows(db, "SELECT * FROM visit WHERE person_id = :pid ORDER BY date DESC", pid=pid)
-    ]
-    out["levelChanges"] = [
-        {"id": c["id"], "from": c["from_level"], "to": c["to_level"], "date": c["occurred_at"],
-         "reason": c["reason"], "rule": c["rule_label"], "by": c["approver"],
-         "notified": c["notified"]}
-        for c in _rows(db, "SELECT * FROM level_change WHERE person_id = :pid "
-                           "ORDER BY occurred_at DESC NULLS LAST", pid=pid)
-    ]
+    visits = []
+    for v in _rows(db, "SELECT * FROM visit WHERE person_id = :pid ORDER BY date DESC", pid=pid):
+        result, info = mask.apply_field(user.field_mode("visit"), "text", v["result"], ctx)
+        visits.append({"id": v["id"], "date": v["date"].isoformat() if v["date"] else None,
+                       "way": v["way"], "result": result, "by": v["by"],
+                       **({"masked": info} if info else {})})
+    out["visits"] = visits
+
+    changes = []
+    for c in _rows(db, "SELECT * FROM level_change WHERE person_id = :pid "
+                       "ORDER BY occurred_at DESC NULLS LAST", pid=pid):
+        reason, info = mask.apply_field(user.field_mode("reason"), "text", c["reason"], ctx)
+        changes.append({"id": c["id"], "from": c["from_level"], "to": c["to_level"],
+                        "date": c["occurred_at"], "reason": reason, "rule": c["rule_label"],
+                        "by": c["approver"], "notified": c["notified"],
+                        **({"masked": info} if info else {})})
+    out["levelChanges"] = changes
     out["dualDepts"] = [x["dept_id"] for x in
                         _rows(db, "SELECT dept_id FROM dual_confirm WHERE person_id = :pid", pid=pid)]
     return out
@@ -248,13 +336,22 @@ def get_person(pid: str, db: Session = Depends(get_db)) -> dict:
 @router.get("/level-changes")
 def list_level_changes(
     db: Session = Depends(get_db),
+    user: CurrentUser = Depends(need("risk:history:view")),
     personId: str | None = None,
     dept: str | None = None,
     town: str | None = None,
     page: int = 1,
     size: int = Query(20, le=200),
 ) -> dict:
+    ensure_data_scope(user)
     where, params = ["1=1"], {}
+    if user.scope.kind == "dept":
+        where.append("(c.dept_id = :_sd OR c.person_id IN "
+                     "(SELECT id FROM person WHERE primary_dept_id = :_sd))")
+        params["_sd"] = user.scope.value
+    elif user.scope.kind == "town":
+        where.append("c.town_code = :_st")
+        params["_st"] = user.scope.value
     if personId:
         where.append("c.person_id = :pid")
         params["pid"] = personId
@@ -269,13 +366,19 @@ def list_level_changes(
     rows = _rows(db, "SELECT * FROM level_change c" + w +
                  " ORDER BY occurred_at DESC NULLS LAST, id LIMIT :lim OFFSET :off",
                  **params, lim=size, off=(page - 1) * size)
-    items = [{
-        "id": r["id"], "personId": r["person_id"], "name": r["name"], "town": r["town_code"],
-        "dept": r["dept_id"], "from": r["from_level"], "to": r["to_level"],
-        "fromName": LEVEL_NAME.get(r["from_level"]), "toName": LEVEL_NAME.get(r["to_level"]),
-        "reason": r["reason"], "rule": r["rule_label"], "approver": r["approver"],
-        "at": r["occurred_at"], "status": r["status"], "notified": r["notified"],
-    } for r in rows]
+    ctx = {"dept": None, "town": None, "user_dept": user.dept, "user_town": user.town}
+    items = []
+    for r in rows:
+        name, n_info = mask.apply_field(user.field_mode("name"), "name", r["name"], ctx)
+        reason, r_info = mask.apply_field(user.field_mode("reason"), "text", r["reason"], ctx)
+        items.append({
+            "id": r["id"], "personId": r["person_id"], "name": name, "town": r["town_code"],
+            "dept": r["dept_id"], "from": r["from_level"], "to": r["to_level"],
+            "fromName": LEVEL_NAME.get(r["from_level"]), "toName": LEVEL_NAME.get(r["to_level"]),
+            "reason": reason, "rule": r["rule_label"], "approver": r["approver"],
+            "at": r["occurred_at"], "status": r["status"], "notified": r["notified"],
+            "maskedFields": {k: v for k, v in (("name", n_info), ("reason", r_info)) if v},
+        })
     up_down = _one(db, """
         SELECT count(*) FILTER (WHERE lt."order" < lf."order")::int AS up,
                count(*) FILTER (WHERE lt."order" > lf."order")::int AS down
@@ -290,35 +393,89 @@ def list_level_changes(
 @router.get("/alerts")
 def list_alerts(
     db: Session = Depends(get_db),
+    user: CurrentUser = Depends(need("alert:view")),
     status: str | None = None,
     town: str | None = None,
     page: int = 1,
     size: int = Query(20, le=200),
 ) -> dict:
+    ensure_data_scope(user)
     where, params = ["1=1"], {}
+    if user.scope.kind == "dept":
+        where.append("(a.dept_id = :_sd OR a.person_id IN "
+                     "(SELECT id FROM person WHERE primary_dept_id = :_sd))")
+        params["_sd"] = user.scope.value
+    elif user.scope.kind == "town":
+        where.append("a.town_code = :_st")
+        params["_st"] = user.scope.value
     if status:
-        where.append("status = :status")
+        where.append("a.status = :status")
         params["status"] = status
     if town:
-        where.append("town_code = :town")
+        where.append("a.town_code = :town")
         params["town"] = town
     w = " WHERE " + " AND ".join(where)
-    total = db.execute(text("SELECT count(*) FROM alert" + w), params).scalar_one()
-    rows = _rows(db, "SELECT * FROM alert" + w + " ORDER BY created_at DESC LIMIT :lim OFFSET :off",
+    total = db.execute(text("SELECT count(*) FROM alert a" + w), params).scalar_one()
+    rows = _rows(db, "SELECT * FROM alert a" + w + " ORDER BY a.created_at DESC LIMIT :lim OFFSET :off",
                  **params, lim=size, off=(page - 1) * size)
-    items = [{
-        "id": r["id"], "rule": r["rule_code"], "urgency": r["urgency"],
-        "personId": r["person_id"], "who": r["person_name"], "town": r["town_code"],
-        "levelName": r["level_name"], "metric": r["metric"], "dept": r["dept_id"],
-        "owner": r["owner"], "desc": r["desc"], "created": r["created_at"], "status": r["status"],
-    } for r in rows]
+    ctx = {"dept": None, "town": None, "user_dept": user.dept, "user_town": user.town}
+    items = []
+    for r in rows:
+        who, info = mask.apply_field(user.field_mode("name"), "name", r["person_name"], ctx)
+        items.append({
+            "id": r["id"], "rule": r["rule_code"], "urgency": r["urgency"],
+            "personId": r["person_id"], "who": who, "town": r["town_code"],
+            "levelName": r["level_name"], "metric": r["metric"], "dept": r["dept_id"],
+            "owner": r["owner"], "desc": r["desc"], "created": r["created_at"], "status": r["status"],
+            "maskedFields": {"who": info} if info else {},
+        })
     stat = _one(db, "SELECT count(*) FILTER (WHERE status='待处置') AS open, count(*) AS total FROM alert")
     return {**_page(page, size, total, items), "stats": stat}
 
 
+# ------------------------------------------------------------------ 审计
+@router.get("/audit")
+def list_audit(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(need("sys:audit:view")),
+    act: str | None = None,
+    q: str | None = None,
+    limit: int = Query(50, le=500),
+) -> dict:
+    where, params = ["1=1"], {}
+    if act:
+        where.append("act = :act")
+        params["act"] = act
+    if q:
+        where.append('(target LIKE :q OR detail LIKE :q OR "by" LIKE :q)')
+        params["q"] = f"%{q}%"
+    w = " WHERE " + " AND ".join(where)
+    total = db.execute(text('SELECT count(*) FROM audit_log' + w), params).scalar_one()
+    rows = _rows(db, 'SELECT id, at, act, target, detail, "by" AS by_, role, ip, mode '
+                     'FROM audit_log' + w + ' ORDER BY id DESC LIMIT :lim', **params, lim=limit)
+    return {"total": total, "items": rows}
+
+
+class AuditIn(BaseModel):
+    act: str
+    target: str | None = None
+    detail: str | None = None
+
+
+@router.post("/audit", summary="前端上报只读类动作（写操作由服务端自行留痕，不用这个口）")
+def post_audit(body: AuditIn, request: Request, db: Session = Depends(get_db),
+               user: CurrentUser = Depends(get_user)) -> dict:
+    if body.act not in CLIENT_ACTS:
+        raise HTTPException(400, {"code": "act_not_allowed", "reason": "该动作由服务端自行记录",
+                                  "allowed": sorted(CLIENT_ACTS)})
+    rec = write_audit(db, user, body.act, body.target, body.detail, ip=_ip(request))
+    db.commit()
+    return {"ok": True, "id": rec.id, "at": rec.at, "by": rec.by}
+
+
 # ------------------------------------------------------------------ 字典与配置
 @router.get("/towns")
-def list_towns(db: Session = Depends(get_db)) -> list[dict]:
+def list_towns(db: Session = Depends(get_db), user: CurrentUser = Depends(get_user)) -> list[dict]:
     rows = _rows(db, "SELECT * FROM town ORDER BY code")
     villages = _rows(db, "SELECT town_code, name FROM village ORDER BY code")
     by_town: dict[str, list[str]] = {}
@@ -330,12 +487,13 @@ def list_towns(db: Session = Depends(get_db)) -> list[dict]:
 
 
 @router.get("/dicts")
-def list_dicts(db: Session = Depends(get_db)) -> list[dict]:
+def list_dicts(db: Session = Depends(get_db), user: CurrentUser = Depends(get_user)) -> list[dict]:
     return _rows(db, "SELECT * FROM dict_type ORDER BY key")
 
 
 @router.get("/dicts/{key}")
-def get_dict(key: str, db: Session = Depends(get_db)) -> dict:
+def get_dict(key: str, db: Session = Depends(get_db),
+             user: CurrentUser = Depends(get_user)) -> dict:
     t = _one(db, "SELECT * FROM dict_type WHERE key = :k", k=key)
     if not t:
         raise HTTPException(404, f"字典不存在：{key}")
@@ -345,7 +503,7 @@ def get_dict(key: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/rules")
-def list_rules(db: Session = Depends(get_db)) -> dict:
+def list_rules(db: Session = Depends(get_db), user: CurrentUser = Depends(get_user)) -> dict:
     return {
         "rules": _rows(db, "SELECT * FROM rule ORDER BY code"),
         "dqRules": _rows(db, "SELECT * FROM dq_rule ORDER BY code"),
@@ -354,17 +512,18 @@ def list_rules(db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/params")
-def list_params(db: Session = Depends(get_db)) -> list[dict]:
+def list_params(db: Session = Depends(get_db), user: CurrentUser = Depends(get_user)) -> list[dict]:
     return _rows(db, "SELECT * FROM system_param ORDER BY key")
 
 
 @router.get("/responders")
-def list_responders(db: Session = Depends(get_db)) -> list[dict]:
+def list_responders(db: Session = Depends(get_db),
+                    user: CurrentUser = Depends(get_user)) -> list[dict]:
     return _rows(db, "SELECT * FROM responder ORDER BY id")
 
 
 @router.get("/roles")
-def list_roles(db: Session = Depends(get_db)) -> dict:
+def list_roles(db: Session = Depends(get_db), user: CurrentUser = Depends(get_user)) -> dict:
     roles = _rows(db, "SELECT * FROM sys_role ORDER BY key")
     perms = _rows(db, "SELECT role_key, perm_code FROM role_perm ORDER BY role_key, perm_code")
     by_role: dict[str, list[str]] = {}

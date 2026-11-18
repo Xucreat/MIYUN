@@ -1,6 +1,9 @@
-"""B3 只读 API 自检：用 FastAPI TestClient 打一遍，断言与前端口径一致。
+"""只读 API 自检：用 FastAPI TestClient 打一遍，断言与前端口径一致。
 
 不需要起服务（TestClient 进程内跑），但**需要数据库已灌种子**。
+B4 起接口需要令牌：本文件统一用 R2（政法委主管，全区全字段）登录取 token，
+断言仍是 B3 那 45 条，用来证明「加了鉴权之后口径没漂」。
+
 用法：cd backend && python -m tools.api_checks
 """
 from __future__ import annotations
@@ -9,10 +12,17 @@ import sys
 
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.main import app
 
 client = TestClient(app)
 fail = 0
+
+_login = client.post("/api/auth/login", json={"account": "chenzhiyuan",
+                                              "password": settings.demo_password})
+if _login.status_code != 200:  # 登录都不过，后面没意义
+    raise SystemExit(f"登录失败：{_login.status_code} {_login.text}")
+client.headers.update({"Authorization": f"Bearer {_login.json()['token']}"})
 
 
 def ok(cond: bool, msg: str) -> None:
