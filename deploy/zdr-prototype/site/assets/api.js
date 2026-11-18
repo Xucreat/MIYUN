@@ -91,22 +91,42 @@ window.API = (function () {
   }
 
   /* ---------- 快照：拉一次、缓存、注入 ---------- */
+  /* 单个端点 403 不该拖垮整份快照：R1 既没有 risk:history:view 也没有 visit:view，
+     以前 Promise.all 里一处 403 就整体 reject → 表现为「登录成功但仍是本地演示数据」。
+     现在按端点降级为空集，并把降级项记进快照的 denied，前端据此决定回落还是留空。 */
+  let denied = [];
+
+  function soft(promise, path) {
+    return promise.catch(err => {
+      if (err.status === 403) {
+        denied.push({ path: path, code: err.code });
+        console.warn('[api] 无权限，端点降级为空：' + path + '（' + err.code + '）');
+        return [];
+      }
+      throw err;
+    });
+  }
+
   function sync() {
     if (!token()) return Promise.reject(Object.assign(new Error('未登录'), { code: 'no_token' }));
+    denied = [];
     return Promise.all([
       req('GET', '/me'),
-      req('GET', '/stats/overview'),
-      paged('/persons'),
-      paged('/level-changes'),
-      paged('/alerts')
-    ]).then(([me, stats, persons, changes, alerts]) => {
+      soft(req('GET', '/stats/overview'), '/stats/overview'),
+      soft(paged('/persons'), '/persons'),
+      soft(paged('/level-changes'), '/level-changes'),
+      soft(paged('/alerts'), '/alerts'),
+      soft(paged('/visits'), '/visits')
+    ]).then(([me, stats, persons, changes, alerts, visits]) => {
       const s = {
-        v: 1,
+        v: 2,
         at: new Date().toISOString(),
         base: base(),
         district: me.district,
         user: me.user,
-        stats, persons, changes, alerts
+        stats: stats || {},
+        persons, changes, alerts, visits,
+        denied: denied.slice()
       };
       ssSet(SNAP, JSON.stringify(s));
       offline = false; lsSet(OFF, null); lastError = '';
@@ -133,7 +153,8 @@ window.API = (function () {
   function readSnap() {
     try {
       const s = JSON.parse(ssGet(SNAP) || 'null');
-      if (!s || s.v !== 1 || s.base !== base()) return null;   // 换环境后旧快照作废
+      /* v=2 起快照带 visits / denied：老快照（v=1）直接作废，避免「新代码 + 旧快照」缺字段 */
+      if (!s || s.v !== 2 || s.base !== base()) return null;
       return s;
     } catch (e) { return null; }
   }
@@ -182,10 +203,15 @@ window.API = (function () {
     return req('POST', '/persons/' + encodeURIComponent(pid) + '/visits', body);
   }
 
-  /* 写回失败不该打断演示：提示一句并标记离线，页面继续用本地数据 */
-  function fire(promise, label) {
+  /* 写回失败不该打断演示：提示一句并标记离线，页面继续用本地数据。
+     onOk 用于「服务端回 id → 回填本地乐观行」：不回填就只能靠业务键去重，
+     而同一天对同一人登记两次同向变动会被业务键去重吞掉一条。 */
+  function fire(promise, label, onOk) {
     if (!live()) return;
-    promise.catch(err => {
+    promise.then(d => {
+      if (!onOk) return;
+      try { onOk(d); } catch (e) { console.error('[api] 写回回调失败', label, e); }
+    }).catch(err => {
       offline = true; lsSet(OFF, '1'); lastError = err.message || String(err);
       if (window.UI && UI.toast && UI.toast.warn) UI.toast.warn('服务端写回失败（' + label + '）：' + lastError);
       console.warn('[api] 写回失败', label, err);
@@ -201,6 +227,7 @@ window.API = (function () {
       enabled: enabled(), live: live(), offline: offline,
       base: base(), at: (snap && snap.at) || null,
       user: u ? { name: u.name, account: u.account, roleKey: u.roleKey, roleName: u.roleName, unit: u.unit } : null,
+      denied: (snap && snap.denied) || [],
       error: lastError
     };
   }

@@ -433,6 +433,59 @@ def list_alerts(
     return {**_page(page, size, total, items), "stats": stat}
 
 
+# ------------------------------------------------------------------ 走访
+@router.get("/visits")
+def list_visits(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(need("visit:view")),
+    personId: str | None = None,
+    town: str | None = None,
+    page: int = 1,
+    size: int = Query(20, le=200),
+) -> dict:
+    """走访记录（B6 新增）。
+
+    为什么要有这个端点：走访登记是写进 `visit` 表的，但没有读口时前端刷新后
+    只能回落到本地生成的历史走访 —— 等于「登记成功、页面看不见」。
+    范围过滤走 `person`（visit 表本身没有部门/镇街列），掩码落在 `result`
+    （field_policy 的 `visit` 字段：R1 掩、R5 辖区明、R7-R9 隐）。
+    """
+    ensure_data_scope(user)
+    where, params = ["1=1"], {}
+    if user.scope.kind == "dept":
+        where.append("p.primary_dept_id = :_sd")
+        params["_sd"] = user.scope.value
+    elif user.scope.kind == "town":
+        where.append("p.town_code = :_st")
+        params["_st"] = user.scope.value
+    if personId:
+        where.append("v.person_id = :pid")
+        params["pid"] = personId
+    if town:
+        where.append("p.town_code = :town")
+        params["town"] = town
+    w = " WHERE " + " AND ".join(where)
+    base = " FROM visit v JOIN person p ON p.id = v.person_id"
+    total = db.execute(text("SELECT count(*)" + base + w), params).scalar_one()
+    rows = _rows(db, "SELECT v.id, v.person_id, v.date, v.way, v.result, v.by, v.at,"
+                     "       p.primary_dept_id, p.town_code" + base + w +
+                 " ORDER BY v.date DESC NULLS LAST, v.id DESC LIMIT :lim OFFSET :off",
+                 **params, lim=size, off=(page - 1) * size)
+    mode = user.field_mode("visit")
+    items = []
+    for r in rows:
+        ctx = {"dept": r["primary_dept_id"], "town": r["town_code"],
+               "user_dept": user.dept, "user_town": user.town}
+        result, info = mask.apply_field(mode, "text", r["result"], ctx)
+        items.append({
+            "id": r["id"], "personId": r["person_id"],
+            "date": r["date"].isoformat() if r["date"] else None,
+            "way": r["way"], "result": result, "by": r["by"], "at": r["at"],
+            "maskedFields": {"result": info} if info else {},
+        })
+    return _page(page, size, total, items)
+
+
 # ------------------------------------------------------------------ 审计
 @router.get("/audit")
 def list_audit(

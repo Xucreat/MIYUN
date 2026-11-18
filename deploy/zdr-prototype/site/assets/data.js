@@ -1037,8 +1037,18 @@ window.DATA = (function () {
     return rows.sort((a, b) => b.person.visitGap - a.person.visitGap);
   }
 
-  /* 走访记录（按人稳定生成） */
+  /* B6：服务端走访缓存（personId → 行数组）。
+     READY 区分两件事：「没拿到走访数据」（无 visit:view → 回落本地生成）
+     与「拿到了、这个人确实没有记录」（就是空，不能造）。 */
+  const LIVE_VISITS = Object.create(null);
+  let LIVE_VISITS_READY = false;
+
+  /* 走访记录（按人稳定生成）
+     B6：live 模式下优先用服务端 visit 表（见 LIVE_VISITS / hydrate 第 6 步）；
+     只有「快照里根本没拿到走访」（如该角色无 visit:view）时才回落到这里的生成逻辑 ——
+     否则会在真数据之外凭空造 6 条历史走访，比留空更糟。 */
   function visitsOf(person) {
+    if (LIVE_VISITS_READY) return LIVE_VISITS[person.id] || [];
     const r = mulberry32(person.id.split('').reduce((a, c) => a + c.charCodeAt(0), 7));
     const out = [];
     const ways = ['入户走访', '电话联系', '联合面访', '视频通话', '社区见面'];
@@ -1679,6 +1689,20 @@ window.DATA = (function () {
       maskedFields: r.maskedFields || {}
     };
   }
+  /* 服务端 visit 行 → 页面用的走访结构（date / way / by / result 与本地生成物同形）。
+     刻意不映射 `at`：服务端连历史走访都带 at（种子里的登记时间），
+     而档案页把 at 渲染成「本次新增」—— 拿两个月前的时间标「本次新增」会误导。
+     只有本地乐观行（刚登记）带 at，落库回填后由服务端行取代。 */
+  function toLiveVisit(r) {
+    return {
+      id: r.id,
+      date: String(r.date || '').slice(0, 10),
+      way: r.way || '走访',
+      result: r.result || '',
+      by: r.by || '',
+      maskedFields: r.maskedFields || {}
+    };
+  }
 
   /* 服务端身份 → 前端角色对象（ROLES.live），页面里 field()/can()/scope 全靠它 */
   const LIVE_FIELD = { '明': 'full', '掩': 'mask', '申': 'mask', '隐': 'hide', '本部门': 'full', '辖区明': 'full' };
@@ -1767,7 +1791,20 @@ window.DATA = (function () {
       });
     }
 
-    /* 5) 身份：注册成可切换角色，STORE.role() 在 live 模式下优先返回它 */
+    /* 5) 走访：按人分组缓存（2,916 行 / 486 人），没拿到数据时 READY=false 回落本地生成。
+          denied 里的路径在 api.js 是 '/visits'、dump_snapshot 曾经写成 '/api/visits'，
+          这里按后缀判定，别因为一个前缀差异把「无权限」当成「确实没有走访」。 */
+    const deniedVisits = (snap.denied || []).some(d => /\/visits$/.test(String(d && d.path || '')));
+    if (Array.isArray(snap.visits) && !deniedVisits) {
+      Object.keys(LIVE_VISITS).forEach(k => { delete LIVE_VISITS[k]; });
+      snap.visits.forEach(r => {
+        (LIVE_VISITS[r.personId] = LIVE_VISITS[r.personId] || []).push(toLiveVisit(r));
+      });
+      /* 服务端已按 date DESC 出参，这里不再排序；分页接口若改排序，页面顺序跟着变 */
+      LIVE_VISITS_READY = true;
+    }
+
+    /* 6) 身份：注册成可切换角色，STORE.role() 在 live 模式下优先返回它 */
     if (snap.user) registerLiveRole(snap.user);
 
     meta.asOf = snap.at ? String(snap.at).slice(0, 16).replace('T', ' ') : meta.asOf;

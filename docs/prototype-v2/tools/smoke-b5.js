@@ -57,6 +57,13 @@ function metrics() {
     },
     sample: D.persons[0] ? [D.persons[0].id, D.persons[0].town, D.persons[0].level, D.persons[0].tags.join('/')] : null,
     unratedSample: D.unrated[0] ? [D.unrated[0].id, D.unrated[0].level] : null,
+    /* B6：走访总和与逐条明细（服务端 visit 表 2,916 行 ↔ 本地按人生成 6 条/486 人） */
+    visits: D.persons.reduce((n, p) => n + D.visitsOf(p).length, 0),
+    visitSample: (() => {
+      const p = D.personById('P0102');
+      return p ? D.visitsOf(p).map(v => v.date + ':' + v.way + ':' + v.result).join('|') : null;
+    })(),
+    denied: (window.API && API.status().denied || []).map(d => d.path).join(','),
     /* 变动台账按 id 排序后整体比对：服务端按发生时间倒序、本地按生成序，顺序不同不算差异 */
     chg: D.CHG_FULL.map(c => c.id + ':' + c.from + '>' + c.to + ':' + c.level).sort().join('|'),
     alertOpen: D.alerts.filter(a => a.status === '待处置').length,
@@ -119,7 +126,8 @@ function fmt(v) { return typeof v === 'object' ? JSON.stringify(v) : String(v); 
   const m0 = mock.dashboard.m;
   console.log('  口径：在册 ' + m0.stats.inRegister + ' / 高风险+ ' + m0.stats.highPlus + ' / 双在册 ' + m0.stats.dual
     + ' / 多标 ' + m0.stats.multi + ' / 待核实 ' + m0.stats.unknown
-    + ' · persons ' + m0.persons + ' · unrated ' + m0.unrated + ' · 变动 ' + m0.changes + ' · 预警 ' + m0.alerts);
+    + ' · persons ' + m0.persons + ' · unrated ' + m0.unrated + ' · 变动 ' + m0.changes
+    + ' · 预警 ' + m0.alerts + ' · 走访 ' + m0.visits);
   console.log('  部门口径：人次 ' + m0.dept.personTimes + ' / 跨部门 ' + m0.dept.multiPersons
     + ' / 交叉 ' + m0.dept.dualCross + ' / 并集 ' + m0.dept.dualUnion);
 
@@ -135,10 +143,12 @@ function fmt(v) { return typeof v === 'object' ? JSON.stringify(v) : String(v); 
     const m1 = live.dashboard.m;
     console.log('  口径：在册 ' + m1.stats.inRegister + ' / 高风险+ ' + m1.stats.highPlus + ' / 双在册 ' + m1.stats.dual
       + ' / 多标 ' + m1.stats.multi + ' / 待核实 ' + m1.stats.unknown
-      + ' · persons ' + m1.persons + ' · unrated ' + m1.unrated + ' · 变动 ' + m1.changes + ' · 预警 ' + m1.alerts);
+      + ' · persons ' + m1.persons + ' · unrated ' + m1.unrated + ' · 变动 ' + m1.changes
+      + ' · 预警 ' + m1.alerts + ' · 走访 ' + m1.visits);
 
     /* 逐项对账：mock 与 live 的数据本体必须完全一致（同一份种子，两条链路） */
-    const KEYS = ['persons', 'unrated', 'changes', 'alerts', 'alertOpen', 'sample', 'unratedSample', 'chg'];
+    const KEYS = ['persons', 'unrated', 'changes', 'alerts', 'alertOpen', 'sample', 'unratedSample', 'chg',
+      'visits', 'visitSample'];
     const SK = ['inRegister', 'highPlus', 'high2', 'dual', 'multi', 'unknown', 'noBasis', 'ledgerRecords'];
     const DK = ['personTimes', 'multiPersons', 'dualCross', 'dualUnion', 'depts'];
     console.log('\n=== 两套数据源逐项对账 ===');

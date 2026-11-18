@@ -5,7 +5,13 @@
      · 本脚本：真登录（/api/auth/login 签发令牌）→ 真拉快照 → 真写库（预警处置落 alert + audit_log）。
    前置：backend 的 PG(55433) 与 API(8001) 已启动；静态站 8081。
    用法：node tools/check-live-e2e.js
-   注意：本脚本会真的改库（处置一条预警），跑完请执行 `python -m app.seed` 还原。
+   注意：本脚本会真的改库（处置一条预警、登记一次等级变动与走访），跑完请执行 `python -m app.seed` 还原。
+   ⚠ 环境限制（2026-11-18 记录）：本机当前沙箱里 Chrome 渲染进程只要请求 8001 端口就崩
+     （同源 8081 正常，连 /api/health 也崩），本脚本会在第 1 步真登录处失败 —— 这是环境不是代码。
+     B5 时期它在同一台机器上跑通过；等环境恢复即可复跑。环境不可用时用替代口径：
+       · 写完能读 → backend/tools/api_checks_b6.py（写 visit → 立刻从 /api/visits 读回）
+       · 读出能渲染 → tools/smoke-b5.js <服务端快照>（逐页对账 + 走访 2916 条逐条明细全等）
+       · 回填与去重 → tools/check-live-dedupe.js（route 拦截造假响应，不需要网络）
 */
 const PW = 'C:/Users/Administrator/.workbuddy/binaries/node/versions/22.22.2-6/node_modules/@playwright/cli/node_modules/playwright-core';
 const { chromium } = require(PW);
@@ -115,6 +121,32 @@ const PAGES = ['dashboard', 'board', 'bigscreen', 'persons', 'person', 'alerts',
   ok(chg.live, '刷新后仍是服务端数据源');
   ok(chg.hit === 1, `同一人同一目标等级只留 1 条（实际 ${chg.hit} 条：${chg.ids.join(',')}）`);
 
+  /* ---- 3c. 走访：登记 → 刷新 → 档案页必须能看见（B6 修的「入库了但看不见」） ---- */
+  console.log('\n=== 真写库（走访：写进 visit 表 → 刷新后可见）===');
+  const VNOTE = 'E2E 走访落库验证';
+  await page.goto(WEB + '/person.html?id=P0433', { waitUntil: 'load' });
+  await page.waitForTimeout(300);
+  await page.evaluate(note => STORE.addVisit('P0433', { way: '入户走访', result: note }), VNOTE);
+  await page.waitForTimeout(900);
+  await page.goto(WEB + '/person.html?id=P0433&refresh=1', { waitUntil: 'load' });
+  await page.waitForTimeout(2400);
+  const visit = await page.evaluate(note => {
+    const p = DATA.personById('P0433');
+    const list = STORE.visits(p);
+    const rows = DATA.visitsOf(p);
+    return {
+      server: rows.length, merged: list.length,
+      hit: list.filter(v => v.result === note).length,
+      ids: rows.filter(v => v.result === note).map(v => v.id),
+      text: document.body.innerText.indexOf(note) > -1,
+      live: !!API.live()
+    };
+  }, VNOTE);
+  ok(visit.live, '刷新后仍是服务端数据源');
+  ok(visit.server === 7, `服务端该人 7 条走访（6 条种子 + 1 条刚登记，实际 ${visit.server}）`);
+  ok(visit.hit === 1, `刚登记的走访只出现 1 次、不重复（实际 ${visit.hit}，id ${visit.ids.join(',') || '—'}）`);
+  ok(visit.text, '档案页 DOM 上能看到这条新走访（缺陷「入库了但刷新看不见」已修）');
+
   /* ---- 4. 刷新后仍在（写库不是内存态） ---- */
   await page.goto(WEB + '/alerts.html?refresh=1', { waitUntil: 'load' });
   await page.waitForTimeout(1500);
@@ -123,6 +155,32 @@ const PAGES = ['dashboard', 'board', 'bigscreen', 'persons', 'person', 'alerts',
     return a ? a.status : null;
   });
   ok(persisted === '已处置' || persisted === '已闭环', `刷新后仍是已处置（实际 ${persisted}）`);
+
+  /* ---- 5. 换 R1 真登录：403 端点降级，不许把整份快照拖成「本地演示数据」 ---- */
+  console.log('\n=== R1 真登录（无 risk:history:view / visit:view → 端点降级）===');
+  await page.goto(WEB + '/login.html?live=0', { waitUntil: 'load' });   // 清令牌与 live 开关
+  await page.waitForTimeout(250);
+  await page.click('.demo-item[data-role="leader"]');
+  await page.click('.src-tab[data-src="live"]');
+  await page.click('#btnLogin');
+  await page.waitForURL(/dashboard\.html/, { timeout: 25000 });
+  await page.waitForTimeout(700);
+  const r1 = await page.evaluate(() => ({
+    live: !!(window.API && API.live()),
+    offline: API.status().offline,
+    role: STORE.role().roleName,
+    denied: (API.status().denied || []).map(d => d.path),
+    changes: STORE.changes().length,
+    persons: DATA.persons.length,
+    masked: DATA.persons.filter(p => p.name.indexOf('*') > -1).length
+  }));
+  ok(r1.live === true && r1.offline === false,
+    `R1 快照整体成功（live=${r1.live}, offline=${r1.offline}）—— 403 只降级单个端点`);
+  ok(r1.denied.indexOf('/level-changes') > -1 && r1.denied.indexOf('/visits') > -1,
+    `降级端点：${r1.denied.join(',') || '无'}`);
+  ok(r1.changes === 46, `变动台账回落本地 46 条（实际 ${r1.changes}）`);
+  ok(r1.persons === 486 && r1.masked === 486,
+    `人员仍走服务端且全部掩码（${r1.masked}/${r1.persons}）· 角色 ${r1.role}`);
 
   await ctx.close();
   await browser.close();

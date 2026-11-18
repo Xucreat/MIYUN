@@ -1,4 +1,4 @@
-# 后端（B1–B5：建库 + 种子 + 只读 API + 鉴权 / 掩码 / 审计 / 写 API + 前端接链路）
+# 后端（B1–B6：建库 + 种子 + 只读 API + 鉴权 / 掩码 / 审计 / 写 API + 前端接链路 + 走访读端）
 
 设计依据：`docs/prototype-v2/BACKEND-数据模型-20261118.md`（从 `data.js` 41 个顶层键反推的准 schema）。
 
@@ -11,11 +11,14 @@
 | B3 | 只读 API（persons / level-changes / alerts / stats / dicts / rules） | ✅ |
 | B4 | 登录鉴权 + 服务端掩码 + 服务端审计 + 写 API（等级变动 / 走访 / 预警处置） | ✅ |
 | B5 | 前端接只读链路（`assets/api.js` + `data.js hydrate()`，页面代码零改动） | ✅ |
+| B6-1 | 走访读端 `GET /api/visits` + 写回填 `srvId` + 乐观行两段式去重 | ✅ |
 
 B4 **没有新增任何表、列或迁移**：权限用 `role_perm`、字段密级用 `field_policy.mask`（本来就是
 9 字段 × 9 角色的矩阵）、审计用 `audit_log`、范围用 `sys_account.unit`，全部是 B1 已建好的。
 
 B5 同样**零迁移**，只给 `/api/persons` 出参补了一个 `visitTotal`（子查询数 `visit` 表）。
+
+B6-1 也**零迁移**：新端点读的是 B1 就建好的 `visit` 表；修的两个缺陷都是前端合并逻辑与缺读端，不是模型问题。
 
 ## 快速开始
 
@@ -55,6 +58,7 @@ curl http://127.0.0.1:8001/api/persons -H "Authorization: Bearer <token>"
 | `GET /api/stats/*` | `dashboard:view` |
 | `GET /api/level-changes` | `risk:history:view` |
 | `GET /api/alerts` | `alert:view` |
+| `GET /api/visits` | `visit:view`（R1/R7-R9 无此权限 → 403） |
 | `POST /api/level-changes` | `risk:adjust:up`（风险升高）/ `risk:adjust:down`（风险降低），按变动方向判定 |
 | `POST /api/persons/{id}/visits` | `visit:create` |
 | `POST /api/alerts/{id}/dispose` | `alert:handle` / `alert:ignore` / `alert:assign`，按处置动作判定 |
@@ -77,10 +81,16 @@ cd backend
 python -m app.seed --verify    # 只对账不写库：28 张表行数 + 5 项口径
 python -m tools.api_checks     # B3 口径回归 45 条（用 R2 全区账号跑）
 python -m tools.api_checks_b4  # B4 安全断言 74 条（9 个角色逐一试越权）
+python -m tools.api_checks_b6  # B6 走访读端 18 条（权限 / 范围 / 写→读往返 / 还原）
 ```
 
-三份都必须全绿。两个 api_checks 都用 TestClient 进程内跑，不用起服务；
-`api_checks_b4` 会写库，但**结束时整体还原**，跑完 `--verify` 仍应全绿。
+四份都必须全绿。都用 TestClient 进程内跑，不用起服务；`api_checks_b4` 与 `api_checks_b6`
+会写库，但**结束时整体还原**，跑完 `--verify` 仍应全绿。
+
+前端侧回归在 `docs/prototype-v2/tools/`：
+`smoke-b5.js`（14 页 + mock↔live 对账）、`check-live-role.js`（R1/R2/R4/R5 范围与掩码）、
+`check-live-write.js`（请求体契约）、`check-live-dedupe.js`（B6 回填与去重）、
+`check-live-e2e.js`（真 HTTP，需 PG + API + 静态站三件套同时在线）。
 
 ## 数据库
 
@@ -141,8 +151,9 @@ backend/
   `basis`（评估依据）、`special`（特殊类别明细）、`domicile`（户籍地址）在库里没有独立列，
   掩码先按「明」以外的策略空转，等接入真实数据源补列。
 - **等级变动 id 用 `max+1` 生成**（`CHG-202611-###`）：单实例演示够用，多实例并发需换成序列。
-- 前端已接只读链路（B5），写路径是「本地先行 + 服务端留痕」；乐观行靠业务键去重，
-  干净的「服务端回 id → 回填本地」留到 B6。
+- 前端已接只读链路（B5），写路径是「本地先行 + 服务端留痕」；B6 起服务端回的 id 会回填成 `srvId`，
+  合并时按 id 精确认领、业务键只作兜底（`mergeOptimistic`），同日同向两次登记不再互相吞。
+  仍不干净的一点：本地乐观行的 `id` 不改写成服务端 id —— 改 id 会打断 `changeNotes` 与 `?focus=` 深链。
 
 ## 前端接入（B5）自检
 

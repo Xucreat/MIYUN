@@ -234,20 +234,47 @@ window.STORE = (function () {
     return { total: list.length, open, doing: list.filter(a => a.status === '处置中').length, done: list.filter(a => a.status === '已闭环').length };
   }
 
+  /* ---- 乐观行合并（B6） ----
+     本地乐观行与服务端行的 id 天然对不上（本地 2xx 序号 / 服务端 max+1），只能靠业务键。
+     但业务键**不是唯一键**：同一天对同一人登记两次同向变动，两条业务键完全相同，
+     旧实现用 Set 去重会把两条都吞成一条（真丢数据）。
+     故改成两段式：
+       ① 有 srvId 的本地行按服务端 id 精确认领，吃掉一份配额；
+       ② 剩下的本地行按业务键「一条换一条」消耗配额，配额外的一律保留。
+     这样「本地 2 条 / 服务端 2 条」→ 剩 2 条，「本地 2 条 / 服务端 1 条」（一条写失败）
+     → 剩 1 条服务端 + 1 条本地，宁可重复显示也不静默吞掉。 */
+  function mergeOptimistic(local, srvRows, keyOf) {
+    const quota = Object.create(null);
+    const srvIds = Object.create(null);
+    srvRows.forEach(r => {
+      const k = keyOf(r);
+      quota[k] = (quota[k] || 0) + 1;
+      srvIds[r.id] = 1;
+    });
+    const rest = local.filter(c => {
+      if (!c.srvId || !srvIds[c.srvId]) return true;
+      const k = keyOf(c);
+      if (quota[k] > 0) quota[k] -= 1;      // 精确认领，扣掉对应配额
+      return false;                          // 已确认落库 → 由服务端行代表
+    });
+    return rest.filter(c => {
+      if (c.srvId) return true;              // 有 srvId 但服务端不可见（权限）→ 保留本地
+      const k = keyOf(c);
+      if (quota[k] > 0) { quota[k] -= 1; return false; }
+      return true;
+    });
+  }
+
   /* ---- 等级变动台账（会议决议 D4：政法委无审批职能） ----
      部门自主定级 → 登记留痕即生效 → 政法委侧只做知会/备案，不设审批关口。
      台账 = 本次会话新登记（newChanges，在前）+ data.js 的 46 条历史变动（CHG_FULL）。
      字段与 CHG_FULL 完全一致，故所有消费方（档案、看板、导出、月报）可同源读取。 */
   function changes() {
     const local = state.newChanges || [];
-    /* live：本地是「乐观行」，服务端台账才是权威。同一个人、同一目标等级、同一天
-       已经在服务端台账里出现时，本地行就不再展示 —— 否则登记一次刷新一下就变两条
-       （服务端 id 是 max+1，本地是 2xx 序号，两者天然对不上，只能按业务键去重）。 */
+    /* live：本地是「乐观行」，服务端台账才是权威（见 mergeOptimistic 的两段式认领） */
     if (window.API && API.live() && local.length) {
-      const seen = {};
-      D.CHG_FULL.forEach(c => { seen[(c.personId || '') + '|' + c.to + '|' + String(c.date).slice(0, 5)] = 1; });
-      const keep = local.filter(c => !seen[(c.personId || '') + '|' + c.to + '|' + String(c.date).slice(0, 5)]);
-      return keep.concat(D.CHG_FULL);
+      return mergeOptimistic(local, D.CHG_FULL,
+        c => (c.personId || '') + '|' + c.to + '|' + String(c.date).slice(0, 5)).concat(D.CHG_FULL);
     }
     return local.concat(D.CHG_FULL);
   }
@@ -273,12 +300,19 @@ window.STORE = (function () {
     audit('登记等级变动', r.name + '：' + D.levelOf(r.from).name + ' → ' + D.levelOf(r.to).name, rec.personId);
     commit();
     /* B5：live 模式下同步落库。定级责任 / 登记人 / 发生时间由服务端生成，
-       这里只传「谁、调到哪一级、为什么」，避免客户端自填可信字段。 */
+       这里只传「谁、调到哪一级、为什么」，避免客户端自填可信字段。
+       B6：服务端回 id 后回填 srvId —— 之后去重走精确匹配，
+           同一天对同一人登记两次同向变动不会再被业务键吞掉一条。 */
     if (window.API && rec.personId) {
       API.fire(API.createChange({
         personId: rec.personId, to: rec.to,
         reason: rec.reason || '评估结论变更', notified: true
-      }), '登记等级变动');
+      }), '登记等级变动', res => {
+        const id = res && res.change && res.change.id;
+        if (!id) return;
+        r.srvId = id;
+        save();                       // 只落盘不 emit：避免登记弹窗关掉后又被重渲染打断
+      });
     }
     return r;
   }
@@ -311,21 +345,34 @@ window.STORE = (function () {
   /* ---- 走访 ---- */
   function visits(person) {
     const extra = state.visits[person.id] || [];
-    return extra.concat(D.visitsOf(person));
+    const srv = D.visitsOf(person);
+    /* 刚登记的走访：本地乐观行先显示，落库回填 srvId 后由服务端行代表（同 mergeOptimistic） */
+    if (window.API && API.live() && extra.length) {
+      return mergeOptimistic(extra, srv,
+        v => String(v.date).slice(0, 10) + '|' + (v.way || '') + '|' + (v.result || '')).concat(srv);
+    }
+    return extra.concat(srv);
   }
   function addVisit(personId, rec) {
     const p = D.personById(personId);
     const day = now().slice(0, 10);
     state.visits[personId] = state.visits[personId] || [];
-    state.visits[personId].unshift(Object.assign({ at: now(), by: role().user }, rec));
+    const row = Object.assign({ at: now(), by: role().user }, rec);
+    state.visits[personId].unshift(row);
     if (p) { p.visitGap = 0; p.lastVisit = day; p.visitTotal = (p.visitTotal || 0) + 1; }
     audit('走访登记', (p ? p.name : '') + '：' + rec.way + '，' + rec.result, p ? p.no : personId);
     commit();
-    /* B5：live 模式落 visit 表（服务端同时回写 person.last_visit 并留痕） */
+    /* B5：live 模式落 visit 表（服务端同时回写 person.last_visit 并留痕）
+       B6：回填服务端 id，刷新后靠 srvId 精确认领，不再重复计一次 */
     if (window.API) {
       API.fire(API.createVisit(personId, {
         way: rec.way, result: rec.result || '情况稳定', date: day
-      }), '走访登记');
+      }), '走访登记', res => {
+        const id = res && res.visit && res.visit.id;
+        if (!id) return;
+        row.srvId = id;
+        save();
+      });
     }
   }
 

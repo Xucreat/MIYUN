@@ -18,10 +18,10 @@ const PAGES = ['login', 'dashboard', 'board', 'bigscreen', 'persons', 'person', 
 const URL_OF = n => (n === 'query' ? 'persons.html?tab=query' : n + '.html');
 
 const EXPECT = {
-  R1: { rated: 486, unrated: 612, dept: null, town: null, nameMasked: true, idMasked: true },
-  R2: { rated: 486, unrated: 612, dept: null, town: null, nameMasked: false, idMasked: true },
-  R4: { rated: 190, unrated: 245, dept: '公安分局', town: null, nameMasked: false, idMasked: true },
-  R5: { rated: 26, unrated: 35, dept: null, town: '溪翁庄镇', nameMasked: false, idMasked: true }
+  R1: { rated: 486, unrated: 612, dept: null, town: null, nameMasked: true, idMasked: true, visits: 2916, visitDenied: true },
+  R2: { rated: 486, unrated: 612, dept: null, town: null, nameMasked: false, idMasked: true, visits: 2916, visitDenied: false },
+  R4: { rated: 190, unrated: 245, dept: '公安分局', town: null, nameMasked: false, idMasked: true, visits: 1140, visitDenied: false },
+  R5: { rated: 26, unrated: 35, dept: null, town: '溪翁庄镇', nameMasked: false, idMasked: true, visits: 156, visitDenied: false }
 };
 
 (async () => {
@@ -75,6 +75,9 @@ const EXPECT = {
       nameMasked: nm.filter(x => x.indexOf('*') > -1).length,
       idMasked: idn.filter(x => x.indexOf('*') > -1).length,
       maskedFlag: D.persons.filter(p => p.maskedFields && Object.keys(p.maskedFields).length).length,
+      /* B6：走访总量（服务端 visit 表按范围过滤后 / 无权限时为本地生成 6 条/人） */
+      visits: D.persons.reduce((n, p) => n + D.visitsOf(p).length, 0),
+      denied: ((window.API && API.status().denied) || []).map(d => d.path),
       first: D.persons[0] ? { name: D.persons[0].name, idNo: D.persons[0].idNo, dept: D.persons[0].dept, town: D.persons[0].town } : null
     };
   }));
@@ -91,6 +94,10 @@ const EXPECT = {
   ok(exp.idMasked ? m.idMasked === m.rated : m.idMasked === 0,
     `身份证明文 ${m.rated - m.idMasked}/${m.rated} 条（期望 ${exp.idMasked ? '全部掩码' : '全部明文'}），例：${m.first ? m.first.idNo : '—'}`);
   ok(m.maskedFlag === m.rated, `maskedFields 标记覆盖 ${m.maskedFlag}/${m.rated} 条（供前端显示「已脱敏」）`);
+  ok(m.visits === exp.visits, `走访 ${m.visits} 条（期望 ${exp.visits}）`);
+  ok(exp.visitDenied ? m.denied.indexOf('/visits') > -1 : m.denied.indexOf('/visits') < 0,
+    `visit:view ${exp.visitDenied ? '无权限 → 降级并回落本地生成' : '有权限 → 用服务端 visit 表'}`
+    + `（denied：${m.denied.join(',') || '无'}）`);
   console.log(`  权限位：edit=${m.canEdit} exportPlain=${m.canExportPlain} · 角色 ${m.roleName}`);
 
   await browser.close();
