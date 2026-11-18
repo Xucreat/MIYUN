@@ -668,7 +668,7 @@
     if (!box) return;
     box.style.display = '';
     box.innerHTML = `申请单 <b>${esc(req.id)}</b> 已进入审批队列（${req.mode === 'double' ? '双人复核' : '单人审批'}）· ` +
-      `<a href="risk.html?tab=export&id=${encodeURIComponent(req.id)}" style="color:var(--blue)">前往审批中心查看 ›</a>`;
+      `<a href="risk.html?tab=export&id=${encodeURIComponent(req.id)}" style="color:var(--blue)">前往「等级变动 · 明文导出」查看 ›</a>`;
   }
 
   /* ---------- 事件绑定 ---------- */

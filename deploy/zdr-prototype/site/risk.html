@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1440">
-<title>调整审批 · 密云区重点风险人员台账管理与风险预警系统</title>
+<title>等级变动 · 密云区重点风险人员台账管理与风险预警系统</title>
 <link rel="stylesheet" href="assets/app.css">
 <style>
   .appr-item { padding: 10px 13px; border-bottom: 1px solid var(--line); cursor: pointer; border-left: 2.5px solid transparent; }
@@ -50,10 +50,6 @@
   .diff-side .val { font-size: 19px; font-weight: 700; letter-spacing: -.4px; margin-top: 2px; }
   .diff-note { font-size: 11px; color: var(--t2); line-height: 1.7; text-align: left; padding-left: 4px; }
   .diff-arrow { color: var(--t4); }
-  /* 审批链：发起人回避节点的样式 */
-  .flow .fs.skip .dot { background: #fff; border-style: dashed; border-color: var(--line-3); color: var(--t4); }
-  .flow .fs.skip .ft { color: var(--t3); font-weight: 500; }
-  .flow .fs.skip::after { background: repeating-linear-gradient(90deg, var(--line-2) 0 4px, transparent 4px 8px); }
   .textarea { border: 1px solid var(--line-2); border-radius: 9px; padding: 9px 11px; font-size: 12px; color: var(--t3); min-height: 56px; line-height: 1.6; }
 
   /* ===== 一屏填满（body.fit） ===== */
@@ -61,7 +57,8 @@
   body.fit [data-panel] > .split-37 > .card { min-height: 0; }
   body.fit [data-panel] > .split-37 > .card > .card-bd { flex: 1 1 0; min-height: 0; max-height: none !important; overflow: auto; }
   body.fit .appr-item { padding: 8px 12px; display: flex; flex-direction: column; justify-content: center; }
-  body.fit [data-panel="level"] .appr-item { flex: 1 1 auto; }
+  /* 变动登记 46 条（原为 6 条待审批均分高度）：固定行高、容器内滚，不压缩不撑破一屏 */
+  body.fit [data-panel="level"] .appr-item { flex: 0 0 auto; padding: 7px 12px; }
   body.fit [data-panel] > .split-37 > .card > .card-bd { display: flex; flex-direction: column; }
   body.fit .appr-sub { flex: 0 0 auto; }
   body.fit [data-panel] > .split-37 > .stack { display: grid; grid-template-rows: minmax(0,1fr) minmax(0,auto); gap: var(--gap); min-height: 0; }
@@ -115,7 +112,7 @@
   body.fit .acts-ft .textarea { color: var(--t1); }
 </style>
 </head>
-<body class="fit" data-page="risk" data-crumb="风险与预警" data-title="调整审批" data-page-perm="approve">
+<body class="fit" data-page="risk" data-crumb="风险与预警" data-title="等级变动">
 <div class="app">
   <aside class="sidebar" id="sidebar"></aside>
   <div class="main">
@@ -124,69 +121,73 @@
 
       <div class="page-head">
         <div class="ph-t">
-          <h1>审批中心 <span class="tag tag-orange" id="hdrPending">5 待审批</span></h1>
-          <p>等级调整须人工发起、填写评估依据、逐级审批后生效 · 明文导出须提交申请单并按条数走单人审批 / 双人复核 · 全部留痕不可修改</p>
+          <h1>等级变动</h1>
+          <p>等级由部门自主定级、登记即生效 · 政法委不设审批环节，只做统筹备案与知会留痕 · 明文导出须提交申请单并按条数走单人审批 / 双人复核 · 全部留痕不可修改</p>
         </div>
         <div class="page-actions">
-          <button class="btn" id="btnNew" data-perm="approve">发起调整申请</button>
+          <button class="btn" id="btnNew" data-perm="edit">登记等级变动</button>
           <button class="btn" id="btnExport" data-perm="export">导出变动台账</button>
           <button class="btn btn-primary" id="btnMonthly" data-perm="export">月度报送预览</button>
         </div>
       </div>
 
       <div class="subnav" id="apprNav">
-        <button class="on" data-tab="level">风险等级调整</button>
+        <button class="on" data-tab="level">等级变动台账 <span class="cnt" id="navChgCnt">46</span></button>
         <button data-tab="export">明文导出 <span class="cnt" id="navExpCnt">1</span></button>
         <span class="sep"></span>
-        <span class="tiny dim" id="navHint" style="padding-left:4px">按超时与风险序排序</span>
+        <span class="tiny dim" id="navHint" style="padding-left:4px">按登记时间倒序</span>
       </div>
 
       <div data-panel="level">
 
       <div class="split-37">
-        <!-- 左：待办 -->
+        <!-- 左：变动登记（全量台账逐条） -->
         <div class="card">
           <div class="card-hd" style="padding-right:10px">
-            <div class="card-title">待我审批</div>
-            <div class="right"><span class="tag tag-orange" id="apprCnt">5</span></div>
+            <div class="card-title">变动登记 <span class="sub" id="chgSub">46 条</span></div>
+            <div class="right"><span class="tag tag-red" id="chgUp">上调 22</span><span class="tag tag-green" id="chgDown">下调 24</span></div>
           </div>
           <div class="card-bd flush" id="apprList" style="max-height:520px;overflow:auto"></div>
-          <div class="card-ft"><span class="tag tag-line" id="apprStat">待审批 5</span></div>
+          <div class="card-ft row" style="gap:8px">
+            <span class="tag tag-line" id="apprStat">—</span>
+            <span class="spacer"></span>
+            <a class="btn btn-sm btn-ghost" href="#" id="btnChgAll">全部 46 条 ›</a>
+          </div>
         </div>
 
         <!-- 右：详情 -->
         <div class="stack">
           <div class="card" id="detailCard"></div>
 
-          <!-- 层级规则 + 变动台账 -->
+          <!-- 部门定级流程 + 变动构成 -->
           <div class="grid g2" style="gap:12px">
             <div class="card">
-              <div class="card-hd"><div class="card-title">审批层级规则</div></div>
+              <div class="card-hd"><div class="card-title">部门内部定级流程</div></div>
               <div class="card-bd" style="padding:0">
                 <table class="tb compact">
-                  <thead><tr><th>调整情形</th><th>审批层级</th><th class="r">本月</th></tr></thead>
+                  <thead><tr><th>调整情形</th><th>部门定级责任</th><th class="r">本月</th></tr></thead>
                   <tbody>
-                    <tr><td>低 ↔ 中风险</td><td>部门主管</td><td class="r num" id="ruleLowMid">11</td></tr>
-                    <tr><td>中 ↔ 高 <span class="tag tag-line" style="height:16px">上浮</span></td><td>部门主管 + 政法委</td><td class="r num" id="ruleMidHigh">15</td></tr>
-                    <tr><td>高风险降级</td><td>政法委主管</td><td class="r num" id="ruleHighDown">12</td></tr>
-                    <tr><td>个人极端 / A 类 / 一级降级</td><td>政法委 + 双人复核</td><td class="r num" id="ruleDouble">8</td></tr>
+                    <tr><td>低 ↔ 中风险</td><td>部门主管核定</td><td class="r num" id="ruleLowMid">11</td></tr>
+                    <tr><td>中 ↔ 高 <span class="tag tag-line" style="height:16px">上浮</span></td><td>部门主管 + 分管领导会商</td><td class="r num" id="ruleMidHigh">15</td></tr>
+                    <tr><td>高风险降级</td><td>分管领导核定</td><td class="r num" id="ruleHighDown">12</td></tr>
+                    <tr><td>个人极端 / A 类 / 一级降级</td><td>部门集体会商 + 双签</td><td class="r num" id="ruleDouble">8</td></tr>
                   </tbody>
                 </table>
               </div>
+              <div class="card-ft"><span class="tiny dim">政法委不设审批关口 · 只做备案与知会</span></div>
             </div>
 
             <div class="card">
               <div class="card-hd">
-                <div class="card-title">本月变动台账 <span class="sub" id="chgSub">46 条</span></div>
-                <div class="right"><span class="tag tag-red" id="chgUp">上调 22</span><span class="tag tag-green" id="chgDown">下调 24</span></div>
+                <div class="card-title">本月变动构成 <span class="sub">按来源部门</span></div>
+                <div class="right"><span class="tag tag-line" id="mixTotal">46 条</span></div>
               </div>
               <div class="card-bd" style="padding:0">
                 <table class="tb compact">
-                  <thead><tr><th>人员 / 日期</th><th>变动</th><th class="r">审批</th></tr></thead>
-                  <tbody id="chgBody"></tbody>
+                  <thead><tr><th>来源部门</th><th class="r">上调</th><th class="r">下调</th><th class="r">合计</th></tr></thead>
+                  <tbody id="mixBody"></tbody>
                 </table>
               </div>
-              <div class="card-ft"><a class="btn btn-sm btn-ghost" href="#" id="btnChgAll">全部 46 条 ›</a></div>
             </div>
           </div>
         </div>

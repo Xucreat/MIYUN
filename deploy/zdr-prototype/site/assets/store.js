@@ -30,6 +30,8 @@ window.STORE = (function () {
     alerts: {},        // id -> { status, note, at, by }
     approvals: {},     // id -> { status, note, at, by }
     newApprovals: [],  // 页面内新发起的申请
+    newChanges: [],    // 页面内新登记的等级变动（部门自主定级，登记即生效）
+    changeNotes: {},   // 变动 id -> { notified, at, by, note } 知会属地应答状态
     levels: {},        // personId -> levelKey（审批通过后生效的等级）
     visits: {},        // personId -> [ {date, way, result, by, at} ]
     disclosures: [],   // { personId, purpose, applicant, at, code, status }
@@ -255,6 +257,62 @@ window.STORE = (function () {
       pending: list.filter(a => a.status === '待审批').length,
       passed: list.filter(a => a.status === '已通过').length,
       rejected: list.filter(a => a.status === '已驳回').length
+    };
+  }
+
+  /* ---- 等级变动台账（会议决议 D4：政法委无审批职能） ----
+     部门自主定级 → 登记留痕即生效 → 政法委侧只做知会/备案，不设审批关口。
+     台账 = 本次会话新登记（newChanges，在前）+ data.js 的 46 条历史变动（CHG_FULL）。
+     字段与 CHG_FULL 完全一致，故所有消费方（档案、看板、导出、月报）可同源读取。 */
+  function changes() {
+    return (state.newChanges || []).concat(D.CHG_FULL);
+  }
+  function change(id) { return changes().find(c => c.id === id); }
+  /* 登记一条变动：立刻改写档案等级（部门已定级，无需再走审批），并写审计留痕。
+     rec = { personId, name, town, dept, from, to, reason, level, approver } */
+  function addChange(rec) {
+    state.newChanges = state.newChanges || [];
+    const today = now();
+    const seq = String(200 + state.newChanges.length);
+    const r = {
+      id: 'CHG-' + today.slice(0, 4) + today.slice(5, 7) + '-' + seq,
+      name: rec.name, town: rec.town || '', dept: rec.dept || '',
+      personId: rec.personId, date: today.slice(5, 10),
+      from: rec.from, to: rec.to, reason: rec.reason,
+      level: rec.level || '部门主管核定',
+      approver: rec.approver || role().user,
+      at: today, status: '已生效', live: true,
+      notified: !!rec.notified
+    };
+    state.newChanges.unshift(r);
+    applyLevel(rec.personId, rec.to, '来源变动登记 ' + r.id, r.approver);
+    audit('登记等级变动', r.name + '：' + D.levelOf(r.from).name + ' → ' + D.levelOf(r.to).name, rec.personId);
+    commit();
+    return r;
+  }
+  /* 知会属地（不是审批，只改应答状态）：待知会 → 已知会 */
+  function notifyChange(id, note) {
+    const r = change(id);
+    if (!r) return false;
+    state.changeNotes = state.changeNotes || {};
+    state.changeNotes[id] = { notified: true, at: now(), by: role().user, note: note || '' };
+    audit('变动知会属地', (r.name || '') + ' ' + id + '：已通知属地 ' + (r.town || '—'), r.personId);
+    commit();
+    return true;
+  }
+  /* notifiedOf：台账行是否已通知属地（历史 46 条视为已通知，新登记默认待通知） */
+  function notifiedOf(r) {
+    const o = (state.changeNotes || {})[r.id];
+    if (o) return o;
+    return { notified: r.live ? false : true, at: r.at || '', by: r.approver || '', note: '' };
+  }
+  function changeStats() {
+    const list = changes();
+    const up = list.filter(r => D.levelOf(r.to).order < D.levelOf(r.from).order).length;
+    return {
+      total: list.length, up: up, down: list.length - up,
+      live: list.filter(r => r.live).length,
+      waiting: list.filter(r => !notifiedOf(r).notified).length
     };
   }
 
@@ -774,7 +832,7 @@ window.STORE = (function () {
     state.plainReqs = list;
     audit(decision === 'reject' ? '驳回明文导出申请' : '审批明文导出申请',
       `${id} · ${it.count} 人 · 当前状态 ${it.status === 'approved' ? '已通过' : it.status === 'rejected' ? '已驳回' : '审批中'}${note ? ' · ' + note : ''}`,
-      '审批中心');
+      '等级变动 · 明文导出');
     commit();
     return it;
   }
@@ -1194,6 +1252,7 @@ window.STORE = (function () {
     levelOf, applyLevel,
     alerts, alert, handleAlert, transferAlert, alertStats,
     approvals, approval, decide, approvalStats, addApproval,
+    changes, change, addChange, notifyChange, notifiedOf, changeStats,
     visits, addVisit,
     disclosure, disclosures,
     imports, addImport, recordImported, replayImported, importedPersons,

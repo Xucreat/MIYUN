@@ -1623,17 +1623,17 @@
     });
   }
 
-  /* ---- 审批路由（节点名对齐 risk.html 审批链） ---- */
+  /* ---- 等级变动定级流程（会议决议 D4：部门内部定级，节点名对齐 risk.html 定级流程） ---- */
   function renderRoutes() {
     const box = $('#routeBody');
     if (!box) return;
     box.innerHTML = S.routes().map((r, i) => `<div style="${i === S.routes().length - 1 ? '' : 'margin-bottom:9px'}">
-      <div class="row" style="font-size:11.5px;margin-bottom:4px"><span class="risk risk-${r.to}">${esc(r.name)}</span><span class="spacer"></span><span class="tiny dim">时限 ${r.days} 日</span></div>
+      <div class="row" style="font-size:11.5px;margin-bottom:4px"><span class="risk risk-${r.to}">${esc(r.name)}</span><span class="spacer"></span><span class="tiny dim">定级时限 ${r.days} 日</span></div>
       <div class="chain-row">${r.nodes.map((n, k) =>
         `<span class="chain-step${k === 0 ? ' first' : (k === r.nodes.length - 1 ? ' last' : '')}">${esc(n)}</span>` +
         (k < r.nodes.length - 1 ? '<span class="chain-ar">›</span>' : '')).join('')}</div>
     </div>`).join('') +
-      `<div class="tiny dim" style="margin-top:2px;line-height:1.45">审批链由本表生成：调整审批页按目标风险序取对应链路，发起人自动回避；与「调整审批」页为同一套规则。</div>`;
+      `<div class="tiny dim" style="margin-top:2px;line-height:1.45">定级流程由本表生成：「等级变动」页按目标风险序取对应链路；末节点「报政法委备案」是知会留痕，不是审批关口。</div>`;
   }
 
   /* ---- 数据质量规则 ---- */

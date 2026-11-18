@@ -33,9 +33,10 @@
 
   const ROLE = window.STORE ? STORE.role() : (window.DATA ? DATA.ROLES.admin : null);
   /* 导航项可带 perm：对应角色 can[perm] 为真才显示。
-     三员分立下「数据导入」需 import 权限、「系统管理」需 config 权限、
-     「调整审批」需 approve 权限——区领导 / 公安经办无审批权，
-     对应侧栏入口直接隐藏，避免进得去却处处被拦。 */
+     三员分立下「数据导入」需 import 权限、「系统管理」需 config 权限。
+     「等级变动」按会议决议 D4 不再需要 approve：等级由部门自主定级、登记即生效，
+     政法委侧只做统筹备案与知会，因此区领导 / 公安经办也应有入口（页内无审批动作，
+     登记按钮由 edit 权限门控）。 */
   const NAV = [
     { label: '态势总览', items: [
       { id: 'dashboard', t: '态势驾驶舱', i: 'dashboard', href: 'dashboard.html' },
@@ -50,7 +51,7 @@
     { label: '风险与预警', items: [
       { id: 'alerts', t: '预警待办', i: 'bell', href: 'alerts.html', badge: window.STORE ? STORE.alertStats().open : 18 },
       { id: 'blind', t: '盲区人群', i: 'blind', href: 'blind.html', badge: 3 },
-      { id: 'risk', t: '调整审批', i: 'approve', href: 'risk.html', perm: 'approve', badge: window.STORE ? STORE.approvalStats().pending : 5 },
+      { id: 'risk', t: '等级变动', i: 'swap', href: 'risk.html', badge: window.STORE ? STORE.changeStats().total : 46 },
       { id: 'wartime', t: '重点时期管控', i: 'shield2', href: 'wartime.html' }
     ]},
     { label: '查询统计', items: [
@@ -248,7 +249,7 @@
       body: '<div class="ui-radio" id="roleRadios">' + list.map(r =>
         `<label class="${r.key === cur ? 'on' : ''}" data-k="${r.key}">
            <input type="radio" name="role" ${r.key === cur ? 'checked' : ''} style="margin-top:2px">
-           <span style="flex:1"><b>${r.roleName} · ${r.user}</b><br><span>${r.scopeText} · ${r.can.approve ? '可审批' : '不可审批'} · ${r.can.exportPlain ? '可导出明文' : '导出脱敏'}</span></span>
+           <span style="flex:1"><b>${r.roleName} · ${r.user}</b><br><span>${r.scopeText} · ${r.can.edit ? '可登记等级变动' : '只读查看'} · ${r.can.exportPlain ? '可导出明文' : '导出脱敏'}</span></span>
          </label>`).join('') + '</div>',
       onMount: dlg => {
         dlg.querySelectorAll('#roleRadios label').forEach(l => {

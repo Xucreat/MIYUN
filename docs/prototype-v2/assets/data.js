@@ -439,13 +439,28 @@ window.DATA = (function () {
     ['陈志刚', '11-05', 'mid', 'high', '双在册确认', '檀营地区']
   ];
 
-  /* ---------- 等级变动全量台账（46 条 · 本月变动台账 / 全部 46 条 / 导出台账 / 月度报送 同源） ----------
-     口径锁定：上调 22 + 下调 24 = 46，与「本月变动台账」角标逐项对账。
+  /* ---------- 等级变动全量台账（46 条 · 变动登记 / 全部 46 条 / 导出台账 / 月度报送 同源） ----------
+     口径锁定：上调 22 + 下调 24 = 46，与「变动登记」角标逐项对账。
      前 4 条与 CHG_BASE 完全一致，保证 board 的等级调整明细与 risk 页不打架。
-     审批层级按「审批层级规则」四档取，审批人取自部门主管 / 政法委 / 双人复核。 */
+     定级责任（会议决议 D4：政法委无审批职能）：等级由部门自主定级、登记即生效，
+     政法委侧只做统筹备案与知会，不设审批节点。故 `level` 记的是**部门内部定级责任**，
+     `approver` 记的是部门侧责任人；原来的「政法委主管」「政法委 + 双人复核」已全部改掉。 */
   const DEPT_HEAD = {
     '公安分局': '王立', '区信访办': '周敏', '区卫健委': '孙敏', '区司法局': '李明', '区委政法委': '陈志远'
   };
+
+  /* ---------- 部门内部定级责任（四档，台账与「等级变动」页新登记共用） ----------
+     一处定义、两处消费：CHG_FULL 生成历史 46 条用，page-risk.js 新登记时用。
+     by 里带「分管领导」「集体会商」的，登记人由部门主管姓名 + 责任后缀拼出。 */
+  const LEVEL_RULE_OF = k => ({
+    'low>mid': { lv: '部门主管核定', by: '部门主管' },
+    'mid>low': { lv: '部门主管核定', by: '部门主管' },
+    'mid>high': { lv: '部门主管 + 分管领导会商', by: '部门主管 + 分管领导' },
+    'high>mid': { lv: '分管领导核定', by: '分管领导' },
+    'high>high2': { lv: '部门集体会商 + 双签', by: '集体会商 · 双签' },
+    'high2>high': { lv: '部门集体会商 + 双签', by: '集体会商 · 双签' },
+    'high2>mid': { lv: '部门集体会商 + 双签', by: '集体会商 · 双签' }
+  })[k] || { lv: '分管领导核定', by: '分管领导' };
 
   /* ---------- 部门维度派生（会议决议 D3 的数据底座） ----------
      口径三条，演示时必须说清：
@@ -506,15 +521,8 @@ window.DATA = (function () {
       'mid>low': ['矫正期届满', '稳定就业 12 个月', '连续 2 年无涉访记录'],
       'high2>mid': ['专科复评下调两档', '长期住院治疗、家庭监护到位']
     };
-    const LEVEL_RULE = k => ({
-      'low>mid': { lv: '部门主管', by: '部门主管' },
-      'mid>low': { lv: '部门主管', by: '部门主管' },
-      'mid>high': { lv: '部门主管 + 政法委', by: '部门主管 + 陈志远' },
-      'high>mid': { lv: '政法委主管', by: '陈志远' },
-      'high>high2': { lv: '政法委 + 双人复核', by: '陈志远 + 李国栋' },
-      'high2>high': { lv: '政法委 + 双人复核', by: '陈志远 + 李国栋' },
-      'high2>mid': { lv: '政法委 + 双人复核', by: '陈志远 + 李国栋' }
-    })[k] || { lv: '政法委主管', by: '陈志远' };
+    /* 部门内部定级责任：与 risk 页「部门内部定级流程」四档一一对应（定义见 LEVEL_RULE_OF） */
+    const LEVEL_RULE = LEVEL_RULE_OF;
 
     const rows = [];
     /* 前 4 条：与 CHG_BASE 完全一致 */
@@ -550,9 +558,12 @@ window.DATA = (function () {
           date: '11-' + dd, from: plan.from, to: plan.to,
           reason: rs[seq % rs.length],
           level: rule.lv,
-          approver: rule.lv.indexOf('部门主管') === 0
-            ? head + (rule.lv.indexOf('政法委') > -1 ? ' + 陈志远' : '')
-            : rule.by,
+          /* 登记人：部门侧责任人姓名 + 定级责任后缀（原「+ 陈志远」= 政法委审批，D4 后取消） */
+          approver: rule.by === '部门主管'
+            ? head
+            : (rule.by.indexOf('部门主管') === 0
+              ? head + ' + 分管领导'
+              : (rule.by === '分管领导' ? head + ' 报分管领导核定' : head + ' · 集体会商双签')),
           at: '11-' + dd + ' ' + String(8 + (seq % 9)).padStart(2, '0') + ':' + String(10 + (seq * 7) % 49).padStart(2, '0'),
           status: '已生效'
         });
@@ -562,13 +573,14 @@ window.DATA = (function () {
     return rows;
   })();
 
-  /* ---------- 处置责任人名录（预警转派 / 盲区指派 / 审批链共用） ----------
+  /* ---------- 处置责任人名录（预警转派 / 盲区指派 / 变动知会共用） ----------
      口径：属地 = 20 个镇街的包联负责人；部门 = 四部门台账主管；区级 = 政法委。
-     本名录可在「系统管理 · 账号与角色 · 处置责任人名录」维护，变更写入审计日志。 */
+     本名录可在「系统管理 · 账号与角色 · 处置责任人名录」维护，变更写入审计日志。
+     会议决议 D4 后区级两人的角色是统筹/备案/知会确认，不再是审批与终审。 */
   const RESPONDERS = (function () {
     const out = [];
-    out.push({ id: 'RP-ZF-01', name: '陈志远', unit: '区委政法委', title: '政法委主管', kind: '区级', phone: '139****2101', note: '全区统筹 · 可审批' });
-    out.push({ id: 'RP-ZF-02', name: '李国栋', unit: '区委政法委', title: '政法委书记', kind: '区级', phone: '139****2001', note: '终审层级 · 双人复核' });
+    out.push({ id: 'RP-ZF-01', name: '陈志远', unit: '区委政法委', title: '政法委主管', kind: '区级', phone: '139****2101', note: '全区统筹 · 变动备案知会' });
+    out.push({ id: 'RP-ZF-02', name: '李国栋', unit: '区委政法委', title: '政法委书记', kind: '区级', phone: '139****2001', note: '统筹督办 · 月度报送审核' });
     [['公安分局', '刘敏', '政保大队'], ['区卫健委', '周敏', '精防办'], ['区信访办', '周敏', '来访接待科'], ['区司法局', '王立', '社区矫正科']].forEach((d, i) => {
       out.push({ id: 'RP-BM-0' + (i + 1), name: d[1], unit: d[0], title: d[2], kind: '部门', phone: '139****3' + String(120 + i), note: d[0] + '台账主责' });
     });
@@ -1551,12 +1563,15 @@ window.DATA = (function () {
     { key: 'zeroDue', label: '零报告提交截止', unit: '', value: '20:00', rule: 'RG-12', tip: '重点时期每日截止时间' }
   ];
 
-  /* ---------- 8. 等级调整审批路由（节点名与 risk.html 审批链一致） ---------- */
+  /* ---------- 8. 等级变动定级流程（会议决议 D4：政法委无审批职能） ----------
+     做法：等级由部门自主定级，政法委侧只做统筹备案与知会，不设审批关口。
+     节点名与 risk.html「部门内部定级流程」四档一致；`days` 为定级时限（原审批时限）。
+     末节点「报政法委备案」是知会留痕，不是审批节点——演示时要讲清这个区别。 */
   const SYS_ROUTES = [
-    { to: 1, name: '调为 1 高风险', days: 3, nodes: ['属地提交', '部门主管核定', '属地负责人复核', '政法委审核', '区级确认'] },
-    { to: 2, name: '调为 2 中风险', days: 5, nodes: ['属地提交', '部门主管核定', '政法委审核'] },
-    { to: 3, name: '调为 3 低风险', days: 7, nodes: ['属地提交', '部门主管核定'] },
-    { to: 4, name: '调为 4 待核实', days: 7, nodes: ['属地提交', '属地负责人核定'] }
+    { to: 1, name: '调为 1 高风险', days: 3, nodes: ['部门经办提交', '部门主管核定', '分管领导会商', '部门集体会签', '报政法委备案'] },
+    { to: 2, name: '调为 2 中风险', days: 5, nodes: ['部门经办提交', '部门主管核定', '分管领导会商', '报政法委备案'] },
+    { to: 3, name: '调为 3 低风险', days: 7, nodes: ['部门经办提交', '部门主管核定', '报政法委备案'] },
+    { to: 4, name: '调为 4 待核实', days: 7, nodes: ['部门经办提交', '属地负责人核定', '报政法委备案'] }
   ];
 
   /* ---------- 9. 近 7 日命中趋势（按日 + 按规则，供悬浮与下钻共用） ----------
@@ -1630,7 +1645,7 @@ window.DATA = (function () {
     ROLES, field, scoped,
     personById, personByNo, visitsOf, historyOf, dutyOf,
     movesOf, hasSecondMove, moveRows,
-    wartimeUnseen, wartimeUnseenAll, DQ_RULES, CHG_BASE, CHG_FULL, RESPONDERS, DEPT_HEAD,
+    wartimeUnseen, wartimeUnseenAll, DQ_RULES, CHG_BASE, CHG_FULL, RESPONDERS, DEPT_HEAD, LEVEL_RULE_OF,
     RULE_OF,
     SYS_ROLES, SYS_ROLE_OF, SYS_PERMS, SYS_PERM_GROUPS, SYS_PERM_ALL, SYS_PERM_NAME,
     SYS_ROLE_PERMS, SYS_FIELDS, SYS_MASK, MASK_MODES, SYS_ACCOUNTS,
