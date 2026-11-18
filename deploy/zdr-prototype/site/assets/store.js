@@ -28,11 +28,9 @@ window.STORE = (function () {
     role: 'admin',
     loggedIn: false,
     alerts: {},        // id -> { status, note, at, by }
-    approvals: {},     // id -> { status, note, at, by }
-    newApprovals: [],  // 页面内新发起的申请
     newChanges: [],    // 页面内新登记的等级变动（部门自主定级，登记即生效）
     changeNotes: {},   // 变动 id -> { notified, at, by, note } 知会属地应答状态
-    levels: {},        // personId -> levelKey（审批通过后生效的等级）
+    levels: {},        // personId -> levelKey（登记等级变动后生效的等级）
     visits: {},        // personId -> [ {date, way, result, by, at} ]
     disclosures: [],   // { personId, purpose, applicant, at, code, status }
     imports: [],       // { id, name, dept, time, total, ok, dup, fail, operator, status }
@@ -216,48 +214,6 @@ window.STORE = (function () {
     const list = alerts();
     const open = list.filter(a => a.status === '待处置').length;
     return { total: list.length, open, doing: list.filter(a => a.status === '处置中').length, done: list.filter(a => a.status === '已闭环').length };
-  }
-
-  /* ---- 审批 ---- */
-  function approvals() {
-    return D.approvals.concat(state.newApprovals || [])
-      .map(a => Object.assign({}, a, state.approvals[a.id] || {}));
-  }
-  function addApproval(rec) {
-    state.newApprovals = state.newApprovals || [];
-    /* 新申请默认进入待审批：缺 status 会被列表判成「已办」，审批链也会整条标成已完成 */
-    rec.status = rec.status || '待审批';
-    state.newApprovals.unshift(rec);
-    audit('发起等级调整', rec.name + '：' + D.levelOf(rec.curLevel).name + ' → ' + D.levelOf(rec.toLevel).name, rec.personId);
-    commit();
-    return rec;
-  }
-  function approval(id) { return approvals().find(a => a.id === id); }
-  /* decide(id, pass, note, opt)
-     opt.by / opt.byRole：按回避规则由上级代审时，记录真实审批人（审计可追溯）
-     opt.chain：审批链快照，写入变动记录 */
-  function decide(id, pass, note, opt) {
-    const a = approval(id);
-    if (!a) return false;
-    const o = opt || {};
-    const by = o.by || role().user;
-    const byRole = o.byRole || role().roleName;
-    state.approvals[id] = { status: pass ? '已通过' : '已驳回', note: note || '', at: now(), by, byRole };
-    audit(pass ? '审批通过' : '审批驳回',
-      a.name + ' ' + a.id + (o.upper ? '（发起人回避 · 上级终审）' : '') + (note ? '：' + note : ''),
-      a.personId);
-    if (pass) applyLevel(a.personId, a.toLevel, '来源审批单 ' + a.id + (o.upper ? ' · 上级终审' : ''), by);
-    commit();
-    return true;
-  }
-  function approvalStats() {
-    const list = approvals();
-    return {
-      total: list.length,
-      pending: list.filter(a => a.status === '待审批').length,
-      passed: list.filter(a => a.status === '已通过').length,
-      rejected: list.filter(a => a.status === '已驳回').length
-    };
   }
 
   /* ---- 等级变动台账（会议决议 D4：政法委无审批职能） ----
@@ -1248,7 +1204,6 @@ window.STORE = (function () {
     audit, auditOf, auditMatch, now,
     levelOf, applyLevel,
     alerts, alert, handleAlert, transferAlert, alertStats,
-    approvals, approval, decide, approvalStats, addApproval,
     changes, change, addChange, notifyChange, notifiedOf, changeStats,
     visits, addVisit,
     disclosure, disclosures,

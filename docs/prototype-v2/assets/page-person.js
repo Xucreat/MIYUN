@@ -125,7 +125,7 @@
   function renderTags() {
     tagCard.innerHTML = `
       <div class="card-hd">
-        <div class="card-title">类别标签 <span class="sub">${p.tags.length} 个 · 上限 3 个，第 4 个需主管审批</span></div>
+        <div class="card-title">类别标签 <span class="sub">${p.tags.length} 个 · 建议上限 3 个，超限须部门登记确认并报政法委备案</span></div>
         <div class="right"><button class="btn btn-sm" id="btnAddTag">新增标签</button></div>
       </div>
       <div class="card-bd" style="padding:10px 14px 11px">
@@ -146,7 +146,7 @@
       if (!window.guard('edit', '新增标签')) return;
       UI.modal({
         title: '新增标签 · ' + f('name').text,
-        sub: '追加标签不覆盖原有标签；同一人第 4 个标签需政法委主管审批',
+        sub: '追加标签不覆盖原有标签；超 3 个建议上限须部门登记确认，报政法委备案（不设审批关口）',
         body: `<div class="fld"><label>选择标签</label><div class="ui-radio" id="tagList">
           ${D.TAGS.map((t, i) => `<label data-v="${esc(t.name)}" class="${p.tags.indexOf(t.name) >= 0 ? 'on' : ''}">
             <input type="radio" name="tg" style="margin-top:2px">
@@ -168,13 +168,15 @@
           if (!on) { UI.toast.warn('请选择标签'); return false; }
           if (note.length < 2) { UI.toast.warn('请填写依据说明（至少 2 字）'); return false; }
           if (p.tags.indexOf(on.dataset.v) >= 0) { UI.toast.warn('该标签已存在'); return false; }
-          const is4th = p.tags.length >= 3;
-          if (is4th && !(STORE.role().can && STORE.role().can.approve)) { UI.toast.err('已达 3 个标签上限，第 4 个需政法委主管审批'); return false; }
+          /* 会议决议 D4：政法委无审批职能。超 3 个标签不再由政法委拦截，
+             改为「部门登记确认 + 报政法委备案」——登记即生效，备案只做留痕与核验。 */
+          const isOver = p.tags.length >= 3;
           p.tags.push(on.dataset.v);
           p.multi = p.tags.length > 1;
           const tstore = loadTagStore(); tstore[p.id] = p.tags.slice(); saveTagStore(tstore);
-          STORE.audit('追加标签', p.name + ' 新增「' + on.dataset.v + '」' + (is4th ? '（第 4 个标签 · 政法委主管现场审批）' : '') + '：' + note, p.no);
-          UI.toast.ok(is4th ? '已追加（第 4 个标签 · 主管审批已记录）' : '已追加标签');
+          STORE.audit('追加标签', p.name + ' 新增「' + on.dataset.v + '」' +
+            (isOver ? '（第 ' + p.tags.length + ' 个标签 · 超建议上限 · 部门登记确认，报政法委备案）' : '') + '：' + note, p.no);
+          UI.toast.ok(isOver ? '已追加（超建议上限 · 已报政法委备案）' : '已追加标签');
           renderAll();
           return true;
         }

@@ -498,13 +498,20 @@ window.DATA = (function () {
       }
     });
     const depts = Object.keys(byDept).map(k => byDept[k]).sort((a, b) => b.persons - a.persons);
+    /* 口径 A 裁决 A1：双在册（政府台账标记）与跨部门共管（标签映射）是两条互不相干的路径，
+       交集与并集都要能说出来，避免被追问「127 和 168 怎么对不上」。 */
+    const crossSet = persons.filter(p => deptsOf(p).length > 1);
+    const dualCross = crossSet.filter(p => p.dual).length;
+    const dualCount = persons.filter(p => p.dual).length;
     return {
       depts,                          // [{ dept, head, persons }] 按人数降序
       personTimes,                    // 部门人次合计（含重复计数）
       uniquePersons: persons.length,  // 去重人数
       multiPersons,                   // 归属 ≥2 个部门的人数
       multi,                          // { 2: n, 3: n } 按归属部门数分布
-      pairs                           // { 'A|B': n } 两两重合（键按字典序拼接）
+      pairs,                          // { 'A|B': n } 两两重合（键按字典序拼接）
+      dualCross,                      // 双在册 ∩ 跨部门共管（实算，当前 50）
+      dualUnion: dualCount + multiPersons - dualCross  // 两者并集（当前 245）
     };
   }
   const CHG_FULL = (function () {
@@ -682,25 +689,6 @@ window.DATA = (function () {
       status: '待处置',
       personId: p ? p.id : ''
     };
-  });
-
-  /* ---------- 8. 等级调整申请存档（D4 后无页面消费，仅留作审计/迁移比对） ---------- */
-  const approvals = [
-    { id: 'APP-20261111-001', personId: '', name: '周文斌', town: '巨各庄镇', deptLevel: '中风险', curLevel: 'mid', toLevel: 'low', applicant: '马晓东', applicantDept: '巨各庄镇综治中心', time: '2026-11-11 10:26', reason: '本人住院治疗三个月，病情稳定已出院，家庭监护到位，近 60 日无涉访记录，建议下调为低风险转入常规随访。', evidence: ['出院小结.pdf', '季度评估意见书.docx', '家庭监护承诺书.pdf'], status: '待审批', urgent: false },
-    { id: 'APP-20261110-004', personId: '', name: '高振山', town: '十里堡镇', deptLevel: '高风险', curLevel: 'high', toLevel: 'mid', applicant: '李明', applicantDept: '十里堡镇司法所', time: '2026-11-10 08:42', reason: '社区矫正期满，连续 6 个月无违规记录，建议下调为中风险并转入常规随访。', evidence: ['社区矫正期满证明.pdf', '季度评估意见书.docx', '近 6 个月走访记录.xlsx'], status: '待审批', urgent: false },
-    { id: 'APP-20261110-003', personId: '', name: '马春霞', town: '檀营地区', deptLevel: '高风险', curLevel: 'high', toLevel: 'high2', applicant: '孙敏', applicantDept: '区卫健委精防办', time: '2026-11-10 08:05', reason: '近期出现明显被害妄想并拒服药，精防医生评估建议上调为极高风险，落实 24 小时监护。', evidence: ['精神专科诊断证明.pdf', '应急处置记录.pdf', '监护人承诺书.pdf'], status: '待审批', urgent: true },
-    { id: 'APP-20261109-011', personId: '', name: '陈国华', town: '溪翁庄镇', deptLevel: '中风险', curLevel: 'high', toLevel: 'mid', applicant: '郑海燕', applicantDept: '溪翁庄镇综治中心', time: '2026-11-09 16:20', reason: '本人已稳定就业 12 个月，无新的扬言记录，建议下调为中风险。', evidence: ['就业单位证明.pdf', '派出所无异常记录证明.pdf'], status: '待审批', urgent: false },
-    { id: 'APP-20261109-010', personId: '', name: '刘桂兰', town: '密云镇', deptLevel: '高风险', curLevel: 'high2', toLevel: 'high', applicant: '陈志远', applicantDept: '区委政法委 · 政法委主管', time: '2026-11-09 11:10', reason: '住院治疗期满出院，病情稳定，建议由极高风险下调为高风险；本单由政法委主管发起，按「发起人回避」规则本人不得自审。', evidence: ['出院小结.pdf', '主治医师意见.pdf'], status: '待审批', urgent: false },
-    { id: 'APP-20261108-007', personId: '', name: '吴淑芬', town: '太师屯镇', deptLevel: '待核实', curLevel: 'unknown', toLevel: 'high', applicant: '王海峰', applicantDept: '太师屯镇综治中心', time: '2026-11-08 09:35', reason: '长期居住城区未报备，经核查确认风险等级，申请由待核实调整为高风险并纳入管控。', evidence: ['核查走访记录.pdf'], status: '待审批', urgent: false }
-  ].map(a => {
-    const p = bindPerson(a.name, a.town, [a.name === '高振山' ? '社区矫正' : '严重精神障碍']);
-    if (!p) return a;
-    a.personId = p.id;
-    a.name = p.name;
-    a.town = p.town;
-    /* 原等级沿用申请单声明的「部门原等级」，不再被台账当前等级覆盖：
-       否则会出现「高风险 → 高风险」这类无变动的空申请（如待核实→高风险被抹平）。 */
-    return a;
   });
 
   /* ---------- 9. 盲区（三类去重 887） ---------- */
@@ -1640,7 +1628,7 @@ window.DATA = (function () {
     towns, townOf, addPersons, recalcStats, fmt,
     persons, unrated, stats, levelOf, LEVELS, TAGS, IMPORT_FIELDS,
     deptsOf, deptStats,
-    alerts, approvals, blind, imports, wartime, analytics, RULES,
+    alerts, blind, imports, wartime, analytics, RULES,
     WT_REASONS, WT_REASON_OF, WT_WAYS, WT_TARGETS, WT_RESULTS, WT_LEVELS, WT_CFG, reportMonthly,
     WT_VISIT_STEPS, WT_REPORT_STEPS, WT_SCOPES, wtLevelText,
     wartimeRoster, wartimeRows,

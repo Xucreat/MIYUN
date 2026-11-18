@@ -444,10 +444,10 @@
           <div class="kv-row"><span>下调（风险趋稳）</span><b style="color:#1f8a53">${x.down} 人</b></div>
           <div class="kv-row"><span>净变化</span><b>${sign(x.down - x.up)} 人</b></div>
           ${prev ? `<div class="kv-row"><span>环比（上调 / 下调）</span><b>${sign(dUp)} / ${sign(dDown)}</b></div>` : ''}
-          <div class="kv-row"><span>平均审批时长</span><b>${x.days} 天</b></div>
+          <div class="kv-row"><span>平均登记时长</span><b>${x.days} 天</b></div>
           <div class="hr"></div>
           <div class="dim2">主要事由：${x.why}</div>
-          <div class="dim2">数据来源：${x.real ? '等级变动台账 ' + (x.up + x.down) + ' 条（审批通过后生效）' : '月度报送汇总口径（该月无逐条台账，演示数据按种子生成）'}</div>`;
+          <div class="dim2">数据来源：${x.real ? '等级变动台账 ' + (x.up + x.down) + ' 条（部门定级登记即生效）' : '月度报送汇总口径（该月无逐条台账，演示数据按种子生成）'}</div>`;
       });
     });
 

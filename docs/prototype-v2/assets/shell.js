@@ -294,7 +294,8 @@
             <tr><td style="color:var(--t2)">双在册</td><td>同一身份证在两个及以上部门台账在册（政府台账双重列管标记口径），${DATA.stats.dual} 人</td></tr>
             <tr><td style="color:var(--t2)">多重标签</td><td>2 标 ${DATA.stats.multi2} 人 + 3 标 ${DATA.stats.multi3} 人 = ${DATA.stats.multi} 人</td></tr>
             <tr><td style="color:var(--t2)">部门归属</td><td>按人员类别映射业务主管部门（公安 / 信访 / 卫健 / 司法），一人可跨部门：高风险及以上 ${dSt.uniquePersons} 人合计 ${dSt.personTimes} 人次<span class="tiny dim">（全量 ${DATA.fmt(DATA.stats.inRegister)} 人对应台账 ${DATA.fmt(DATA.stats.ledgerRecords)} 人次，两者统计范围不同）</span></td></tr>
-            <tr><td style="color:var(--t2)">部门重合</td><td>两个及以上部门共管 ${dSt.multiPersons} 人（2 部门 ${dSt.multi['2'] || 0} · 3 部门 ${dSt.multi['3'] || 0}），其两两重合见驾驶舱「重合矩阵」；<b>与「双在册 ${DATA.stats.dual} 人」统计方法不同，不可互相替代</b></td></tr>
+            <tr><td style="color:var(--t2)">部门重合</td><td>两个及以上部门共管 ${dSt.multiPersons} 人（2 部门 ${dSt.multi['2'] || 0} · 3 部门 ${dSt.multi['3'] || 0}），其两两重合见驾驶舱「重合矩阵」</td></tr>
+            <tr><td style="color:var(--t2)">两者关系</td><td>双在册（标记口径）与部门重合（标签口径）<b>交叉 ${dSt.dualCross} 人、合计 ${dSt.dualUnion} 人</b>：前者靠人工双重列管确认（不可计算），后者由类别标签派生，两条路径互不相干，<b>不可互相替代、也非包含关系</b></td></tr>
             <tr><td style="color:var(--t2)">待核实</td><td>已建档未定级或依据缺失，${DATA.fmt(DATA.stats.unknown)} 人，不计入高风险统计</td></tr>
             <tr><td style="color:var(--t2)">走访超期</td><td class="tiny dim">高风险人员连续 30 日无有效走访（电话联系不计入有效走访）</td></tr>
           </tbody>
@@ -327,7 +328,8 @@
     };
   });
 
-  /* ---- 权限闸门：页面调用 window.guard('approve', '审批') ----
+  /* ---- 权限闸门：页面调用 window.guard('approve', '明文导出审批') ----
+     D4 后 approve 位不再代表业务审批，只剩「明文导出审批」这一个真实用途。
      文案必须自洽：当前角色本身就具备该权限位时不再提示「切换为…」，
      而是指向授权路径；只有「别的角色有、当前没有」时才给切换建议。 */
   window.guard = function (perm, actionText) {
@@ -360,7 +362,7 @@
 
   /* ---- 指标联动：页面里标了 data-metric 的数字统一由 DATA.stats 供给 ----
      用法：<b data-metric="inRegister"></b>、<b data-metric="highPlus" data-unit="人"></b>
-     导入 / 审批改级后 DATA.stats 会被重算，所有页面刷新即同步。 */
+     导入 / 登记等级变动后 DATA.stats 会被重算，所有页面刷新即同步。 */
   window.SYNC_METRICS = function (root) {
     const D = window.DATA;
     if (!D) return;
