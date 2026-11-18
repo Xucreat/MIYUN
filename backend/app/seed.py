@@ -188,7 +188,7 @@ def seed(session) -> dict[str, int]:
         "person_id": a["person_id"] if a["person_id"] in known else None,
         "person_ref": a["person_id"], "person_name": a["person_name"],
         "town_code": a["town"], "level_name": a["level_name"], "metric": a["metric"],
-        "dept_id": a["dept_id"], "owner": a["owner"], "desc": a["desc"],
+        "dept_id": a["dept_id"], "dept_raw": a.get("dept_raw"), "owner": a["owner"], "desc": a["desc"],
         "created_at": pts(a["created_at"]), "status": a["status"],
     } for a in rows("alert")])
     put(ImportBatch, [{**b, "time": pts(b["time"])} for b in rows("import_batch")])

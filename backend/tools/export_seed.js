@@ -119,7 +119,9 @@ write('level_route', D.SYS_ROUTES.map(r => ({
 write('alert', D.alerts.map(a => ({
   id: a.id, rule_code: a.rule, urgency: a.urgency, person_id: a.personId || null,
   person_name: a.who, town: a.town, level_name: a.levelName, metric: a.metric,
-  dept_id: normDept(a.dept) || null, owner: a.owner, desc: a.desc,
+  /* B6-2：dept_id 是能映射到 dept 表的 code，映射不上（如「鼓楼街道综治中心」）就是 NULL；
+     责任单位原文必须另存，否则前端只能回落到本地数据。 */
+  dept_id: normDept(a.dept) || null, dept_raw: a.dept || null, owner: a.owner, desc: a.desc,
   created_at: a.created, status: a.status
 })));
 write('import_batch', D.imports.map(i => ({

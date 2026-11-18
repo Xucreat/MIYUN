@@ -146,6 +146,21 @@ def run() -> None:
     ok(len([i for i in d["items"] if i["result"] == marker]) == 2,
        f"两条都留存（实际 {len([i for i in d['items'] if i['result'] == marker])} 条）")
 
+    print("\n[E] alert.dept_raw：责任单位原文入库（B6-2，零前端依赖）")
+    d = client.get("/api/alerts", headers=hdr(r2), params={"size": 200}).json()
+    items = d["items"]
+    ok(len(items) == 18, f"18 条预警（实际 {len(items)}）")
+    ok(all(a.get("deptRaw") for a in items),
+       f"每条都带 deptRaw（实际 {sum(1 for a in items if a.get('deptRaw'))}/{len(items)}）")
+    mapped = [a for a in items if a.get("dept")]
+    ok(len(mapped) == 5 and all(a["deptRaw"] == a["dept"] for a in mapped),
+       f"dept_id 可映射的 {len(mapped)} 条：deptRaw 与 dept_id 同值（区级部门名）")
+    orphan = [a for a in items if not a.get("dept")]
+    ok(len(orphan) == 13 and all(a.get("deptRaw") for a in orphan),
+       f"dept_id 为空的 {len(orphan)} 条（镇街综治中心）原文仍在 —— 外键映射不上不等于没有责任单位")
+    ok(scalar("SELECT count(*) FROM alert WHERE dept_raw IS NULL") == 0,
+       "库里 dept_raw 无 NULL（迁移 + 重灌后应全量有值）")
+
 
 if __name__ == "__main__":
     main()

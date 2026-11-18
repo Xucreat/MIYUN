@@ -204,6 +204,10 @@ class Alert(Base):
     level_name: Mapped[str | None] = mapped_column(String(16))
     metric: Mapped[str | None] = mapped_column(String(64))
     dept_id: Mapped[str | None] = mapped_column(ForeignKey("dept.code"))
+    # B6-2：责任单位原文。dept_id 只存能对上 dept 表的 code，镇街综治中心这类
+    # （如「鼓楼街道综治中心」，18 条预警里 13 条）映射不上就是 NULL，原文必须另存，
+    # 否则前端只能回落本地数据 —— 那就成了「服务端有预警、责任单位取本地」的两套口径。
+    dept_raw: Mapped[str | None] = mapped_column(String(64))
     owner: Mapped[str | None] = mapped_column(String(32))
     desc: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime | None] = mapped_column(DateTime)

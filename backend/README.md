@@ -1,4 +1,4 @@
-# 后端（B1–B6：建库 + 种子 + 只读 API + 鉴权 / 掩码 / 审计 / 写 API + 前端接链路 + 走访读端）
+# 后端（B1–B6：建库 + 种子 + 只读 API + 鉴权 / 掩码 / 审计 / 写 API + 前端接链路 + 走访读端 + 首次字段迁移）
 
 设计依据：`docs/prototype-v2/BACKEND-数据模型-20261118.md`（从 `data.js` 41 个顶层键反推的准 schema）。
 
@@ -12,6 +12,7 @@
 | B4 | 登录鉴权 + 服务端掩码 + 服务端审计 + 写 API（等级变动 / 走访 / 预警处置） | ✅ |
 | B5 | 前端接只读链路（`assets/api.js` + `data.js hydrate()`，页面代码零改动） | ✅ |
 | B6-1 | 走访读端 `GET /api/visits` + 写回填 `srvId` + 乐观行两段式去重 | ✅ |
+| B6-2 | `alert.dept_raw` 加列（责任单位原文入库）—— **本项目第一次真正的 schema 变更** | ✅ |
 
 B4 **没有新增任何表、列或迁移**：权限用 `role_perm`、字段密级用 `field_policy.mask`（本来就是
 9 字段 × 9 角色的矩阵）、审计用 `audit_log`、范围用 `sys_account.unit`，全部是 B1 已建好的。
@@ -19,6 +20,16 @@ B4 **没有新增任何表、列或迁移**：权限用 `role_perm`、字段密�
 B5 同样**零迁移**，只给 `/api/persons` 出参补了一个 `visitTotal`（子查询数 `visit` 表）。
 
 B6-1 也**零迁移**：新端点读的是 B1 就建好的 `visit` 表；修的两个缺陷都是前端合并逻辑与缺读端，不是模型问题。
+
+B6-2 **有迁移**（`0002_alert_dept_raw`）：`alert` 加 `dept_raw`。原因不是设计变，是 B1 建表时把
+「责任单位」只存成了外键 `dept_id` —— 而 18 条预警里 13 条的责任单位是「鼓楼街道综治中心」这类镇街机构，
+`dept` 表（区级部门表）里没有对应 code，于是只能为 NULL，原文无处可存，前端只能回落本地。
+迁移只回填得了 `dept_id` 非空的 5 条，其余 13 条由 `python -m app.seed` 重灌补齐 ——
+**跑迁移不等于补完数据，升级后必须重灌或自查**：
+
+```sql
+SELECT count(*) FILTER (WHERE dept_raw IS NULL) AS missing FROM alert;  -- 必须为 0
+```
 
 ## 快速开始
 
@@ -57,7 +68,7 @@ curl http://127.0.0.1:8001/api/persons -H "Authorization: Bearer <token>"
 | `GET /api/persons`、`/api/persons/{id}` | `person:list` / `person:view` |
 | `GET /api/stats/*` | `dashboard:view` |
 | `GET /api/level-changes` | `risk:history:view` |
-| `GET /api/alerts` | `alert:view` |
+| `GET /api/alerts` | `alert:view`（出参 `dept` 是可映射的部门 code，`deptRaw` 是责任单位原文，前端优先用 `deptRaw`） |
 | `GET /api/visits` | `visit:view`（R1/R7-R9 无此权限 → 403） |
 | `POST /api/level-changes` | `risk:adjust:up`（风险升高）/ `risk:adjust:down`（风险降低），按变动方向判定 |
 | `POST /api/persons/{id}/visits` | `visit:create` |
@@ -90,6 +101,7 @@ python -m tools.api_checks_b6  # B6 走访读端 18 条（权限 / 范围 / 写�
 前端侧回归在 `docs/prototype-v2/tools/`：
 `smoke-b5.js`（14 页 + mock↔live 对账）、`check-live-role.js`（R1/R2/R4/R5 范围与掩码）、
 `check-live-write.js`（请求体契约）、`check-live-dedupe.js`（B6 回填与去重）、
+`check-live-authority.js`（B6-2 服务端权威性：改快照里的 `deptRaw`，页面必须跟着变；不写库）、
 `check-live-e2e.js`（真 HTTP 端到端，需 PG + API + 静态站三件套同时在线）。
 
 `check-live-e2e.js` 真写库，**跑前库必须是种子态、跑后必须 `python -m app.seed` 还原**；
@@ -125,7 +137,7 @@ backend/
     api.py        读路由 + 登录 / me / audit
     api_write.py  B4：写路由（等级变动 / 走访 / 预警处置）
     main.py       FastAPI 入口
-  alembic/        迁移（0001_init 以模型元数据为唯一源；B4 无新迁移）
+  alembic/        迁移（0001_init 以模型元数据为唯一源；0002 加 alert.dept_raw；B4/B5/B6-1 无新迁移）
   seed/data/      从 data.js 导出的种子 JSON（1.8 MB，随仓库走，免装 node 也能跑）
   tools/
     export_seed.js  前端 data.js → seed/data/*.json

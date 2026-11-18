@@ -426,6 +426,9 @@ def list_alerts(
             "id": r["id"], "rule": r["rule_code"], "urgency": r["urgency"],
             "personId": r["person_id"], "who": who, "town": r["town_code"],
             "levelName": r["level_name"], "metric": r["metric"], "dept": r["dept_id"],
+            # B6-2：dept 是能对上 dept 表的 code（镇街综治中心这类为 null），
+            # deptRaw 才是责任单位原文，前端优先用它。
+            "deptRaw": r["dept_raw"],
             "owner": r["owner"], "desc": r["desc"], "created": r["created_at"], "status": r["status"],
             "maskedFields": {"who": info} if info else {},
         })

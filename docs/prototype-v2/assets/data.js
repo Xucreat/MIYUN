@@ -1766,9 +1766,9 @@ window.DATA = (function () {
     }
 
     /* 4) 预警：本地富文案当骨架、服务端状态当权威。
-         理由：B1 的 alert 表没存「鼓楼街道综治中心」这类责任单位原文
-         （dept_id 只映射到四个行业部门，映射不上就是 NULL），整表替换会掉文案。
-         故按 id 合并：状态 / 对象 / 责任人以服务端为准，描述文案保留本地。 */
+         B6-2 起 `alert.dept_raw` 存了责任单位原文（此前 dept_id 只映射四个行业部门，
+         「鼓楼街道综治中心」这类镇街机构映射不上就是 NULL，原文只能留在本地）。
+         现在 dept 也以服务端为准；仍按 id 合并而非整表替换，因为 `desc` 富文案还在本地。 */
     if (snap.alerts && snap.alerts.length) {
       const byId = {};
       snap.alerts.forEach(a => { byId[a.id] = a; });
@@ -1779,14 +1779,16 @@ window.DATA = (function () {
         if (s.personId) a.personId = s.personId;
         if (s.owner) a.owner = s.owner;
         if (s.who) a.who = s.who;      // 服务端已按角色掩码，R1 这里是「任**」
+        if (s.deptRaw) a.dept = s.deptRaw;
         delete byId[a.id];
       });
       Object.keys(byId).forEach(k => {
         const s = byId[k];
         alerts.push({
           id: s.id, rule: s.rule, urgency: s.urgency, who: s.who, town: s.town,
-          levelName: s.levelName, metric: s.metric, dept: s.dept || '', owner: s.owner,
-          desc: s.desc, created: s.created, status: s.status, personId: s.personId || ''
+          levelName: s.levelName, metric: s.metric, dept: s.deptRaw || s.dept || '',
+          owner: s.owner, desc: s.desc, created: s.created, status: s.status,
+          personId: s.personId || ''
         });
       });
     }
