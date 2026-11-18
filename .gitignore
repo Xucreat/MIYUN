@@ -20,3 +20,11 @@ deploy/zdr-prototype/logs/
 # 构建/打包产物（离线包、内嵌 runtime、压缩包，体积过大不入库）
 output/
 *.7z
+
+# 后端本地运行产物（不入库）
+backend/.pgdata/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+backend/.venv/
+backend/*.log

@@ -1,0 +1,1 @@
+[{"key":"high2","name":"极高风险","cls":"risk risk-0","order":0},{"key":"high","name":"高风险","cls":"risk risk-1","order":1},{"key":"mid","name":"中风险","cls":"risk risk-2","order":2},{"key":"low","name":"低风险","cls":"risk risk-3","order":3},{"key":"unknown","name":"待核实","cls":"risk risk-4","order":4}]
