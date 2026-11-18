@@ -161,13 +161,13 @@
     return `<span class="${lv.cls}">${esc(lv.name)}</span>`;
   };
   const archiveBtn = p => `<a class="btn btn-sm btn-ghost" href="person.html?id=${encodeURIComponent(p.id)}">档案</a>`;
-  /* 行内操作：双在册 → 两部门会签并档；未定级 → 发起补评。
+  /* 行内操作：双在册 → 两部门会签并档；未定级 → 提请补评。
      两个动作都会真实改动盲区判定字段（dual / level），并写入审计与化解记录。 */
   const actCell = (p, kind) => {
     const extra = kind === 'dual'
       ? `<button class="btn btn-sm btn-line" data-act="merge" data-id="${p.id}" title="两部门会签并档：合并一人多档，等级就高不就低">并档</button>`
       : (kind === 'unknown'
-        ? `<button class="btn btn-sm btn-line" data-act="assess" data-id="${p.id}" title="发起补评：完成风险评估并定级，同步生成等级调整申请">补评</button>`
+        ? `<button class="btn btn-sm btn-line" data-act="assess" data-id="${p.id}" title="提请补评：完成风险评估并定级，登记即生效并写入变动台账">补评</button>`
         : '');
     return `<span class="row" style="gap:4px;flex-wrap:nowrap">${archiveBtn(p)}${extra}</span>`;
   };
@@ -463,7 +463,7 @@
         <div class="fld"><label>主责部门 <span class="tiny dim">合并后由该部门主责管理</span></label><div class="select" id="mgMain">${esc(MAINS[0].t)}</div></div>
         <div class="fld"><label>管控等级口径 <span class="tiny dim">两档等级不一致时的取法</span></label><div class="select" id="mgKeep">${esc(KEEPS[0].t)}</div></div>
         <div class="fld"><label>会签说明（≥ 8 字）</label><textarea id="mgNote" rows="3" placeholder="例如：两部门台账同一身份证号各建 1 档，经会签确认为同一人，保留卫健侧危险性等级子档"></textarea></div>
-        <div class="tiny dim">并档只合并档案与责任归属，<b>不改写管控等级</b>；等级如需调整须另走分级审批。</div>`,
+        <div class="tiny dim">并档只合并档案与责任归属，<b>不改写管控等级</b>；等级如需调整须另走部门定级登记。</div>`,
       onMount: dlg => {
         UI.select(dlg.querySelector('#mgMain'), {
           items: MAINS, value: MAINS[0].v, onChange: v => { main = v; }
@@ -488,7 +488,7 @@
 
   /* ---------- 补评（未定级 → 完成风险评估并定级） ---------- */
   function openAssess(p) {
-    if (!window.guard('edit', '发起补评')) return;
+    if (!window.guard('edit', '提请补评')) return;
     const VIAS = [
       { v: '联合评估', t: '联合评估（属地 + 区卫健委精防医生）' },
       { v: '入户面访', t: '入户面访' },
@@ -503,8 +503,8 @@
     ];
     let via = VIAS[0].v, to = LEVELS[0].v;
     UI.modal({
-      title: '发起补评（风险评估）',
-      sub: '补评完成即从「未定级」清单移出 · 同时生成等级调整申请，待审批通过后生效',
+      title: '提请补评（风险评估）',
+      sub: '补评完成即从「未定级」清单移出 · 评估结论即部门定级，登记入变动台账即生效',
       width: 540,
       okText: '提交补评',
       body: `
@@ -518,7 +518,7 @@
         <div class="fld"><label>评估机构 / 出具人</label><input class="input" id="asOrg" placeholder="例如：区卫健委精防办 · 王医生" style="height:30px;width:100%"></div>
         <div class="fld"><label>评估结论（拟定等级）</label><div class="select" id="asLevel">${esc(LEVELS[0].t)}</div></div>
         <div class="fld"><label>评估意见（≥ 8 字）</label><textarea id="asNote" rows="3" placeholder="例如：入户面访未见异常，家属配合监护，建议定为中风险并按季度随访"></textarea></div>
-        <div class="tiny dim">提交后生成等级调整申请（发起人 ${esc(STORE.role().user)}），可在 <a class="rowlink" href="risk.html" target="_blank">调整审批 › 待我审批</a> 中查看；申请通过前清单中该人员不再计入盲区。</div>`,
+        <div class="tiny dim">提交后即生成一条等级变动登记（提请人 ${esc(STORE.role().user)}），可在 <a class="rowlink" href="risk.html" target="_blank">等级变动 › 台账</a> 中查看；登记即生效，该人员从「未定级」清单移出。</div>`,
       onMount: dlg => {
         UI.select(dlg.querySelector('#asVia'), { items: VIAS, value: VIAS[0].v, onChange: v => { via = v; } });
         UI.select(dlg.querySelector('#asLevel'), { items: LEVELS, value: LEVELS[0].v, onChange: v => { to = v; } });
@@ -533,8 +533,9 @@
         S.selected.delete(p.id);
         renderCards();
         renderAll();
+        if (window.shellBadges) window.shellBadges();   /* 变动台账 +1，侧栏角标同步 */
         UI.modal({
-          title: '补评已提交',
+          title: '补评已登记',
           sub: r.rec.code + ' · ' + D.levelOf(r.rec.from).name + ' → ' + D.levelOf(r.rec.to).name,
           width: 440,
           okText: '知道了',
@@ -543,10 +544,11 @@
             </div>
             <dl class="kv" style="grid-template-columns:80px 1fr;font-size:12px;gap:6px 10px;margin-top:10px">
               <dt>补评单号</dt><dd class="mono">${esc(r.rec.code)}</dd>
-              <dt>等级调整申请</dt><dd class="mono">${esc(r.app.id)} <span class="tag tag-orange">待审批</span></dd>
-              <dt>审批入口</dt><dd><a class="rowlink" href="risk.html">调整审批 › 待我审批</a></dd>
+              <dt>等级变动</dt><dd class="mono">${esc(r.chg.id)} <span class="tag tag-green">已生效</span></dd>
+              <dt>定级责任</dt><dd>${esc(r.chg.level)} · 登记人 ${esc(r.chg.approver)}</dd>
+              <dt>台账入口</dt><dd><a class="rowlink" href="risk.html">等级变动 › 台账</a></dd>
             </dl>
-            <div class="tiny dim" style="margin-top:8px">审批通过后等级正式生效；本次补评与申请均已写入审计日志。</div>`
+            <div class="tiny dim" style="margin-top:8px">部门定级已登记生效，无需再经审批；本次补评与变动登记均已写入审计日志。</div>`
         });
         return true;
       }

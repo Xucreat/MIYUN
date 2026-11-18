@@ -64,9 +64,7 @@
     const st = STORE.changeStats();
     if (statEl) statEl.textContent = '共 ' + st.total + ' 条 · 本次登记 ' + st.live + ' · 待知会 ' + st.waiting;
     if (hdr) hdr.textContent = st.total;
-    document.querySelectorAll('.nbadge').forEach(n => {
-      if (n.closest('[href="risk.html"]')) n.textContent = st.total;
-    });
+    if (window.shellBadges) window.shellBadges();
   }
 
   /* 等级 → 部门定级责任（定义在 data.js 的 LEVEL_RULE_OF，与历史台账同源） */
@@ -79,7 +77,8 @@
       detail.innerHTML = `<div class="card-bd">${UI.empty('请选择左侧一条变动登记', '右侧展示等级差异、定级依据、部门定级流程与知会状态')}</div>`;
       return;
     }
-    const p = D.personById(r.personId);
+    /* personId 为空的历史变动（早期故事线）不得 fallback 到 persons[0]，否则详情会显示错人 */
+    const p = r.personId ? D.personById(r.personId) : null;
     const up = lv(r.to).order < lv(r.from).order;
     const nt = STORE.notifiedOf(r);
     const role = STORE.role();
@@ -98,7 +97,7 @@
 
     detail.innerHTML = `
       <div class="card-hd">
-        <div class="card-title">变动登记 · ${esc(D.field(role.key, 'name', p).text)} <span class="sub">${esc(r.id)}</span></div>
+        <div class="card-title">变动登记 · ${esc(p ? D.field(role.key, 'name', p).text : (r.name || '—'))} <span class="sub">${esc(r.id)}</span></div>
         <div class="right">
           ${r.live ? '<span class="tag tag-blue">本次登记</span>' : '<span class="tag tag-green">已生效</span>'}
         </div>
@@ -120,7 +119,7 @@
           </div>
           <div style="width:1px;height:38px;background:var(--line-2);margin:0 6px"></div>
           <div class="diff-note">
-            <div><span class="dim">当前标签：</span>${esc((p.tags || []).join(' · ') || '—')}</div>
+            <div><span class="dim">当前标签：</span>${esc(((p && p.tags) || []).join(' · ') || '—')}</div>
             <div><span class="dim">变动方向：</span>${up ? '上调（风险升高，不设限）' : '下调（须定级依据充分）'}</div>
             <div><span class="dim">定级责任：</span>${esc(r.level)}</div>
           </div>
@@ -134,10 +133,10 @@
             <dt>责任镇街</dt><dd>${esc(r.town || '—')}</dd>
           </dl>
           <dl class="kv" style="grid-template-columns:62px 1fr;gap:7px 10px">
-            <dt>主责单位</dt><dd>${esc(p.dept || '—')}</dd>
-            <dt>最近走访</dt><dd>${D.dateBefore(p.visitGap)}（${p.visitGap} 天前）</dd>
-            <dt>包联干部</dt><dd>${esc(p.officer || '—')} · ${esc(p.officerTitle || '')}</dd>
-            <dt>档案</dt><dd><a class="rowlink" href="person.html?id=${p.id}">${esc(p.no)} 查看 ›</a></dd>
+            <dt>主责单位</dt><dd>${esc((p && p.dept) || r.dept || '—')}</dd>
+            <dt>最近走访</dt><dd>${p ? D.dateBefore(p.visitGap) + '（' + p.visitGap + ' 天前）' : '—'}</dd>
+            <dt>包联干部</dt><dd>${p ? esc(p.officer || '—') + ' · ' + esc(p.officerTitle || '') : '—'}</dd>
+            <dt>档案</dt><dd>${p ? '<a class="rowlink" href="person.html?id=' + p.id + '">' + esc(p.no) + ' 查看 ›</a>' : '早期变动 · 无关联档案'}</dd>
           </dl>
         </div>
 

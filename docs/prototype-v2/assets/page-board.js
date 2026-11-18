@@ -14,7 +14,7 @@
 
   /* ---------- 数据范围：公安经办（scope=dept）仅见本部门数据 ----------
      leader / admin 走全区口径不变；dept 把人员明细、待办计数、
-     审批单、风险告警等收敛为本部门（与人员台账 / 预警页同一 view 口径）。
+     等级变动登记、风险告警等收敛为本部门（与人员台账 / 预警页同一 view 口径）。
      全区统筹叙事（重点时期进度、跨镇街流动、报送质量）保留并注明口径。 */
   const SCOPED = ST.role().scope === 'dept';
   const DEPT_NAME = ST.role().dept || '';
@@ -28,7 +28,7 @@
       const banner = document.createElement('div');
       banner.className = 'banner banner-info mb10';
       banner.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v.2M12 11v5"/></svg>' +
-        '<span>当前以「' + ST.role().roleName + ' · ' + DEPT_NAME + '」身份查看：待办、人员明细、审批单与风险告警为<b>本部门口径</b>；重点时期进度、人员流动与报送质量为全区统筹口径。</span>';
+        '<span>当前以「' + ST.role().roleName + ' · ' + DEPT_NAME + '」身份查看：待办、人员明细、等级变动与风险告警为<b>本部门口径</b>；重点时期进度、人员流动与报送质量为全区统筹口径。</span>';
       content.prepend(banner);
     }
   }
@@ -104,15 +104,18 @@
    * ============================================================ */
   function renderTodo() {
     const box = $('todoList'); if (!box) return;
-    /* dept：预警与审批按本部门人员收敛（口径与预警页 / 审批单一致） */
+    /* dept：预警与等级变动按本部门人员收敛（口径与预警页 / 变动台账一致） */
     const alertN = SCOPED
       ? ST.alerts().filter(a => inScope(D.personById(a.personId)) && a.status === '待处置').length
       : ST.alertStats().open;
-    const apprRows = (() => {
-      const rows = ST.approvals();
-      return SCOPED ? rows.filter(a => inScope(D.personById(a.personId))) : rows;
+    /* 等级变动（D4 后部门定级即生效、不经审批）：取变动台账，按本部门人员收敛。
+       待知会 = 尚未通知属地的条数，与 risk 页「知会属地」同一状态源。 */
+    const chgRows = (() => {
+      const rows = ST.changes();
+      return SCOPED ? rows.filter(c => c.personId && inScope(D.personById(c.personId))) : rows;
     })();
-    const apprN = SCOPED ? apprRows.filter(a => a.status === '待审批').length : ST.approvalStats().pending;
+    const chgUp = chgRows.filter(c => D.levelOf(c.to).order < D.levelOf(c.from).order).length;
+    const chgWait = chgRows.filter(c => !ST.notifiedOf(c).notified).length;
     const dualOver = SCOPED
       ? MINE.filter(p => p.dual).length   /* 与盲区页 dept 视角「双在册」口径一致 */
       : 9; /* 与 blind.html CONF 生成逻辑同参：前 9 条超 7 日未确认 */
@@ -121,15 +124,16 @@
     const items = [
       { c: 'var(--red)', t: `双在册${SCOPED ? '待确认' : '确认超期'} ${dualOver} 条`, m: SCOPED ? `本部门双在册 · 跨部门责任交叉待确认` : '最长超期 6 天 · 不老屯 3 条', b: '处理', href: 'blind.html?type=dual&st=over' },
       { c: 'var(--orange)', t: `预警待处置 ${alertN} 条`, m: SCOPED ? `本部门人员相关预警 · 待处置` : `超期 7 条 · 今日新增 ${alertN} 条`, b: '处理', href: 'alerts.html' },
-      SCOPED
-        ? { c: 'var(--blue)', t: `本部门调整申请在途 ${apprN} 条`, m: '审批由「政法委主管」执行，此处跟踪进度', b: '查看', href: 'persons.html?tab=query' }
-        : { c: 'var(--blue)', t: `等级调整待审批 ${apprN} 条`, m: '上调 2 · 下调 3', b: '处理', href: 'risk.html' },
+      { c: 'var(--blue)', t: `${SCOPED ? '本部门' : ''}等级变动 ${chgRows.length} 条`, m: `上调 ${chgUp} · 下调 ${chgRows.length - chgUp} · ${chgWait ? '待知会 ' + chgWait + ' 条' : '已全部知会属地'}`, b: '查看', href: 'risk.html' },
       { c: 'var(--amber)', t: `未零报告镇街 ${notRep.length} 个`, m: `${notRep.slice(0, 2).map(t => t.town.replace(/(街道|地区|镇)$/, '')).join('、')}${notRep.length > 2 ? ' 等 ' + notRep.length + ' 个' : ''} · 20:00 截止`, b: '查看明细', href: 'wartime.html' }
     ];
     box.innerHTML = items.map(it => `<div class="li" style="padding:7px 0">
       <span class="lvl" style="width:4px;height:26px;border-radius:2px;background:${it.c};flex:0 0 4px"></span>
       <div style="min-width:0"><div style="font-size:12px;font-weight:600">${it.t}</div><div class="tiny dim">${it.m}</div></div>
       <span class="spacer"></span><a class="btn btn-sm" href="${it.href}">${it.b}</a></div>`).join('');
+    /* 待知会属地同步到「风险变化」面板的 KPI 与 mini-stat（与上面待办卡同一计数源） */
+    const kw = $('kpiWaitVal'); if (kw) kw.innerHTML = chgWait + '<span class="unit">条</span>';
+    const wm = $('waitMini'); if (wm) wm.textContent = chgWait;
   }
 
   /* ============================================================
@@ -140,7 +144,7 @@
     { t: '10:48', tag: '回填', tc: 'var(--green-soft)', fc: 'var(--green)', html: '果园街道提交走访记录 <b>8 条</b>，其中见面 7 条', act: { type: 'link', href: 'wartime.html', btn: '看重点时期台账', note: '回填计入重点时期「20 镇街见面进度」（果园街道 应见 60 / 已见 54）' } },
     { t: '10:41', tag: '查阅', tc: 'var(--blue-soft)', fc: 'var(--blue-ink)', html: '区卫健委 李春燕 查阅档案 <b>3 次</b>（本部门数据）', act: { type: 'modal', title: '查阅留痕详情', rows: [['查阅人', '区卫健委 · 李春燕'], ['时间', '10:38 — 10:41'], ['对象', '本部门在册档案 3 份（姓名已按权限脱敏）'], ['途径', '档案检索 + 一人一档页'], ['留痕', '审计日志 AUD-2026…已记录']] } },
     { t: '10:35', tag: '警示', tc: 'var(--amber-soft)', fc: '#8a6100', html: '越权尝试 <b>1 次</b>：属地经办访问非本辖区档案，已拦截', act: { type: 'link', href: 'system.html?tab=audit', btn: '查审计日志', note: '拦截详情见系统管理-审计日志' } },
-    { t: '10:26', tag: '审批', tc: 'var(--purple-soft)', fc: 'var(--purple)', html: '等级调整申请 <b>中 → 低</b>（周文斌 · 巨各庄镇）待政法委主管审批', act: { type: 'link', href: 'risk.html', btn: '去审批', note: '对应申请单 APP-20261111-001 ·「待我审批」列表第一条' } },
+    { t: '10:26', tag: '变动', tc: 'var(--purple-soft)', fc: 'var(--purple)', html: '等级变动登记 <b>中 → 低</b>（周文斌 · 巨各庄镇）已生效，属地已知会', act: { type: 'link', href: 'risk.html', btn: '看变动台账', note: '部门自主定级、登记即生效 · 政法委侧只做备案与知会' } },
     { t: '10:18', tag: '回填', tc: 'var(--green-soft)', fc: 'var(--green)', html: '冯家峪镇 补报昨日数据 <b>12 条</b>（此前接口超时），今日零报告已提交', act: { type: 'link', href: 'wartime.html', btn: '看零报告状态', note: '冯家峪镇今日零报告已提交，见重点时期管控 20 镇街进度' } },
     { t: '10:05', tag: '入库', tc: 'var(--blue-soft)', fc: 'var(--blue-ink)', html: '公安分局增量推送 <b>4 人</b>，查重后新增 4、合并 0', act: { type: 'link', href: 'import.html', btn: '看导入批次', note: '对应导入批次 IM-20261111-01（今日 10:05 · 已完成）' } },
     { t: '09:47', tag: '预警', tc: 'var(--red-soft)', fc: 'var(--red)', html: '果园街道 <b>韦振华</b> 双在册确认超期（公安+卫健），已标记需督办', act: { type: 'link', href: 'blind.html?type=dual&st=over', btn: '去盲区核查', note: '已过滤「双在册 + 超 7 日未确认」，韦振华为清单第 1 条' } }
@@ -380,9 +384,9 @@
       const all = Array.from(cf.rows).map(tr => Array.from(tr.cells).map(c => c.textContent.trim()));
       const list = name ? all.filter(r => r[0] === name) : all;
       const CAT_META = {
-        '极高': { key: 'high2', inSrc: '涉访升级 5 · 公安列管 4 · 评估上调 3', out: '撤管 0 · 迁出 2 · 死亡 0', act: '24 小时监护 · 每日见面（重点时期口径）', req: '等级调整须经政法委主管审批，材料附评估结论书' },
+        '极高': { key: 'high2', inSrc: '涉访升级 5 · 公安列管 4 · 评估上调 3', out: '撤管 0 · 迁出 2 · 死亡 0', act: '24 小时监护 · 每日见面（重点时期口径）', req: '等级调整由归属部门定级登记，材料附评估结论书，报政法委备案' },
         '高': { key: 'high', inSrc: '评估上调 6 · 双在册转入 5 · 新列管 4', out: '撤管 1 · 迁出 2 · 死亡 0', act: '30 日走访时限 · 每周电话回访', req: '下调须附季度评估与走访记录，双向留痕' },
-        '中': { key: 'mid', inSrc: '新列管 5 · 下调转入 3 · 区内迁入 2', out: '撤管 2 · 迁出 1 · 死亡 1', act: '月度走访 · RG-05 联动回访', req: '上调 / 下调均在「调整审批」追溯' },
+        '中': { key: 'mid', inSrc: '新列管 5 · 下调转入 3 · 区内迁入 2', out: '撤管 2 · 迁出 1 · 死亡 1', act: '月度走访 · RG-05 联动回访', req: '上调 / 下调均在「等级变动」台账追溯' },
         '低': { key: 'low', inSrc: '下调转入 4 · 新列管 2', out: '撤管 2 · 迁出 1 · 死亡 0', act: '季度走访 · 属地网格员日常关注', req: '连续 3 个月无异常可提请撤管' }
       };
       const lvTagHtml = k => { const L = D.levelOf(k); return '<span class="tag ' + L.cls.replace('tag-', 'tag-') + '">' + L.name + '</span>'; };
@@ -649,10 +653,10 @@
         bindTip(row, () => `<div style="font-weight:650;margin-bottom:3px">${h[0]}</div>` + tipRow('人数', h[1] + ' 人') + `<div style="opacity:.78;margin-top:4px">${h[3]} · 点击看构成说明</div>`);
         row.onclick = () => UIx.modal({
           title: '高风险新增 · ' + h[0], width: 460,
-          body: tipRow('本月上调', h[1] + ' 人（占 19 人的 ' + (h[1] / 19 * 100).toFixed(0) + '%）') +
+          body: tipRow('本月上调', h[1] + ' 人（占 ' + CHG_UP + ' 人的 ' + (h[1] / CHG_UP * 100).toFixed(0) + '%）') +
             `<div class="tiny dim" style="margin:7px 0">认定口径：${h[2]}。${h[3]}。</div>
-             <div class="tiny dim">全部经政法委主管审批后生效，可在「调整审批」页追溯对应申请单。</div>`,
-          okText: '去审批台账', cancelText: '关闭',
+             <div class="tiny dim">部门自主定级、登记即生效，可在「等级变动」页追溯对应登记记录。</div>`,
+          okText: '去变动台账', cancelText: '关闭',
           onOk: () => { setTimeout(() => { location.href = 'risk.html'; }, 60); return true; }
         });
       });
@@ -664,7 +668,7 @@
           .sort((a, b) => b[1] - a[1]).map(function (kv) { return kv[0] + ' ' + kv[1]; }).join(' · ') || '\u2014';
         const RISK_ALERTS = [
       { c: 'var(--red)', t: '鼓楼街道高风险月增 6 人，增幅 6.9%', m: '为全区最高，建议纳入下月重点督导', detail: [['口径', '高风险在册 87 → 93（+6）'], ['构成', '评估上调 3 · 涉访升级 2 · 新列管 1'], ['对照', '全区高风险本月净 ' + (486 - 480 >= 0 ? '+' : '') + (486 - 480)], ['建议', '纳入 12 月重点督导清单']], acts: [{ b: '去分析', href: 'analytics.html?focus=鼓楼街道' }] },
-      { c: 'var(--orange)', t: '檀营地区 2 人连续上调，需核验评估材料', m: '两个月内中→高→极高，评估机构相同', detail: [['涉及', '马春霞（11-10 高→极高，待审批）· 陈志刚（11-05 中→高，已生效）'], ['疑点', '连续两月上调且评估机构相同，材料需复核'], ['已办', '已生成核验任务，政法委主管牵头'], ['关联', '点击「去核查」在变动台账高亮同名记录']], acts: [{ b: '去核查', href: 'risk.html?focus=檀营地区' }] },
+      { c: 'var(--orange)', t: '檀营地区 2 人连续上调，需核验评估材料', m: '两个月内中→高→极高，评估机构相同', detail: [['涉及', '马春霞（11-10 高→极高，已生效）· 陈志刚（11-05 中→高，已生效）'], ['疑点', '连续两月上调且评估机构相同，材料需复核'], ['已办', '已生成核验任务，政法委备案核验 + 部门自查'], ['关联', '点击「去核查」在变动台账高亮同名记录']], acts: [{ b: '去核查', href: 'risk.html?focus=檀营地区' }] },
       { c: 'var(--amber)', t: '未定级超 90 天 ' + G90N + ' 人', m: '集中在' + (G90_DEPT.split(' · ')[0] || '卫健') + '（拒访为主）', detail: [['规模', G90N + ' 人（全部在册 > 90 天未定级）'], ['分布', G90_DEPT], ['处置', '已全部进入盲区人群-未定级清单'], ['时限', '12 月底前完成定级或标注拒访']], acts: [{ b: '去盲区核查', href: 'blind.html?type=unknown&g90=90&sort=visit' }] }
     ];
     const ra = $('riskAlertList');
@@ -684,28 +688,32 @@
         });
       });
     }
-    /* 等级调整明细：与 risk.html「待我审批」完全同源（同一排序、同一字段、同一 badge 口径） */
+    const CHG_UP = ST.changeStats().up;
+    /* 等级变动明细：与 risk.html 变动台账完全同源（同一份 STORE.changes()、
+       同一排序口径、同一知会状态），按登记时间倒序 */
     const lb = $('lvlChgBody');
     if (lb) {
-      const ORDER = { '待审批': 0, '退回补充': 1, '已通过': 2, '已驳回': 3 };
-      const rows = STORE.approvals().slice()
-        .filter(a => inScope(D.personById(a.personId)) || (!SCOPED && !a.personId))
-        .sort((a, b) => (ORDER[a.status] - ORDER[b.status]) || b.time.localeCompare(a.time))
-        .map(a => {
-          const p = D.personById(a.personId);
-          const up = D.levelOf(a.toLevel).order < D.levelOf(a.curLevel).order;
-          const badge = a.status === '待审批'
-            ? (a.urgent ? '<span class="tag tag-red">需双人复核</span>' : '<span class="tag tag-green">依据齐全</span>')
-            : `<span class="tag ${a.status === '已通过' ? 'tag-green' : a.status === '已驳回' ? 'tag-red' : 'tag-amber'}">${esc(a.status)}</span>`;
+      const rows = ST.changes().slice()
+        /* 无 personId 的是早期故事线变动（CHG_BASE 4 条），只在全区视角出现：
+           personById('') 会 fallback 到 persons[0]，直接 inScope 会把它误算成本部门 */
+        .filter(c => (c.personId ? inScope(D.personById(c.personId)) : !SCOPED))
+        .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))
+        .map(c => {
+          const p = c.personId ? D.personById(c.personId) : null;
+          const up = D.levelOf(c.to).order < D.levelOf(c.from).order;
+          const nt = ST.notifiedOf(c);
           return {
-            a, up, badge,
-            name: a.name,
-            town: a.town || (p && p.town) || '—',
+            c, up, nt,
+            badge: nt.notified
+              ? '<span class="tag tag-green">已知会</span>'
+              : '<span class="tag tag-amber">待知会</span>',
+            name: c.name,
+            town: c.town || (p && p.town) || '—',
             tag0: (p && p.tags && p.tags[0]) || '',
-            dept: a.applicantDept || '—',
-            time: (a.time || '').slice(5),
-            from: a.curLevel, to: a.toLevel,
-            why: (a.reason || '属地申请').slice(0, 18) + ((a.reason || '').length > 18 ? '…' : '')
+            dept: c.dept || (p && p.dept) || '—',
+            time: String(c.at || '').slice(5),
+            from: c.from, to: c.to,
+            why: (c.reason || '部门定级').slice(0, 18) + ((c.reason || '').length > 18 ? '…' : '')
           };
         });
       lb.innerHTML = rows.map((r, i) => `<tr data-lr="${i}">
@@ -718,17 +726,19 @@
         tr.style.cursor = 'pointer';
         const r = rows[i];
         bindTip(tr, () => `<div style="font-weight:650;margin-bottom:3px">${esc(r.name)} · ${esc(r.town)}</div>` +
-          tipRow('调整', SHORT[r.from] + ' → ' + SHORT[r.to]) + tipRow('申请', r.dept + ' · ' + r.time) +
-          tipRow('依据', r.a.reason || '—') + tipRow('状态', r.a.status) + `<div style="opacity:.78;margin-top:4px">点击看申请单详情（与审批台账同源）</div>`);
+          tipRow('变动', SHORT[r.from] + ' → ' + SHORT[r.to]) + tipRow('来源部门', r.dept) +
+          tipRow('定级责任', r.c.level || '—') + tipRow('登记人', r.c.approver || '—') +
+          tipRow('依据', r.c.reason || '—') + `<div style="opacity:.78;margin-top:4px">点击看变动详情（与变动台账同源）</div>`);
         tr.onclick = () => {
-          const a = r.a;
+          const c = r.c;
           UIx.modal({
-            title: '等级调整申请 · ' + a.id, width: 520,
-            body: tipRow('人员', esc(a.name) + '（' + esc(r.town) + '）') + tipRow('调整', SHORT[a.curLevel] + ' → ' + SHORT[a.toLevel]) +
-              tipRow('申请人', esc(a.applicant || '—') + ' · ' + esc(a.applicantDept || '—')) + tipRow('时间', esc(a.time || '—')) +
-              `<div class="sect-title" style="margin:8px 0 4px">申请理由</div><div class="tiny" style="line-height:1.7">${esc(a.reason || '—')}</div>
-               <div class="sect-title" style="margin:8px 0 4px">附件（${(a.evidence || []).length}）</div><div class="tiny dim">${(a.evidence || []).map(esc).join(' · ') || '—'}</div>`,
-            okText: '去审批处理', cancelText: '关闭',
+            title: '等级变动 · ' + c.id, width: 520,
+            body: tipRow('人员', esc(c.name) + '（' + esc(r.town) + '）') + tipRow('变动', SHORT[c.from] + ' → ' + SHORT[c.to]) +
+              tipRow('来源部门', esc(r.dept)) + tipRow('登记时间', esc(c.at || '—')) +
+              tipRow('定级责任', esc(c.level || '—')) + tipRow('登记人', esc(c.approver || '—')) +
+              tipRow('知会属地', r.nt.notified ? '已知会' + (r.nt.at ? '（' + esc(String(r.nt.at).slice(5)) + '）' : '') : '待知会') +
+              `<div class="sect-title" style="margin:8px 0 4px">定级依据</div><div class="tiny" style="line-height:1.7">${esc(c.reason || '—')}</div>`,
+            okText: '去变动台账', cancelText: '关闭',
             onOk: () => { setTimeout(() => { location.href = 'risk.html'; }, 60); return true; }
           });
         };

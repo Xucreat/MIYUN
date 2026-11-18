@@ -433,7 +433,7 @@ window.STORE = (function () {
   }
   function merges() { return (state.merges || []).slice(); }
 
-  /* 补评：未定级人员完成风险评估并定级 → 移出未定级清单 + 转入台账 + 生成等级调整申请（联动待审批） */
+  /* 补评：未定级人员完成风险评估并定级 → 移出未定级清单 + 转入台账 + 登记等级变动（D4：登记即生效） */
   function assessBlind(uid, toLevel, opt) {
     const o = opt || {};
     const pool = D.unrated || [];
@@ -460,24 +460,21 @@ window.STORE = (function () {
     };
     state.assessments = state.assessments || [];
     state.assessments.unshift(rec);
-    /* 等级须经审批才算数：生成申请单进「调整审批 · 待我审批」 */
-    const app = {
-      id: 'APP-' + rec.code.replace('PE-', ''),
-      personId: u.id, name: u.name, town: u.town,
-      deptLevel: D.levelOf(toLevel).name,
-      curLevel: from, toLevel,
-      applicant: role().user, applicantDept: role().roleName + '（盲区补评）',
-      time: rec.at,
-      evidence: ['风险评估意见书.pdf', '入户（联合）面访记录.pdf', '评估机构意见 ' + (rec.org || '区卫健委精防办')],
-      reason: '盲区补评：' + rec.via + (rec.org ? '（' + rec.org + '）' : '') + '完成风险评估，建议定为' + D.levelOf(toLevel).name + '。' + (rec.note || '')
-    };
-    addApproval(app);
+    /* D4 后补评不再生成待审批申请单：评估结论即部门定级，直接登记进变动台账并生效。
+       台账里的 level / approver 与 risk 页「部门内部定级流程」四档同一套定义。 */
+    const chg = addChange({
+      personId: u.id, name: u.name, town: u.town, dept: u.dept || '',
+      from: from, to: toLevel,
+      level: '部门主管核定', approver: role().user,
+      reason: '盲区补评：' + rec.via + (rec.org ? '（' + rec.org + '）' : '') + '完成风险评估，定级为' + D.levelOf(toLevel).name +
+        '。' + (rec.note || '') + '（补评单 ' + rec.code + '）'
+    });
     audit('盲区补评',
       u.name + '：' + D.levelOf(from).name + ' → ' + D.levelOf(toLevel).name + '，' + rec.via +
-      (rec.org ? '（' + rec.org + '）' : '') + '；已生成调整申请 ' + app.id,
+      (rec.org ? '（' + rec.org + '）' : '') + '；已登记等级变动 ' + chg.id,
       rec.code);
     commit();
-    return { rec, app };
+    return { rec, chg };
   }
   function assessments() { return (state.assessments || []).slice(); }
 
@@ -751,7 +748,7 @@ window.STORE = (function () {
   }
 
   /* ============================================================
-     明文导出申请单（审批中心 · 明文导出页签的数据源）
+     明文导出申请单（等级变动页 · 明文导出页签的数据源）
      ------------------------------------------------------------
      过去「明文导出申请已提交，审批通过后可下载」是空头承诺：
      没有申请单、没有审批人、没有可下载的凭据。此处把申请单落成

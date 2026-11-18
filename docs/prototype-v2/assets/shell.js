@@ -401,6 +401,21 @@
       }
     }
   };
+  /* 侧栏角标重算：任一页面产生写操作（登记等级变动 / 盲区补评 / 预警处置）后调用一次，
+     避免「页内已变、侧栏还是旧数」的口径错位。以前只有 risk 页自己同步，
+     在盲区页补评后侧栏角标会滞后一条。 */
+  window.shellBadges = function () {
+    if (!window.STORE) return;
+    const total = STORE.changeStats().total;
+    const open = STORE.alertStats().open;
+    document.querySelectorAll('.nav-item[href]').forEach(a => {
+      const b = a.querySelector('.nbadge');
+      if (!b) return;
+      const href = a.getAttribute('href');
+      if (href === 'risk.html') b.textContent = total;
+      else if (href === 'alerts.html') b.textContent = open;
+    });
+  };
   window.SYNC_METRICS();
 })();
 

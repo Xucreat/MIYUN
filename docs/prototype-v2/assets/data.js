@@ -684,7 +684,7 @@ window.DATA = (function () {
     };
   });
 
-  /* ---------- 8. 调整审批（5 条待审批） ---------- */
+  /* ---------- 8. 等级调整申请存档（D4 后无页面消费，仅留作审计/迁移比对） ---------- */
   const approvals = [
     { id: 'APP-20261111-001', personId: '', name: '周文斌', town: '巨各庄镇', deptLevel: '中风险', curLevel: 'mid', toLevel: 'low', applicant: '马晓东', applicantDept: '巨各庄镇综治中心', time: '2026-11-11 10:26', reason: '本人住院治疗三个月，病情稳定已出院，家庭监护到位，近 60 日无涉访记录，建议下调为低风险转入常规随访。', evidence: ['出院小结.pdf', '季度评估意见书.docx', '家庭监护承诺书.pdf'], status: '待审批', urgent: false },
     { id: 'APP-20261110-004', personId: '', name: '高振山', town: '十里堡镇', deptLevel: '高风险', curLevel: 'high', toLevel: 'mid', applicant: '李明', applicantDept: '十里堡镇司法所', time: '2026-11-10 08:42', reason: '社区矫正期满，连续 6 个月无违规记录，建议下调为中风险并转入常规随访。', evidence: ['社区矫正期满证明.pdf', '季度评估意见书.docx', '近 6 个月走访记录.xlsx'], status: '待审批', urgent: false },
@@ -984,6 +984,8 @@ window.DATA = (function () {
 
   /* 字段渲染：按角色决定明文 / 掩码 / 隐藏 */
   function field(roleKey, fieldName, person) {
+    /* 早期变动（CHG_BASE 4 条）没有关联人员，调用方可能传 null */
+    if (!person) return { text: '—', masked: false };
     const role = ROLES[roleKey] || ROLES.admin;
     const mode = role.fields[fieldName] || 'full';
     const raw = {
@@ -1543,7 +1545,7 @@ window.DATA = (function () {
         { code: 'NT-01', name: '预警待办提醒', channel: '政务通 + 短信', desc: '规则命中生成待办时推送给责任人', on: true },
         { code: 'NT-02', name: '超期未处置督办', channel: '政务通', desc: '闭环时限前 1 日与超期当日各推一次', on: true },
         { code: 'NT-03', name: '零报告提醒', channel: '短信', desc: '重点时期每日 19:00 提醒未报镇街', on: true },
-        { code: 'NT-04', name: '等级调整审批通知', channel: '政务通', desc: '审批单流转到下一节点时推送', on: true },
+        { code: 'NT-04', name: '等级变动登记通知', channel: '政务通', desc: '新登记变动推送给属地责任人与部门主管', on: true },
         { code: 'NT-05', name: '越权访问告警', channel: '政务通 + 邮件', desc: '拦截后即时推安全管理员与审计员', on: true },
         { code: 'NT-06', name: '权限变更告知', channel: '政务通', desc: '角色或数据范围变更后告知本人与主管', on: true },
         { code: 'NT-07', name: '月度报送催办', channel: '政务通', desc: '每月 3 日前未报部门收到催办', on: false }

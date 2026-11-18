@@ -646,7 +646,7 @@
       const n = results().length;
       const purpose = (document.getElementById('qPurpose') || {}).textContent || '重点时期盯控下发';
       const valid = (document.getElementById('qValid') || {}).textContent || '24 小时';
-      /* 真正生成申请单：落 STORE → 审批中心（risk.html?tab=export）可见、可审、可下载 */
+      /* 真正生成申请单：落 STORE →「等级变动 · 明文导出」页签（risk.html?tab=export）可见、可审、可下载 */
       const req = S.plainReqAdd({
         count: n, purpose, valid,
         scope: echoText()

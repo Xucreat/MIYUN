@@ -284,20 +284,19 @@
   }
 
   /* ---------- 底部同排：等级变动记录 ---------- */
+  /* 与「等级变动」页同一份台账（STORE.changes()）：D4 后部门自主定级、登记即生效，
+     不再有「审批人」，行上显示的是定级责任 + 登记人；跨部门/跨页同源，条数可对账。 */
   function renderLvlChg() {
-    const rows = STORE.approvals().filter(a => a.personId === p.id && a.status === '已通过');
+    const rows = STORE.changes().filter(c => c.personId === p.id);
     lvlChgCard.innerHTML = `
       <div class="card-hd"><div class="card-title">等级变动记录 <span class="sub">只增不改</span></div>
-        <div class="right"><span class="tag tag-line">${rows.length + 2} 条</span></div></div>
+        <div class="right"><span class="tag tag-line">${rows.length + 1} 条</span></div></div>
       <div class="card-bd" style="padding:8px 14px 10px">
-        ${rows.map(a => `<div class="li" style="padding:5px 0;gap:6px">
-          <span class="tiny dim" style="flex:0 0 40px">${esc((a.at || '').slice(5, 10))}</span>
-          <span class="sm" style="flex:1;min-width:0"><span class="${D.levelOf(a.curLevel).cls}">${D.levelOf(a.curLevel).name}</span> <span class="dim">→</span> <span class="${D.levelOf(a.toLevel).cls}">${D.levelOf(a.toLevel).name}</span><span class="cell-sub">审批人 ${esc(a.by || '—')}</span></span>
+        ${rows.map(c => `<div class="li" style="padding:5px 0;gap:6px">
+          <span class="tiny dim" style="flex:0 0 40px">${esc((c.date || '').slice(0, 5))}</span>
+          <span class="sm" style="flex:1;min-width:0"><span class="${D.levelOf(c.from).cls}">${D.levelOf(c.from).name}</span> <span class="dim">→</span> <span class="${D.levelOf(c.to).cls}">${D.levelOf(c.to).name}</span><span class="cell-sub">${esc(c.level || '部门定级')} · ${esc(c.approver || '—')}</span></span>
         </div>`).join('')}
-        <div class="li" style="padding:5px 0;gap:6px">
-          <span class="tiny dim" style="flex:0 0 40px">11-12</span>
-          <span class="sm" style="flex:1;min-width:0"><span class="risk risk-2">中风险</span> <span class="dim">→</span> <span class="${lv().cls}">${lv().name}</span><span class="cell-sub">审批人 陈志远</span></span>
-        </div>
+        ${rows.length ? '' : '<div class="tiny dim" style="padding:4px 0 2px;line-height:1.6">本台账期无等级变动 · 部门未提请定级调整</div>'}
         <div class="li" style="padding:5px 0;gap:6px">
           <span class="tiny dim" style="flex:0 0 40px">2024</span>
           <span class="sm" style="flex:1;min-width:0"><span class="dim">首次定级 →</span> <span class="${lv().cls}">${lv().name}</span><span class="cell-sub">系统导入</span></span>

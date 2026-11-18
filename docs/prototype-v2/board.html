@@ -213,7 +213,7 @@
         <button class="on" data-tab="rt">实时总览</button>
         <button data-tab="move">人员流动 <span class="cnt">+31</span></button>
         <button data-tab="region">区域迁徙</button>
-        <button data-tab="risk">风险变化 <span class="cnt">19↑27↓</span></button>
+        <button data-tab="risk">风险变化 <span class="cnt">22↑24↓</span></button>
         <button data-tab="watch">重点盯控 <span class="cnt">44</span></button>
         <button data-tab="quality">报送质量</button>
         <span class="sep"></span>
@@ -617,17 +617,17 @@
       <!-- ===== 风险变化 ===== -->
             <div data-panel="risk" style="display:none">
         <div class="grid g5 mb10">
-          <div class="card kpi k-red"><div class="kpi-label">上调</div><div class="kpi-val">19<span class="unit">人</span></div><div class="kpi-meta">本月 · 全部经审批</div></div>
-          <div class="card kpi k-green"><div class="kpi-label">下调</div><div class="kpi-val">27<span class="unit">人</span></div><div class="kpi-meta">本月 · 附评估材料</div></div>
-          <div class="card kpi"><div class="kpi-label">净风险变化</div><div class="kpi-val">−8<span class="unit">人</span></div><div class="kpi-meta">高风险净减少</div></div>
+          <div class="card kpi k-red"><div class="kpi-label">上调</div><div class="kpi-val">22<span class="unit">人</span></div><div class="kpi-meta">本月 · 部门定级生效</div></div>
+          <div class="card kpi k-green"><div class="kpi-label">下调</div><div class="kpi-val">24<span class="unit">人</span></div><div class="kpi-meta">本月 · 附评估材料</div></div>
+          <div class="card kpi"><div class="kpi-label">净风险变化</div><div class="kpi-val">−2<span class="unit">人</span></div><div class="kpi-meta">下调多于上调 · 风险趋稳</div></div>
           <div class="card kpi k-amber"><div class="kpi-label">待核实转入</div><div class="kpi-val">43<span class="unit">人</span></div><div class="kpi-meta">新增入库未定级</div></div>
-          <div class="card kpi k-slate"><div class="kpi-label">审批平均时长</div><div class="kpi-val">1.8<span class="unit">天</span></div><div class="kpi-meta">时限 3—7 天</div></div>
+          <div class="card kpi k-slate"><div class="kpi-label">待知会属地</div><div class="kpi-val" id="kpiWaitVal">0<span class="unit">条</span></div><div class="kpi-meta">历史变动已全部知会</div></div>
         </div>
 
         <div class="split-64 mb10">
           <div class="card">
             <div class="card-hd">
-              <div class="card-title">近 12 个月等级升降 <span class="sub">按审批通过时间</span></div>
+              <div class="card-title">近 12 个月等级升降 <span class="sub">按登记生效时间</span></div>
               <div class="right"><div class="trend-legend"><span><i class="sq" style="background:#d92d20"></i>上调</span><span><i class="sq" style="background:#1f8a53"></i>下调</span></div></div>
             </div>
             <div class="card-bd" style="padding:10px 14px 6px">
@@ -647,7 +647,7 @@
 
         <div class="split-64 mb10">
           <div class="card">
-            <div class="card-hd"><div class="card-title">高风险新增来源 <span class="sub">本月 19 人上调构成 · 全部附评估或审批材料</span></div></div>
+            <div class="card-hd"><div class="card-title">高风险新增来源 <span class="sub">本月 22 人上调构成 · 全部附评估或定级材料</span></div></div>
             <div class="card-bd cat-wide" style="padding:10px 16px 12px">
               <div id="hiSrcCat"></div>
             </div>
@@ -665,12 +665,12 @@
 
         <div class="split-46">
           <div class="card c-lvlchg">
-            <div class="card-hd"><div class="card-title">等级调整明细 <span class="sub">与审批台账「待我审批」同源 · 待审批优先</span></div>
+            <div class="card-hd"><div class="card-title">等级变动明细 <span class="sub">与「等级变动」台账同源 · 按登记时间倒序</span></div>
               <div class="right"><a class="btn btn-sm btn-ghost" href="risk.html">变动台账 ›</a></div>
             </div>
             <div class="card-bd flush">
               <table class="tb compact mini-tb">
-                <thead><tr><th>人员 / 属地</th><th>申请部门 · 时间</th><th class="c">等级变化</th><th>调整依据</th><th class="c">状态</th></tr></thead>
+                <thead><tr><th>人员 / 属地</th><th>来源部门 · 时间</th><th class="c">等级变化</th><th>定级依据</th><th class="c">知会</th></tr></thead>
                 <tbody id="lvlChgBody"></tbody>
               </table>
             </div>
@@ -684,7 +684,7 @@
               <div class="grid g3" style="gap:8px">
                 <div class="mini-stat"><div class="v">89.5<span style="font-size:10px;color:var(--t3)">%</span></div><div class="l">上调后首访完成</div></div>
                 <div class="mini-stat"><div class="v">92.6<span style="font-size:10px;color:var(--t3)">%</span></div><div class="l">下调后频次调整</div></div>
-                <div class="mini-stat"><div class="v">0</div><div class="l">未审批先变更</div></div>
+                <div class="mini-stat"><div class="v" id="waitMini">0</div><div class="l">待知会属地</div></div>
               </div>
               <div id="trackList"></div>
             </div>
@@ -910,7 +910,7 @@
                   <div class="tiny dim" style="margin-bottom:3px">待办清单 · 4 项</div>
                   <div class="li" style="padding:3px 0;font-size:11px"><span class="tag tag-red">超期</span><span style="margin-left:6px">双在册确认 9 条</span></div>
                   <div class="li" style="padding:3px 0;font-size:11px"><span class="tag tag-orange">待办</span><span style="margin-left:6px">预警待处置 18 条</span></div>
-                  <div class="li" style="padding:3px 0;font-size:11px"><span class="tag tag-blue">审批</span><span style="margin-left:6px">等级调整 5 条</span></div>
+                  <div class="li" style="padding:3px 0;font-size:11px"><span class="tag tag-blue">变动</span><span style="margin-left:6px">等级变动 46 条</span></div>
                   <div class="li" style="padding:3px 0;font-size:11px"><span class="tag tag-amber">需督办</span><span style="margin-left:6px">未零报告 1 个</span></div>
                 </div>
               </div>
