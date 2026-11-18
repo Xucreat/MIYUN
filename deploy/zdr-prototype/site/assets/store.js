@@ -101,8 +101,13 @@ window.STORE = (function () {
   function emit() { listeners.forEach(fn => { try { fn(state); } catch (e) { console.error(e); } }); }
   function commit() { save(); emit(); }
 
-  /* ---- 角色 ---- */
-  function role() { return D.ROLES[state.role] || D.ROLES.admin; }
+  /* ---- 角色 ----
+     live 模式（B5）下身份由服务端 /api/me 决定，优先于演示角色：
+     切换演示角色只在 mock 模式有意义，否则「前端说是区领导、后端按 R2 出数」两套口径打架。 */
+  function role() {
+    if (D.ROLES.live) return D.ROLES.live;
+    return D.ROLES[state.role] || D.ROLES.admin;
+  }
   function setRole(key) {
     if (!D.ROLES[key]) return;
     state.role = key;
@@ -113,6 +118,10 @@ window.STORE = (function () {
   }
   function logout() { state.loggedIn = false; commit(); }
   function can(perm) {
+    /* live：权限位来自服务端 role_perm（只存允许项，fail-closed），
+       不再叠加前端权限矩阵 —— 两份矩阵同时生效必然出现「前端能点、后端 403」 */
+    const r = role();
+    if (r.live) return !!(r.can || {})[perm];
     /* 权限矩阵覆盖优先（on=允许 / half=受限需审批 / off=禁止）：
        账号与角色页改了矩阵必须真实生效，否则「配置页关了、业务页还能点」两处口径打架 */
     const ov = (sysState().rolePerms[state.role] || {})[perm];
@@ -141,7 +150,13 @@ window.STORE = (function () {
   function now() {
     const d = new Date();
     const p = n => String(n).padStart(2, '0');
-    return DEMO_TODAY + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    /* live（B5）：服务端按真实时钟落库，前端就必须跟真实日期走，
+       否则「本地登记 11-10、库里记成 11-18」两条时间轴并存，台账会看起来像串了年份。
+       mock 仍钉在演示基准日 2026-11-10，保证 46 条历史变动与档案时间线对得上。 */
+    const day = (window.API && API.live())
+      ? (d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()))
+      : DEMO_TODAY;
+    return day + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
   function audit(act, detail, target, by) {
     state.audit.unshift({
@@ -200,6 +215,8 @@ window.STORE = (function () {
     state.alerts[id] = Object.assign({}, state.alerts[id] || {}, { status, note: note || '', at: now(), by: role().user });
     audit('预警处置', '「' + (a ? a.rule : id) + '」' + status + (note ? '：' + note : ''), id);
     commit();
+    /* B5：live 模式下同步落库（本地先行，失败只提示不阻断演示） */
+    if (window.API) API.fire(API.disposeAlert(id, status, note), '预警处置');
   }
   /* 转派：只改接收责任人，不改变处置状态（转派不等于已处置，记录仍留在待办列表） */
   function transferAlert(id, to) {
@@ -209,6 +226,7 @@ window.STORE = (function () {
     });
     audit('预警转派', '「' + (a ? a.rule : id) + '」' + (a ? a.who : '') + ' 转派至 ' + to, id);
     commit();
+    if (window.API) API.fire(API.transferAlert(id, to), '预警转派');
   }
   function alertStats() {
     const list = alerts();
@@ -221,7 +239,17 @@ window.STORE = (function () {
      台账 = 本次会话新登记（newChanges，在前）+ data.js 的 46 条历史变动（CHG_FULL）。
      字段与 CHG_FULL 完全一致，故所有消费方（档案、看板、导出、月报）可同源读取。 */
   function changes() {
-    return (state.newChanges || []).concat(D.CHG_FULL);
+    const local = state.newChanges || [];
+    /* live：本地是「乐观行」，服务端台账才是权威。同一个人、同一目标等级、同一天
+       已经在服务端台账里出现时，本地行就不再展示 —— 否则登记一次刷新一下就变两条
+       （服务端 id 是 max+1，本地是 2xx 序号，两者天然对不上，只能按业务键去重）。 */
+    if (window.API && API.live() && local.length) {
+      const seen = {};
+      D.CHG_FULL.forEach(c => { seen[(c.personId || '') + '|' + c.to + '|' + String(c.date).slice(0, 5)] = 1; });
+      const keep = local.filter(c => !seen[(c.personId || '') + '|' + c.to + '|' + String(c.date).slice(0, 5)]);
+      return keep.concat(D.CHG_FULL);
+    }
+    return local.concat(D.CHG_FULL);
   }
   function change(id) { return changes().find(c => c.id === id); }
   /* 登记一条变动：立刻改写档案等级（部门已定级，无需再走审批），并写审计留痕。
@@ -244,6 +272,14 @@ window.STORE = (function () {
     applyLevel(rec.personId, rec.to, '来源变动登记 ' + r.id, r.approver);
     audit('登记等级变动', r.name + '：' + D.levelOf(r.from).name + ' → ' + D.levelOf(r.to).name, rec.personId);
     commit();
+    /* B5：live 模式下同步落库。定级责任 / 登记人 / 发生时间由服务端生成，
+       这里只传「谁、调到哪一级、为什么」，避免客户端自填可信字段。 */
+    if (window.API && rec.personId) {
+      API.fire(API.createChange({
+        personId: rec.personId, to: rec.to,
+        reason: rec.reason || '评估结论变更', notified: true
+      }), '登记等级变动');
+    }
     return r;
   }
   /* 知会属地（不是审批，只改应答状态）：待知会 → 已知会 */
@@ -279,11 +315,18 @@ window.STORE = (function () {
   }
   function addVisit(personId, rec) {
     const p = D.personById(personId);
+    const day = now().slice(0, 10);
     state.visits[personId] = state.visits[personId] || [];
     state.visits[personId].unshift(Object.assign({ at: now(), by: role().user }, rec));
-    if (p) { p.visitGap = 0; p.lastVisit = '2026-11-10'; p.visitTotal = (p.visitTotal || 0) + 1; }
+    if (p) { p.visitGap = 0; p.lastVisit = day; p.visitTotal = (p.visitTotal || 0) + 1; }
     audit('走访登记', (p ? p.name : '') + '：' + rec.way + '，' + rec.result, p ? p.no : personId);
     commit();
+    /* B5：live 模式落 visit 表（服务端同时回写 person.last_visit 并留痕） */
+    if (window.API) {
+      API.fire(API.createVisit(personId, {
+        way: rec.way, result: rec.result || '情况稳定', date: day
+      }), '走访登记');
+    }
   }
 
   /* ---- 明文查看申请 ---- */

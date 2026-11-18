@@ -95,6 +95,18 @@
   .demo-item.on::after { content: "✓"; color: var(--blue); font-weight: 700; font-size: 10px; margin-left: 2px; }
   .demo-item .acc { font-family: var(--mono); font-size: 11px; color: var(--blue-ink); }
   .demo-item .scope { margin-left: auto; font-size: 10.5px; color: var(--t3); }
+  /* 数据源切换（B5）：本地演示 / 服务端 API 两条链路并存 */
+  .src-block { margin-top: 12px; border: 1px solid var(--line-2); border-radius: 11px; padding: 9px 11px; background: #fff; }
+  .src-block .dt { font-size: 10.5px; color: var(--t3); font-weight: 600; letter-spacing: .3px; display: flex; align-items: center; gap: 5px; }
+  .src-tabs { display: flex; gap: 4px; margin-top: 7px; background: var(--surface-2); border-radius: 9px; padding: 3px; }
+  .src-tab {
+    flex: 1 1 0; height: 27px; border: 0; border-radius: 7px; background: transparent; cursor: pointer;
+    font-size: 12px; font-family: inherit; color: var(--t2); transition: background .15s, color .15s, box-shadow .15s;
+  }
+  .src-tab.on { background: #fff; color: var(--t1); font-weight: 600; box-shadow: var(--sh1); }
+  .src-hint { font-size: 10.5px; color: var(--t3); line-height: 1.6; margin-top: 7px; }
+  .src-hint b { color: var(--t2); font-weight: 600; }
+  .src-hint .dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--green); margin-right: 5px; vertical-align: 1px; }
   .lm-foot { margin-top: auto; padding-top: 22px; }
   .warn-line {
     display: flex; gap: 8px; align-items: flex-start; font-size: 10.5px; color: var(--t3);
@@ -205,6 +217,15 @@
         </div>
       </div>
 
+      <div class="src-block">
+        <div class="dt"><span class="tag tag-blue" style="height:16px;font-size:10px;padding:0 5px">链路</span>数据源</div>
+        <div class="src-tabs">
+          <button type="button" class="src-tab on" data-src="mock">本地演示</button>
+          <button type="button" class="src-tab" data-src="live">服务端 API</button>
+        </div>
+        <div class="src-hint" id="srcHint"></div>
+      </div>
+
       <div class="lm-foot">
         <div class="warn-line">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4v10M12 18.5v.5"/><path d="M10.3 3.2L2.6 17a2 2 0 001.7 3h15.4a2 2 0 001.7-3L13.7 3.2a2 2 0 00-3.4 0z"/></svg>
@@ -220,6 +241,7 @@
 </div>
 
 <script src="assets/data.js"></script>
+<script src="assets/api.js"></script>
 <script src="assets/store.js"></script>
 <script src="assets/ui.js"></script>
 <script>
@@ -235,16 +257,66 @@
     const r = DATA.ROLES[role];
     if (acc) acc.value = r.account + '@my.gov.cn';
   }
+  /* ---------- 数据源：本地演示 / 服务端 API（B5） ----------
+     两个模式共用同一套页面：mock 走 data.js 生成物，live 走 /api 只读快照。
+     服务端身份由账号决定（sys_account + role_perm），所以这里要把演示角色
+     映射到真实账号，否则「区领导」登录进去其实是 R2。 */
+  const ACC_OF = { leader: 'liguodong', admin: 'chenzhiyuan', dept: 'liqiang' };
+  let src = (window.API && API.enabled()) ? 'live' : 'mock';
+  const tabs = Array.prototype.slice.call(document.querySelectorAll('.src-tab'));
+  const hint = document.getElementById('srcHint');
+
+  function paintSrc() {
+    tabs.forEach(t => t.classList.toggle('on', t.dataset.src === src));
+    const st = window.API ? API.status() : null;
+    if (!hint) return;
+    if (src === 'mock') {
+      hint.innerHTML = '<span class="dot" style="background:var(--t4)"></span>data.js 按固定种子生成；写操作只存本会话，<b>不落库</b>。适合离线演示。';
+    } else if (!st) {
+      hint.innerHTML = '未加载 api.js，无法连接服务端。';
+    } else if (st.live) {
+      const u = st.user || {};
+      hint.innerHTML = '<span class="dot"></span>已连接 <b>' + (u.roleKey || '') + ' ' + (u.roleName || '') + ' · ' + (u.name || '') + '</b>'
+        + '<br>快照 ' + String(st.at || '').replace('T', ' ').slice(0, 16) + ' · ' + st.base;
+    } else {
+      hint.innerHTML = '将连接 <b>' + st.base + '</b>，登录后拉取只读快照（34 表 + 3 视图）。'
+        + '<br>需先启动后端：<b>backend/start-db.bat</b> → <b>backend/start-api.bat</b>。';
+    }
+    /* 账号输入框跟着模式走：mock 显示演示账号，live 显示真实账号 */
+    if (acc) acc.value = (src === 'live' ? (ACC_OF[role] || 'chenzhiyuan') : DATA.ROLES[role].account) + '@my.gov.cn';
+  }
+  tabs.forEach(t => { t.onclick = () => { src = t.dataset.src; paintSrc(); }; });
+  paintSrc();
+
   items.forEach(it => {
     it.onclick = () => {
       role = it.dataset.role;
       paint();
+      paintSrc();
     };
   });
   paint();
 
   btn.addEventListener('click', e => {
     e.preventDefault();
+    /* ---- 服务端链路 ---- */
+    if (src === 'live' && window.API) {
+      const account = ACC_OF[role] || 'chenzhiyuan';
+      const label = btn.textContent;
+      btn.disabled = true; btn.textContent = '正在连接服务端…';
+      API.login(account).then(u => {
+        UI.toast.ok('已连接服务端 · ' + u.roleName + ' · ' + u.name + ' · 权限 ' + u.permCount + ' 项');
+        setTimeout(() => { location.href = 'dashboard.html'; }, 460);
+      }).catch(err => {
+        btn.disabled = false; btn.textContent = label;
+        const why = err.code === 'network'
+          ? '服务端不可达（' + API.base() + '），请先启动 backend/start-api.bat'
+          : (err.message || String(err));
+        UI.toast.err('连接失败：' + why);
+      });
+      return;
+    }
+    /* ---- 本地演示链路 ---- */
     STORE.setRole(role);
     const r = DATA.ROLES[role];
     UI.toast.ok('已登录 · ' + r.roleName + ' · 数据范围：' + (r.scope === 'dept' ? '仅' + r.dept : '全区'));

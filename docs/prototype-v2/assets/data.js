@@ -975,6 +975,16 @@ window.DATA = (function () {
     /* 早期变动（CHG_BASE 4 条）没有关联人员，调用方可能传 null */
     if (!person) return { text: '—', masked: false };
     const role = ROLES[roleKey] || ROLES.admin;
+    /* live（服务端身份）：脱敏已经在服务端做过（field_policy 密级矩阵），
+       前端只负责「隐」字段的遮挡与「已脱敏」标记，绝不二次掩码 ——
+       二次掩码会把「任**」再掩成「任**」以外的形状，前端与接口就对不上了。 */
+    if (role.live) {
+      const m = role.fields[fieldName] || 'hide';
+      if (m === 'hide') return { text: '—', masked: true, hidden: true };
+      const raw = person[fieldName];
+      const masked = !!(person.maskedFields && person.maskedFields[fieldName]);
+      return { text: raw == null || raw === '' ? '—' : raw, masked };
+    }
     const mode = role.fields[fieldName] || 'full';
     const raw = {
       name: person.name, idNo: person.idNo, phone: person.phone, addr: person.addr
@@ -1621,6 +1631,156 @@ window.DATA = (function () {
       ] }
   ];
 
+  /* ============================================================
+     17. 服务端快照注入（B5）
+     ------------------------------------------------------------
+     由 assets/api.js 在本文件之后调用。原则与理由：
+     1. **就地替换**：persons / unrated / alerts / CHG_FULL / stats 全部原地改写
+        （length = 0 后重新 push），数组引用不变 —— 页面在脚本解析期就捕获了
+        D.persons 这类引用，换数组会导致一部分页面看到旧数据。
+     2. **同形**：映射出来的人和变动必须和本地生成物字段一致，
+        否则页面里就要写 if (live)，两套口径迟早分裂。
+     3. **可解释的派生字段**：服务端不存 visitGap / age，由 birth、lastVisit 现算；
+        visitTotal 取 visit 表实数（前端原本是随机数，这里换成真值）。
+     ============================================================ */
+  const AS_OF = '2026-11-10';
+  let liveInfo = null;
+
+  function daysBefore(dateStr) {
+    if (!dateStr) return 999;
+    const a = Date.parse(String(dateStr).slice(0, 10) + 'T00:00:00+08:00');
+    const b = Date.parse(AS_OF + 'T00:00:00+08:00');
+    if (!a || isNaN(a)) return 999;
+    return Math.max(0, Math.round((b - a) / 86400000));
+  }
+  function toLivePerson(r) {
+    return {
+      id: r.id, no: r.no, name: r.name, gender: r.gender, birth: r.birth,
+      age: r.birth ? 2026 - Number(String(r.birth).slice(0, 4)) : 0,
+      idNo: r.idNo, phone: r.phone,
+      town: r.town || '待归属', village: r.village || '—', addr: r.addr || '',
+      tags: r.tags || [], level: r.level || 'unknown',
+      dual: !!r.dual, multi: !!r.multi,
+      officer: r.officer || '待指派', officerTitle: r.officerTitle || '',
+      dept: r.dept || '', source: r.source || '', status: r.status || '在管',
+      lastVisit: r.lastVisit || null, visitGap: daysBefore(r.lastVisit),
+      visitTotal: r.visitTotal == null ? 0 : r.visitTotal,
+      since: r.since || '', watch: !!r.watch, noBasis: !!r.noBasis,
+      maskedFields: r.maskedFields || {}
+    };
+  }
+  function toLiveChange(r) {
+    return {
+      id: r.id, name: r.name, town: r.town || '', dept: r.dept || '',
+      personId: r.personId || '', date: String(r.at || '').slice(5, 10),
+      from: r.from, to: r.to, reason: r.reason || '',
+      level: r.rule || '', approver: r.approver || '', at: r.at || '',
+      status: r.status || '已生效', notified: !!r.notified,
+      maskedFields: r.maskedFields || {}
+    };
+  }
+
+  /* 服务端身份 → 前端角色对象（ROLES.live），页面里 field()/can()/scope 全靠它 */
+  const LIVE_FIELD = { '明': 'full', '掩': 'mask', '申': 'mask', '隐': 'hide', '本部门': 'full', '辖区明': 'full' };
+  function registerLiveRole(u) {
+    const kind = (u.scope && u.scope.kind) || 'all';
+    const has = c => (u.perms || []).indexOf(c) > -1;
+    const fields = {};
+    Object.keys(u.fields || {}).forEach(k => { fields[k] = LIVE_FIELD[u.fields[k]] || 'hide'; });
+    ROLES.live = {
+      key: 'live', account: u.account, roleName: u.roleName, user: u.name,
+      title: (u.roleKey ? u.roleKey + ' · ' : '') + (u.unit || ''),
+      avatar: String(u.name || '籍').slice(0, 1),
+      scope: kind === 'dept' ? 'dept' : (kind === 'town' ? 'town' : (kind === 'all' ? 'all' : 'none')),
+      dept: kind === 'dept' ? u.scope.value : undefined,
+      town: kind === 'town' ? u.scope.value : undefined,
+      scopeText: kind === 'all' ? '全区（服务端判定）'
+        : kind === 'dept' ? '仅本部门 · ' + u.scope.value
+          : kind === 'town' ? '仅本辖区 · ' + u.scope.value
+            : '无业务数据权限',
+      fields, can: {
+        /* 只映射页面真正用到的 7 个开关；approve 在 D4 后已无审批职能，恒 false */
+        approve: false,
+        export: has('export:masked'),
+        exportPlain: has('export:plain'),
+        edit: has('person:update'),
+        import: has('import:execute'),
+        disclosure: has('person:idcard:plain'),
+        config: has('sys:role:manage') || has('sys:perm:assign')
+      },
+      perms: u.perms || [],
+      live: true
+    };
+  }
+
+  function hydrate(snap) {
+    if (!snap) return false;
+    liveInfo = { at: snap.at, base: snap.base, user: snap.user, district: snap.district };
+
+    /* 1) 人员台账：服务端 persons 含未定级，按 unrated 标记拆回两个数组 */
+    if (snap.persons && snap.persons.length) {
+      const rated = [], unr = [];
+      snap.persons.forEach(r => (r.unrated ? unr : rated).push(toLivePerson(r)));
+      persons.length = 0; rated.forEach(p => persons.push(p));
+      unrated.length = 0; unr.forEach(p => unrated.push(p));
+    }
+
+    /* 2) 汇总口径：服务端是权威；monthDelta 服务端没给，按加减现算 */
+    if (snap.stats) {
+      Object.keys(snap.stats).forEach(k => {
+        if (k in stats && typeof snap.stats[k] === 'number') stats[k] = snap.stats[k];
+      });
+      if (typeof snap.stats.monthAdd === 'number' && typeof snap.stats.monthSub === 'number') {
+        stats.monthDelta = snap.stats.monthAdd - snap.stats.monthSub;
+      }
+    }
+
+    /* 3) 等级变动台账：整表替换（服务端是权威，46 条同源同一批 id） */
+    if (snap.changes && snap.changes.length) {
+      CHG_FULL.length = 0;
+      snap.changes.forEach(r => CHG_FULL.push(toLiveChange(r)));
+    }
+
+    /* 4) 预警：本地富文案当骨架、服务端状态当权威。
+         理由：B1 的 alert 表没存「鼓楼街道综治中心」这类责任单位原文
+         （dept_id 只映射到四个行业部门，映射不上就是 NULL），整表替换会掉文案。
+         故按 id 合并：状态 / 对象 / 责任人以服务端为准，描述文案保留本地。 */
+    if (snap.alerts && snap.alerts.length) {
+      const byId = {};
+      snap.alerts.forEach(a => { byId[a.id] = a; });
+      alerts.forEach(a => {
+        const s = byId[a.id];
+        if (!s) return;
+        if (s.status) a.status = s.status;
+        if (s.personId) a.personId = s.personId;
+        if (s.owner) a.owner = s.owner;
+        if (s.who) a.who = s.who;      // 服务端已按角色掩码，R1 这里是「任**」
+        delete byId[a.id];
+      });
+      Object.keys(byId).forEach(k => {
+        const s = byId[k];
+        alerts.push({
+          id: s.id, rule: s.rule, urgency: s.urgency, who: s.who, town: s.town,
+          levelName: s.levelName, metric: s.metric, dept: s.dept || '', owner: s.owner,
+          desc: s.desc, created: s.created, status: s.status, personId: s.personId || ''
+        });
+      });
+    }
+
+    /* 5) 身份：注册成可切换角色，STORE.role() 在 live 模式下优先返回它 */
+    if (snap.user) registerLiveRole(snap.user);
+
+    meta.asOf = snap.at ? String(snap.at).slice(0, 16).replace('T', ' ') : meta.asOf;
+    return true;
+  }
+
+  /* 全域元信息：hydrate 会改写 asOf（服务端快照时间），所以必须是可变的同一个对象 */
+  const meta = {
+    district: '北京市密云区',
+    asOf: '2026-11-10 09:45',
+    districtDays: '2026-11-10'
+  };
+
   /* 统计文本格式化 */
   function fmt(n) { return Number(n || 0).toLocaleString('en-US'); }
 
@@ -1641,10 +1801,8 @@ window.DATA = (function () {
     SYS_ROLE_PERMS, SYS_FIELDS, SYS_MASK, MASK_MODES, SYS_ACCOUNTS,
     SYS_DICTS, SYS_DICT_OF, SYS_PARAMS, SYS_ROUTES, SYS_TREND, SYS_EVENTS,
     maskId, maskName, maskPhone, dateBefore, dateRel, mulberry32,
-    meta: {
-      district: '北京市密云区',
-      asOf: '2026-11-10 09:45',
-      districtDays: '2026-11-10'
-    }
+    hydrate,                                           // B5：服务端快照注入
+    live: () => liveInfo,                              // B5：当前注入的来源（null = 本地演示）
+    meta
   };
 })();

@@ -137,7 +137,27 @@
       ${subnav}
       <div class="top-search" id="tbSearch">${svg('search')}<input id="tbSearchInput" placeholder="搜索姓名 / 身份证后四位" autocomplete="off" spellcheck="false"><kbd>/</kbd></div>
       <a class="tag tag-blue" id="tbImp" href="persons.html?quick=imported" hidden style="cursor:pointer;text-decoration:none" title="本次会话导入的人员已并入台账，点击查看"></a>
+      ${srcTag()}
       <div class="top-acts" id="topActs"></div>`;
+  }
+
+  /* ---- 数据源标识（B5）----
+     演示时最容易被问「这数是库里的还是自己造的」，所以必须常驻可见、且能点开看来源。
+     live 绿标 = 服务端快照已注入 DOM 数据源；橙标 = 开了开关但没连上，已回落本地。 */
+  function srcTag() {
+    const st = (window.API && API.status) ? API.status() : null;
+    if (!st) return '';
+    if (st.live) {
+      const u = st.user || {};
+      return `<a class="tag tag-green" id="tbSrc" href="javascript:;" style="cursor:pointer;text-decoration:none"
+        title="数据源：服务端 API（点击查看来源与同步时间）">服务端 · ${u.roleKey || ''} ${u.name || ''}</a>`;
+    }
+    if (st.enabled) {
+      return `<a class="tag tag-orange" id="tbSrc" href="javascript:;" style="cursor:pointer;text-decoration:none"
+        title="服务端未连接，已回落本地演示数据（点击查看原因）">本地演示 · 服务端未连接</a>`;
+    }
+    return `<a class="tag tag-blue" id="tbSrc" href="javascript:;" style="cursor:pointer;text-decoration:none"
+      title="数据源：本地演示数据（点击查看详情）">本地演示</a>`;
   }
 
   /* ---- 页头操作按钮 → 顶栏；页头标题 / 说明移除 ---- */
@@ -167,6 +187,54 @@
     topActs.classList.toggle('has', on);
   };
   window.showTopActs(null);
+
+  /* ---- 数据源详情（B5）：点顶栏标识看「这数从哪来」 ---- */
+  (function () {
+    const chip = document.getElementById('tbSrc');
+    if (!chip || !window.API) return;
+    chip.onclick = () => {
+      const st = API.status();
+      const row = (k, v) => `<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--line-1)">
+        <div style="flex:0 0 84px;color:var(--t3);font-size:11.5px">${esc(k)}</div>
+        <div style="flex:1;font-size:12px;line-height:1.6">${esc(v)}</div></div>`;
+      const u = st.user;
+      const body = '<div style="margin-top:-4px">' +
+        row('数据源', st.live ? '服务端 API（只读快照已注入页面数据源）'
+          : (st.enabled ? '本地演示（已请求服务端但未连上，自动回落）' : '本地演示数据（data.js 按固定种子生成）')) +
+        row('接口地址', st.base) +
+        row('快照时间', st.at ? String(st.at).replace('T', ' ').slice(0, 19) : '—') +
+        row('当前身份', u ? (u.roleKey + ' ' + u.roleName + ' · ' + u.name + '（' + (u.unit || '—') + '）')
+          : '演示角色（登录页切换，前端判定）') +
+        row('写入去向', st.live ? '本地先行 + 服务端留痕（等级变动 / 走访 / 预警处置）' : '仅本地会话（sessionStorage）') +
+        (st.error ? row('最近错误', st.error) : '') +
+        (st.live ? '' : row('切到服务端', '登录页选择「服务端」数据源，或地址栏加 ?live=1（需先启动 backend/start-db.bat 与 start-api.bat）')) +
+        '</div>';
+      UI.modal({
+        title: '数据源',
+        sub: '两条链路并存：本地演示数据用于离线演示，服务端数据用于真实链路验证',
+        width: 600,
+        okText: st.live ? '重新同步快照' : null,
+        cancelText: '关闭',
+        body,
+        footLeft: st.live
+          ? '<a href="javascript:;" id="srcBack" style="font-size:12px;color:var(--t3)">切回本地演示</a>'
+          : '',
+        onMount: dlg => {
+          const back = dlg.querySelector('#srcBack');
+          if (back) back.onclick = () => {
+            API.logout();
+            UI.toast.ok('已切回本地演示数据');
+            setTimeout(() => location.href = 'dashboard.html', 400);
+          };
+        },
+        onOk: () => {
+          UI.toast('正在同步服务端快照…');
+          API.sync().then(() => location.reload()).catch(err => UI.toast.err('同步失败：' + (err.message || err)));
+          return false;
+        }
+      });
+    };
+  })();
 
   /* ============================================================
      交互补全
@@ -239,7 +307,16 @@
 
   /* ---- 角色切换 / 帮助 ---- */
   function roleSwitchDialog() {
-    const list = Object.values(DATA.ROLES);
+    /* 服务端数据源下身份由登录账号（sys_account + role_perm）决定，
+       前端再切演示角色只会让「界面说是区领导、接口按 R2 出数」两套口径打架，
+       所以这里直接转到「数据源」弹窗，让使用者看到真实身份与切换方式。 */
+    if (window.API && API.live()) {
+      UI.toast('当前为服务端数据源，身份由登录账号决定');
+      const chip = document.getElementById('tbSrc');
+      if (chip) chip.click();
+      return;
+    }
+    const list = Object.values(DATA.ROLES).filter(r => !r.live);
     const cur = STORE.role().key;
     UI.modal({
       title: '切换演示角色',

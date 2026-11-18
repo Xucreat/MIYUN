@@ -17,6 +17,9 @@ desktop.ini
 docs/prototype-v2/.probe/
 deploy/zdr-prototype/logs/
 
+# B5 服务端快照（含人员明细，按需用 backend/tools/dump_snapshot.py 生成，不入库）
+docs/prototype-v2/tools/snapshot-*.json
+
 # 构建/打包产物（离线包、内嵌 runtime、压缩包，体积过大不入库）
 output/
 *.7z
